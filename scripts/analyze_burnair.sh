@@ -71,9 +71,20 @@ fi
 if [ "$APK" = "1" ]; then
   log "AUFGABE B: APK-Analyse"
   shopt -s nullglob
+  # .xapk (APKPure-Buendel) zuerst auspacken -> innere base.apk + split-APKs
+  for xapk in burnair_apk/*.xapk; do
+    xd="$OUT/xapk_$(basename "$xapk" .xapk)"
+    echo "[*] .xapk entpacken: $xapk -> $xd"
+    rm -rf "$xd"; mkdir -p "$xd"
+    unzip -qo "$xapk" -d "$xd" 2>/dev/null
+    echo "    enthaltene APKs/OBB:"; ls "$xd"/*.apk "$xd"/*.obb 2>/dev/null | sed 's#^#      #'
+    # base.apk (oder erstes .apk) zur Analyse in den Drop-Ordner spiegeln
+    bapk="$(ls "$xd"/base.apk 2>/dev/null || ls "$xd"/*.apk 2>/dev/null | head -1)"
+    [ -n "$bapk" ] && cp "$bapk" "burnair_apk/_from_xapk_$(basename "$xapk" .xapk).apk"
+  done
   apks=( burnair_apk/*.apk )
   if [ ${#apks[@]} -eq 0 ]; then
-    echo "[i] Keine *.apk unter ./burnair_apk/ gefunden — Aufgabe B uebersprungen."
+    echo "[i] Keine *.apk/*.xapk unter ./burnair_apk/ gefunden — Aufgabe B uebersprungen."
   fi
   for apk in "${apks[@]}"; do
     base="$(basename "$apk" .apk)"
@@ -81,6 +92,15 @@ if [ "$APK" = "1" ]; then
     echo "[*] $apk -> $dir"
     rm -rf "$dir"; mkdir -p "$dir"
     unzip -qo "$apk" -d "$dir" 2>/dev/null
+
+    echo "  --- Signatur (Echtheitskontrolle) ---"
+    if command -v apksigner >/dev/null 2>&1; then
+      apksigner verify --print-certs "$apk" 2>/dev/null | grep -iE 'signer.*(SHA-256|certificate DN)' || echo "    (apksigner: keine v2/v3-Signatur lesbar)"
+    elif command -v keytool >/dev/null 2>&1; then
+      keytool -printcert -jarfile "$apk" 2>/dev/null | grep -iE 'SHA256|Owner' || echo "    (keytool: keine Signatur lesbar)"
+    else
+      echo "    (weder apksigner noch keytool vorhanden — Signatur manuell pruefen)"
+    fi
 
     echo "  --- Framework-Marker ---"
     [ -n "$(ls "$dir"/lib/*/libflutter.so 2>/dev/null)" ] && echo "    Flutter: libflutter.so gefunden"
