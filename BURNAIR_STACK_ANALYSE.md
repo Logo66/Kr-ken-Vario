@@ -3,214 +3,198 @@
 **Zweck:** Tech-Benchmarking als Referenz für *Flight Buddy KI*. Reines Beobachten/Dokumentieren —
 kein Auth-Umgehen, kein Tile-/Daten-Abgriff, keine Keys/Secrets, kein Re-Hosting.
 
-**Datum:** 2026-06-01
-**Analyst-Umgebung:** Claude Code (Remote-Sandbox)
+**Datum:** 2026-06-02
+**Analysiertes Artefakt (Aufgabe B):** `burnair Map 3.0.57` (APKPure-`.xapk`),
+Package `com.burnair.burnairmap`, versionCode `277`.
+SHA-256 (`.xapk`): `86c2b985a5627bdf36764bbaa4a8f571c551c385ceda6f017fa255d865f26636`.
+
+**Belegführung:** „**[APK]**" = direkt aus dem entpackten Artefakt verifiziert ·
+„**[Vermutung]**" = plausibel hergeleitet, nicht bewiesen · „**[Sekundär]**" = öffentliche Quelle.
 
 ---
 
-## ⚠️ Wichtiger Vorbehalt zur Datenlage (bitte zuerst lesen)
+## 0. Datenlage & Einschränkung
 
-Die in **Aufgabe A** und **Aufgabe B** geforderte *direkte* Untersuchung war in dieser
-Ausführungsumgebung **nicht möglich**:
-
-| Versuch | Ergebnis | Beleg |
+| Bereich | Status | Grund |
 |---|---|---|
-| `curl -I https://burnair.cloud/` | `HTTP/2 403` | Header `x-deny-reason: host_not_allowed` |
-| `curl -I https://burnair.ch/` , `https://www.burnair.ch/` | `HTTP 403` | `x-deny-reason: host_not_allowed` |
-| `curl -I https://map.burnair.cloud/` | blockiert | (über Fetch-Proxy `403`) |
-| `WebFetch https://burnair.cloud/` , `…/map`, Play-Store-Seite | `HTTP 403 Forbidden` | Fetch-Proxy-Allowlist |
-| Gegenprobe `https://github.com/` | `HTTP 200` | erreichbar |
-| Gegenprobe `https://example.com/` | `HTTP 403 host_not_allowed` | Allowlist greift |
-| APK-Ordner `./burnair_apk/` | **nicht vorhanden** | `ls` im Repo-Root |
+| **Aufgabe B (App/APK)** | ✅ **direkt analysiert** | `.xapk` lokal entpackt & untersucht |
+| **Aufgabe A (Web-Map live)** | ⚠️ **nur indirekt** | Netz-Policy sperrt `burnair.*` (`HTTP 403 host_not_allowed`); Roh-Bundles/Header nicht ladbar |
 
-**Konsequenz:** Die Netzwerk-Policy dieser Umgebung erlaubt nur eine Allowlist (u. a. GitHub).
-Alle `burnair.*`-Hosts sind gesperrt → es konnten **keine** Roh-HTML-/JS-/CSS-Bundles geladen,
-**keine** Live-HTTP-Header (CSP/Cache-Control/ETag) inspiziert und **keine** APK entpackt werden.
+Die Web-Map-Aussagen unten stützen sich daher auf **Indizien aus der APK** (referenzierte Hosts,
+WebView-Konfiguration) plus Sekundärquellen — **nicht** auf direkt geladene JS/CSS-Bundles oder
+Live-HTTP-Header. Die Identität der Web-Karten-Engine (MapLibre o. ä.) bleibt **Vermutung**.
 
-Alles unten ist daher entweder
-(a) aus **öffentlichen Sekundärquellen** (App-Stores, Hilfecenter, Web-Suche) belegt, oder
-(b) als **Vermutung** gekennzeichnet.
-Die direkte technische Verifikation steht noch aus → siehe *Abschnitt 5 (Offene Fragen)* und
-*Anhang: So vervollständigen*.
+Tooling-Hinweis: Im Container fehlten `apksigner`/`aapt`; Klassennamen sind per **R8/ProGuard
+verschleiert** (Library-Paketnamen teils gestrippt). Befunde stützen sich daher auf erhaltene
+Framework-Klassen, Strings, Properties-Dateien und Ressourcen.
 
 ---
 
-## 1. Web-Stack (Aufgabe A)
+## 1. App-Stack (Aufgabe B) — **verifiziert**
 
-**Status: NICHT direkt verifiziert** (Hosts blockiert, s. o.). Sekundärquellen:
+### Framework-Klassifikation: **Native Android (Kotlin)** — kein Cross-Platform-Wrapper
+- **Kein `lib/`-Verzeichnis** in der base-APK → **kein nativer Code** → **kein Flutter**
+  (kein `libflutter.so`/`libapp.so`), **kein React Native** (kein `libhermes.so`/
+  `index.android.bundle`). **[APK]**
+- **Kein `assets/www/`**, keine `capacitor.config`/`config.xml` → **kein Capacitor/Cordova**. **[APK]**
+- Split-APKs im `.xapk` sind **nur Sprachen + `hdpi`** — **keine ABI-Splits** (`arm64_v8a`/
+  `armeabi_v7a`), konsistent mit „kein nativer Code". **[APK]**
+- **Kotlin 1.9.22**, Gradle 8.0, `KotlinAndroidPluginWrapper`; `kotlin-tooling-metadata.json`
+  zeigt **`isHmppEnabled: true`** → Hinweis auf **Kotlin Multiplatform (KMP)** (geteilte Logik
+  Android/iOS). **[APK]** (KMP-Nutzung selbst: **[Vermutung]**, gestützt durch HMPP-Flag + Ktor.)
+- **UI:** **kein Jetpack Compose** gefunden → klassische **Android Views/XML** (135 Layout-XMLs,
+  667 XML-Ressourcen gesamt). **[APK]**
 
-- Es existiert eine reine **Web-Version der Karte** unter `map.burnair.cloud` ("**burnair Map v3**"),
-  die laut Hersteller **ohne App-Installation** im Browser läuft → spricht für eine
-  **PWA / Single-Page-Web-App**.
-  *Beleg:* Suchtreffer-Titel "burnair Map v3 — `https://map.burnair.cloud/`" sowie
-  Produkttext "Website-Version, die keine App-Installation erfordert".
-- Marketing-Aussage: "**komplett neue Maps-Engine, schneller und flüssiger**" (Version v3).
-  *Beleg:* Produktbeschreibung burnair Map (App-Store-/Web-Suche).
+### Eingebettete Bibliotheken **[APK]**
+| Zweck | Bibliothek | Beleg |
+|---|---|---|
+| HTTP (nativ) | **OkHttp** | `okhttp3/`-Verzeichnis, `mockwebserver` |
+| HTTP (KMP) | **Ktor** (Client) | `io.ktor`-Strings, „Binary compatibility for Ktor" |
+| Persistenz | **Room** über **SQLite** | `androidx/room`, `RoomDatabase`, `SupportSQLite`, DB-Name `burnair.db` |
+| Serialisierung/Async | **kotlinx.serialization**, **kotlinx.coroutines** | 2185× `kotlinx`-Strings, `DebugProbesKt.bin` |
+| Dependency Injection | **Dagger** | `dagger`-Strings |
+| Push & Analytics | **Firebase** (Cloud Messaging 17.1, Measurement/Analytics, DataTransport 18.1.7) | `firebase-*.properties`, `c2dm` |
+| Google-Basis | **Play Services** base 18.0.1 / basement / cloud-messaging / tasks | `play-services-*.properties` |
 
-**Konkrete Befunde zu Aufgabe A1–A5 (Engine, Bundler, Tiles, Header):**
-→ **konnten nicht erhoben werden** (kein Asset-Zugriff). Keine belastbare Aussage zu
-mapbox-gl / maplibre-gl / leaflet / openlayers, zu webpack/vite/parcel oder zu
-CSP/Cache-Control/ETag möglich.
+### Karten-Rendering der App: **WebView-gehostete Web-Karte** — *starkes Indiz*
+- **Keine native Karten-Lib**: keine `.so`, keine `osmdroid`/`com.google.android.gms.maps`/
+  `mapbox`/`maplibre`-Klassen auffindbar (auch nicht obfuskiert sichtbar). **[APK]**
+- **WebView aktiv genutzt** und so konfiguriert, wie man eine **interaktive Web-Karte** einbettet:
+  `WebView`/`WebViewClient`, `loadUrl`, `setJavaScriptEnabled`, **`setDomStorageEnabled`**,
+  **`setGeolocationEnabled`** + **`onGeolocationPermissionsShowPrompt`**, **`addJavascriptInterface`**
+  / `@JavascriptInterface`, `evaluateJavascript`. **[APK]**
+- **Native↔JS-Bridge-Callbacks** unverschleiert: `LiveTrackingCallback`,
+  `LiveTrackingVisibilityCallback`, `LiveTrackingTypeCallback` → die Web-Karte ruft native
+  Funktionen (Tracking) zurück. **[APK]**
+- Referenzierter Karten-Host `map.burnair.cloud` / `dev-map.burnair.cloud` (s. u.). **[APK]**
 
-**Vermutung (NICHT belegt):** Für eine GPU-beschleunigte Vektor-Karte mit "neuer Engine" und
-Schweiz-Fokus ist **MapLibre GL JS** (OSS-Fork von mapbox-gl) ein plausibler Kandidat, ggf. mit
-**swisstopo**-Vektortiles (z. B. via MapTiler). Das ist eine **Hypothese**, kein Fund.
+> **Schlussfolgerung:** Die App rendert die Karte **sehr wahrscheinlich** über einen WebView, der
+> die Web-Karte (`map.burnair.cloud`) lädt — „**eine Karten-Engine für Web + App**". Geolocation +
+> DOM-Storage + JS-Interface sind das typische Setup dafür. **[APK-Indizien; nicht 100 % bewiesen,
+> da Klassen verschleiert.]** Es sind **keine** Web-Map-Assets in der APK gebündelt → die Karte wird
+> **remote** geladen, nicht offline mitgeliefert. **[APK]**
+
+### In-Flight-Sensorik / Konnektivität **[APK]**
+- **Bluetooth (BLE)**: `BluetoothManager`, `BluetoothGatt`, `BluetoothButton`, `*BluetoothRequested`.
+- **NMEA**-Parsing (`nMea`-Strings, 10×) → Empfang von GPS/Vario-Sätzen.
+- **XC Tracer**: `XCTRAC`-Strings + eigene Permission `com.burnair.permission.XTRACER_TRACKING_PERMISSION`.
+
+### Manifest-Eckdaten **[APK]** (`.xapk/manifest.json` + AndroidManifest)
+- `versionName 3.0.57`, `versionCode 277`, **minSdk 26** (Android 8), **targetSdk 35** (Android 15).
+- Permissions u. a.: `ACCESS_FINE/COARSE/BACKGROUND_LOCATION`, **`FOREGROUND_SERVICE_LOCATION`**
+  (Hintergrund-Live-Tracking), `CAMERA`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`,
+  `WAKE_LOCK`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, c2dm `RECEIVE` (FCM), eigene
+  `BETA_URL`- und `XTRACER_TRACKING`-Permissions.
+- **Signatur:** v2/v3-Signaturblock („APK Sig Block 42") vorhanden; **volle Zertifikatsprüfung
+  mangels `apksigner` nicht durchgeführt** — Echtheit über Paketstruktur/Strings plausibel,
+  aber nicht kryptografisch bestätigt. **[APK]**
 
 ---
 
-## 2. App-Stack(s) (Aufgabe B)
+## 2. Web-Stack (Aufgabe A) — **indirekt**
 
-**Status: NICHT direkt verifiziert** (keine APK im Repo, Stores nicht ladbar). Sekundärquellen:
+**Nicht direkt verifiziert** (Hosts per Netz-Policy gesperrt). Indizien aus der APK + Sekundärquellen:
 
-### burnair Map (Karten-App)
-- **Android-Package:** `com.burnair.burnairmap`; **iOS** App-Store-ID `1495320175`.
-- **Version** (öffentliche APK-Mirrors): Bereich **v1.16.x** (genannt u. a. 1.16.4 / 1.16.7).
-- **APK-Downloadgröße:** ~**7,32 MB**; Drittquelle nennt "**24 libraries**".
-  *Beleg:* APK-Mirror/AppBrain-Suchtreffer. **Hinweis:** Diese Zahlen stammen von
-  Drittanbieter-Indexen und sind **nicht** am Original-Artefakt verifiziert.
-
-> **Framework-Marker (Flutter / React Native / Capacitor / nativ):** **unbestimmt.**
-> Ohne entpackte APK ließen sich `libflutter.so`/`libapp.so` (Flutter),
-> `index.android.bundle`/`libhermes.so` (React Native) oder `assets/www/` (Capacitor/Cordova)
-> **nicht** prüfen.
->
-> *Vermutung (schwach, NICHT belegt):* Eine Downloadgröße von ~7 MB ist für eine
-> vollwertige Flutter-App eher klein; das **könnte** auf eine schlanke native oder
-> WebView-/PWA-Wrapper-Architektur hindeuten — aber die 7,32 MB stammen aus einer
-> unbestätigten Drittquelle und können komprimiert/teil­geladen sein. **Keine Schlussfolgerung.**
-
-### burnair Go (In-Flight-Navigation/Tracking)
-- **iOS** App-Store-ID `1666354109`; eigenständige App neben burnair Map.
-- Belegte Eigenschaften (Hersteller-/Hilfecenter-Texte):
-  - "**GPS-genaue Zeitstempel** für saubere Tracks ohne Drift"
-  - "**Regenradar** … schneller, präziser, weniger Datenverbrauch"
-  - "**burnair Live Tracking**" standardmäßig integriert
-  - **Bluetooth-Kopplung** mit **XC Tracer**; Empfang von **FANET**-Piloten auf der Karte
-  - Strategie-Aussage: Varios werden **bewusst nicht** an burnair Go angebunden, da
-    Smartphone-GPS als ausreichend genau gilt.
-  *Beleg:* burnair Help Center "Live Tracking mit der burnair Go App" und
-  "… via Bluetooth verbinden"; App-Store-Beschreibung.
+- Es existiert eine **Web-Karte v3** unter `map.burnair.cloud`, die die App im WebView referenziert;
+  laut Hersteller läuft sie auch **ohne App-Installation** im Browser → **PWA/SPA**. **[APK]/[Sekundär]**
+- Marketing: „**komplett neue Maps-Engine, schneller und flüssiger**". **[Sekundär]**
+- **Engine/Bundler/Tile-Format der Web-Map:** **unbestätigt** — JS/CSS-Bundles nicht ladbar,
+  keine `sourceMappingURL`/Chunk-Namen einsehbar, keine Live-Header (CSP/Cache-Control/ETag).
+- **[Vermutung]** GPU-beschleunigte **Vektor-Karte (MapLibre GL JS)** mit Vektortiles passt zu
+  „neue, schnelle Engine" + WebView-Einbettung + Schweiz-Fokus (ggf. swisstopo-Daten). **Hypothese,
+  kein Fund.**
 
 ---
 
-## 3. Karten-/Tile-Architektur (Aufgabe A4)
+## 3. Karten-/Tile-/Daten-Architektur
 
-**Status: weitgehend NICHT verifiziert.** Belegt nur aus Feature-Beschreibungen:
+### Referenzierte Hosts **[APK]** (nur Hostnamen; keine Keys/Query-Strings protokolliert)
+| Host | Rolle (hergeleitet) |
+|---|---|
+| `api.burnair.cloud` / `dev-api.burnair.cloud` | Backend-API (prod/dev) |
+| `map.burnair.cloud` / `dev-map.burnair.cloud` | Web-Karte (im WebView geladen) |
+| `www.burnair.cloud` | Website |
+| `burnair-regtherm.s3.eu-central-1.amazonaws.com` | **S3-Bucket (Frankfurt)** — „**regtherm**" = regionale Thermik-Daten |
+| `localhost` | **nur okhttp `MockWebServer`** (Test-Artefakt) — *kein* eingebetteter Server |
 
-- **Overlay-/Fachlayer** vorhanden: **Wind**, **Wetter**, **Thermik/Thermik-Hotspots**,
-  **Lee-Gebiete**, **Föhn-Vergleich**, **Regenradar**, **Hike & Fly**, **Live-Tracking**.
-  *Beleg:* Produkt-/Store-Beschreibungen.
-- **Live-Tracking-Resilienz:** "stabileres Live-Tracking, zuverlässiger im Hintergrund,
-  robuste **lokale Speicherung der Trackpunkte** mit automatischem Nachladen".
-  *Beleg:* burnair-Map-Release-/Produkttext.
-  → Architektur-Signal: **Offline-First für Tracklog** (lokaler Puffer + Re-Sync), nicht nur
-  Live-Stream.
-- **Regenradar:** "schneller, präziser, **weniger Datenverbrauch**" → Hinweis auf
-  optimiertes/komprimiertes Tile- oder Frame-Format (Vermutung), nicht belegt im Detail.
-
-**Tile-Format (MVT/PBF vs. Raster), PMTiles/MBTiles, konkrete Tile-Endpoints:**
-→ **nicht ermittelbar** ohne Asset-/Netzwerk-Zugriff. Keine belastbare Aussage.
-
-**Vermutung (NICHT belegt):** Schweiz-zentrierte Outdoor-Karte → Basiskarte plausibel auf
-**swisstopo**-Daten; "neue, schnellere Engine" passt zu **Vektortiles (MVT)** statt Raster.
-Reine Hypothese.
+### Daten-/Rendering-Muster
+- **Offline-/Lokal-Speicher:** **Room/SQLite** `burnair.db` → robuste lokale Persistenz (passt zu
+  belegter „lokaler Trackpunkt-Speicherung mit Auto-Reload"). **[APK]/[Sekundär]**
+- **Statische Geodaten über S3** (`burnair-regtherm…amazonaws.com`) → Thermik-Daten werden
+  **als statische Objekte aus einem CDN/Bucket** ausgeliefert (kostengünstig, cache-bar). **[APK]**
+- **Overlay-/Fachlayer** (belegt aus Produkttexten **[Sekundär]**): Wind, Wetter, Thermik-Hotspots,
+  Lee, Föhn-Vergleich, **Regenradar** („schneller, präziser, weniger Daten"), Hike & Fly, Live-Tracking.
+- **Tile-Format (MVT/PBF vs. Raster), PMTiles/MBTiles, konkrete Tile-Endpoints:** **nicht ermittelbar**
+  (Web-Bundles gesperrt; keine Tile-Strings in der APK, da Karte im WebView remote rendert).
 
 ---
 
 ## 4. Lehren für Flight Buddy KI (Übernehmen / Meiden)
 
-> Diese Lehren stützen sich überwiegend auf **belegte Feature-/Strategie-Aussagen** von burnair
-> sowie auf allgemeine Best Practices — **nicht** auf direkt verifizierte Implementierungsdetails.
-> Wo eine Lehre auf einer Vermutung beruht, ist das markiert.
-
-**Übernehmen:**
-1. **Offline-First-Tracklog** — robuste lokale Persistenz der Trackpunkte mit
-   automatischem Nachladen/Re-Sync. *Belegt* bei burnair; für ein Vario/Flight-Buddy mit
-   instabilem Mobilfunk im Gebirge essenziell.
-2. **Eine Web-Karte ohne Pflicht-Install (PWA)** zusätzlich zu nativen Apps —
-   senkt Einstiegshürde, ein Code-/Style-Stand für Web + App. *Belegt* (map.burnair.cloud v3).
-3. **Bandbreitenschonende Layer** (Regenradar "weniger Datenverbrauch") — bei Flugdaten/Wetter
-   bewusst auf komprimierte/inkrementelle Formate setzen. *Belegt* (Aussage), Format unbekannt.
-4. **GPS-genaue Zeitstempel** statt Geräte-Uhr → driftfreie Tracks. *Belegt*; einfach zu
-   übernehmen, große Wirkung auf Track-Qualität/IGC-Konformität.
-5. **Klarer Produktschnitt:** getrennte Apps für *Planung/Karte* (burnair Map) und
-   *In-Flight* (burnair Go). *Belegt*; reduziert In-Flight-UI-Komplexität — relevant für ein
-   E-Paper-Vario mit minimalem UI.
-6. **Offene/standardisierte Konnektivität:** **FANET**-Empfang und **Bluetooth-NMEA**
-   (XC Tracer / `$LK8EX1`/`$XCTRC`-Sätze sind im Ökosystem üblich). *Belegt* für burnair Go;
-   für Flight Buddy KI als Interop-Standard übernehmen.
-7. *(Vermutung)* **Vektortiles (MapLibre-Klasse) statt Raster** für glatte, GPU-beschleunigte
-   Karten — falls eine eigene Web-Karte gebaut wird. Hypothese, nicht aus burnair verifiziert.
-
-**Meiden / Vorsicht:**
-- **Keine voreilige Engine-/Framework-Wahl auf Basis von Vermutungen** — burnairs konkreter
-  Stack ist hier *nicht* verifiziert; nicht "weil burnair angeblich X nutzt" entscheiden.
-- **Bewusst auf Vario-Kopplung verzichten?** burnair koppelt Varios *absichtlich nicht*
-  (Phone-GPS reiche). Für ein **dediziertes Vario-Projekt** (Kr-ken/AURA) ist das **genau die
-  Gegenstrategie** — also *nicht* übernehmen: die Hardware-Sensorik (BMP581, IMU) ist hier der
-  Kernwert.
-- **Proprietäre/lizenzpflichtige Tile-Quellen** ohne Offline-Lizenz meiden, wenn Offline-Nutzung
-  im Funkloch Pflicht ist (Lizenzkosten + Offline-Recht prüfen).
+1. **„Eine Karten-Engine für Web + App" via WebView.** burnair rendert die Karte als Web-Karte
+   im WebView und teilt sie mit der Browser-Version. **[APK-Indiz]**
+   → *Übernehmen, wenn* schnelle Iteration & ein Karten-Code-Stand zählen.
+   → *Meiden/abwägen, wenn* echte **Offline-Karten im Funkloch** Pflicht sind: burnair bündelt
+   **keine** Map-Assets → ohne Netz keine Karte. Für ein autarkes Vario ggf. **native Offline-Tiles**
+   (PMTiles/MBTiles) statt reiner WebView-Lösung.
+2. **Offline-First für Tracks: Room/SQLite-Persistenz** (`burnair.db`). **[APK]**
+   → Übernehmen — für ein Vario mit instabilem Mobilfunk essenziell; lokal puffern, später re-syncen.
+3. **Statische Geodaten aus S3/Objekt-Storage** (`regtherm`-Bucket). **[APK]**
+   → Übernehmen: vorgerechnete/seltener ändernde Daten (Thermik, Klimatologie) als statische,
+   cache-bare Objekte serven statt teurer dynamischer Endpunkte.
+4. **Native Sensorik-Bridge trotz Web-UI:** BLE/NMEA/XC-Tracer nativ, Karte im WebView,
+   gekoppelt über **JS-Interface** (`LiveTracking*`-Callbacks). **[APK]**
+   → Übernehmen als Muster: zeitkritische Sensorik nativ, Darstellung im Web-Layer, schmale Bridge.
+5. **Schlanker, fokussierter Stack:** Kotlin + Coroutines/Serialization + OkHttp/Ktor + Room +
+   Dagger + Firebase, **klassische Views** (kein Compose), **kein** schwergewichtiges Cross-Platform-
+   Framework → base-APK nur **~7,6 MB**. **[APK]**
+   → Übernehmen: bewusst klein/standardnah bauen; Framework-Gewicht vermeiden.
+6. **KMP als mögliche Code-Sharing-Strategie** (`isHmppEnabled`, Ktor). **[APK-Indiz]**
+   → Prüfen, falls iOS+Android+Backend Logik teilen sollen (Geo-/Tracking-Modelle).
+7. **Push & Telemetrie out-of-the-box:** Firebase Cloud Messaging (Alarme/Updates) + Analytics. **[APK]**
+   → Für Alerts (Wetter/Lee/Luftraum) übernehmbar — Datenschutz/Opt-in bedenken.
+8. **Meiden:** burnairs **bewusster Verzicht auf Vario-Kopplung** (Phone-GPS genüge) ist für ein
+   **dediziertes Hardware-Vario** (Kr-ken/AURA) die **Gegenstrategie** — *nicht* übernehmen: die
+   Sensorik (BMP581, IMU) ist hier der Kernwert. **[Sekundär]**
 
 ---
 
 ## 5. Offene Fragen
 
-1. **Karten-Engine?** maplibre-gl vs. mapbox-gl vs. leaflet/openlayers — **unbestätigt**.
-2. **Web-Framework/Bundler?** react/vue/svelte/angular + vite/webpack — **unbestätigt**
-   (keine Chunk-Namen / `sourceMappingURL` einsehbar).
-3. **Tile-Format & Quelle?** MVT/PBF vs. Raster; swisstopo vs. eigene; PMTiles/MBTiles? —
-   **unbestätigt**.
-4. **HTTP-Caching/Offline-Strategie der Web-Map?** CSP, Cache-Control, ETag, Service-Worker —
-   **nicht messbar** in dieser Umgebung.
-5. **App-Framework?** Flutter / React Native / Capacitor / nativ — **unbestätigt**
-   (keine APK-Marker geprüft). Die "~7,32 MB / 24 libraries" stammen aus unverifizierter
-   Drittquelle.
-6. **Overlay-Rendering:** Werden Wind/Thermik/Radar als Raster-Overlays, als animierte
-   WebGL-Layer oder als deck.gl-/Custom-Layer gerendert? — **unbestätigt**.
+1. **Web-Karten-Engine?** maplibre-gl vs. mapbox-gl vs. anderes — **unbestätigt** (Web-Bundles
+   gesperrt). Aktuell nur **Vermutung** MapLibre.
+2. **Web-Bundler/Framework** (react/vue/svelte + vite/webpack) — **unbestätigt**.
+3. **Tile-Format & -Quelle** (MVT/PBF, swisstopo, PMTiles/MBTiles, Caching-Header) — **unbestätigt**.
+4. **Rendert der WebView *die Karte* oder auch Hilfsseiten?** Starkes Indiz für Karte, aber wegen
+   R8-Obfuskation **nicht 100 % bewiesen**.
+5. **KMP-Umfang:** Wird Ktor/Logik tatsächlich mit iOS geteilt? `isHmppEnabled` ist nur ein Indiz.
+6. **iOS-App (`burnair Go`/`burnair Map`)**: nicht analysiert (keine `.ipa`).
+7. **Signatur-Echtheit** nicht kryptografisch bestätigt (kein `apksigner` im Container).
 
 ---
 
-## Anhang: So lässt sich die Analyse vervollständigen
-
-Sobald eine Umgebung mit Netzzugang zu `burnair.*` **oder** lokal vorliegende APKs verfügbar sind:
-
-**Web (A):**
+## Anhang A: So lässt sich Aufgabe A (Web) vervollständigen
+In einer Umgebung mit Netzzugang zu `burnair.*`:
 ```bash
-# Roh-HTML + Asset-Liste
 curl -sSL https://map.burnair.cloud/ -o burnair_index.html
-grep -oE 'src="[^"]+"|href="[^"]+"' burnair_index.html | sort -u
-# Engine/Framework
-grep -aoiE 'maplibre-gl|mapbox-gl|leaflet|openlayers|cesium|deck\.gl|three|react|vue|svelte|angular' burnair_*.js
-grep -aoE 'sourceMappingURL=[^ ]+' burnair_*.js
-# Tiles/Format
-grep -aoE 'https?://[^"]+\.(pbf|mvt|pmtiles|json)|/tiles?/' burnair_*.js
-# Header / Caching
+grep -oE '(src|href)="[^"]+"' burnair_index.html | sort -u
+grep -aoiE 'maplibre-gl|mapbox-gl|leaflet|openlayers|deck\.gl' bundle_*.js
+grep -aoE 'sourceMappingURL=[^ ]+' bundle_*.js
+grep -aoE 'https?://[^"]+\.(pbf|mvt|pmtiles|json)|\{z\}/\{x\}/\{y\}' bundle_*.js
 curl -sSI https://map.burnair.cloud/ | grep -iE 'content-security-policy|cache-control|etag|service-worker'
 ```
 
-**App (B):** APK nach `./burnair_apk/` legen, dann:
-```bash
-unzip -o app.apk -d app_extracted
-ls app_extracted/lib/*/                      # libflutter.so + libapp.so => Flutter
-ls app_extracted/assets/index.android.bundle # => React Native (+ libhermes.so)
-ls app_extracted/assets/www/                 # => Capacitor/Cordova WebView
-# Map-/Netzwerk-Libs & Hosts (OHNE Keys/Secrets zu loggen):
-strings app_extracted/lib/*/*.so | grep -iE 'maplibre|mapbox|osmdroid|tangram'
-strings app_extracted/**/*.so | grep -aoE 'https?://[a-z0-9.-]+' | sort -u   # nur Hosts, keine Query-Strings/Keys
-```
+## Anhang B: Reproduktion Aufgabe B
+`scripts/analyze_burnair.sh` (im Repo) entpackt `.xapk`→`base.apk`, prüft Framework-Marker,
+Libs, Hosts und Signatur. APK/`.xapk` nach `burnair_apk/` legen, dann `bash scripts/analyze_burnair.sh`.
 
 ---
 
-### Quellen (öffentliche Sekundärquellen, via Web-Suche)
-- burnair Map App-Seite — `https://www.burnair.ch/app/`
-- burnair Map v3 (Web) — `https://map.burnair.cloud/`
+### Quellen (öffentliche Sekundärquellen)
+- burnair Map (Web v3) — `https://map.burnair.cloud/`
 - Google Play `com.burnair.burnairmap` — `https://play.google.com/store/apps/details?id=com.burnair.burnairmap`
-- Apple App Store burnair Map — `https://apps.apple.com/ch/app/burnair-map/id1495320175`
-- Apple App Store burnair Go — `https://apps.apple.com/at/app/burnair-go/id1666354109`
-- burnair Go App (Portfolio) — `https://www.burnair.ch/portfolio-item/burnair-go-app/`
-- burnair Help Center (Live Tracking / Bluetooth) — `https://help.burnair.cloud/`
-- APK-Index (Größe/Libs, unverifiziert) — `https://www.appbrain.com/app/burnair-map/com.burnair.burnairmap`
+- App Store burnair Map / burnair Go — `id1495320175` / `id1666354109`
+- burnair Help Center (Live Tracking / XC Tracer Bluetooth) — `https://help.burnair.cloud/`
 
-> Hinweis: Die `burnair.*`-Links wurden **nicht** abgerufen (Netz-Policy `host_not_allowed`);
-> Inhalte stammen aus Suchergebnis-Snippets und sind als solche zu behandeln.
+> Die `burnair.*`-Links wurden **nicht** abgerufen (Netz-Policy `host_not_allowed`); Sekundär-Inhalte
+> stammen aus Suchergebnis-Snippets. Alle mit **[APK]** markierten Fakten sind direkt am Artefakt verifiziert.
