@@ -262,7 +262,7 @@ void loop() {
     static int du_count = 0;
     static const int GHOST_INTERVAL = 30;  // alle 30 DU → 1x GC16 (~60s)
 
-    if (millis()-lastDisplay >= 2000) {
+    if (millis()-lastDisplay >= 1000) {  // 1 Hz Refresh
         lastDisplay = millis();
         du_count++;
         if (du_count >= GHOST_INTERVAL) {
