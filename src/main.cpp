@@ -316,11 +316,29 @@ void loop() {
     static unsigned long lastActivity = 0;
     if (live.speed > 2.0f || millis() < 60000) lastActivity = millis();
     if (millis() - lastActivity > 300000) {  // 5 Min
-        Serial.println("[SLEEP] Auto-Sleep (5 Min idle)");
+        Serial.println("[SLEEP] Sleep-Screen...");
         Serial.flush();
-        // Sleep-Screen: invertiertes Logo (wie Boot-Splash)
-        showBootSplash(&hl, AURA_VERSION);
-        delay(500);
+
+        // Sleep-Screen: schwarzer Hintergrund, weisser Text
+        uint8_t *fb = epd_hl_get_framebuffer(&hl);
+        int fb_size = epd_width()/2 * epd_height();
+        memset(fb, 0x00, fb_size);  // Alles schwarz
+
+        // "SLEEP" weiss auf schwarz
+        EpdFontProperties pp = epd_font_properties_default();
+        pp.fg_color = 0xFF;  // Weiss
+        int cx=350, cy=280;
+        epd_write_string(&ArialBold40, "SLEEP", &cx, &cy, fb, &pp);
+        cx=300; cy=340;
+        epd_write_string(&ArialBold16, "BOOT zum Aufwachen", &cx, &cy, fb, &pp);
+
+        epd_poweron();
+        epd_hl_update_screen(&hl, MODE_GC16, 20);
+        epd_poweroff();
+
+        Serial.println("[SLEEP] Screen fertig, warte 5s...");
+        Serial.flush();
+        delay(5000);
         // Wake auf BOOT-Button (GPIO 0, LOW)
         esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
         esp_deep_sleep_start();
