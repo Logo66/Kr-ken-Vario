@@ -24,6 +24,7 @@ struct CruiseData {
     float qnh, delta_gnd, wind_speed, wind_dir, temp, dewpoint;
     int bat_pct; float bat_hours;
     bool gps_fix; int sats, fanet_peers, avg_seconds;
+    int rtc_hour, rtc_min;  // Uhrzeit aus RTC
 };
 
 static void T(const EpdFont *f, const char *s, int x, int y, uint8_t *fb) {
@@ -134,7 +135,8 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d) {
     const int CT=410;                       // Kompass Top
 
     // === STATUS BAR (y: 0-48) ===
-    T(&ArialBold16,"14:23",20,30,fb);
+    snprintf(buf,48,"%02d:%02d",d.rtc_hour,d.rtc_min);
+    T(&ArialBold16,buf,20,30,fb);
     for(int i=0;i<d.sats&&i<12;i++) FB(160+i*12,22,6,6,fb);
     snprintf(buf,48,"%d sat",d.sats); T(&ArialBold16,buf,320,30,fb);
     snprintf(buf,48,"FANET %d",d.fanet_peers); T(&ArialBold16,buf,440,30,fb);
