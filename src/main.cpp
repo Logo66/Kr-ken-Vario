@@ -13,8 +13,13 @@
 #include "epd_highlevel.h"
 #include "boot_splash.h"
 #include "cruise_screen.h"
+#include "thermal_screen.h"
+#include "touch.h"
+
+static TouchManager touch;
 #include "vario/altitude.h"
 #include "kalman_vario.h"
+#include "esp_sleep.h"
 
 // --- Objekte ---
 static EpdiyHighlevelState hl;
@@ -30,6 +35,10 @@ static KalmanVario kf;
 static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=false;
 static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
+
+// Screen-Manager
+enum Screen { SCR_CRUISE, SCR_THERMAL };
+static Screen currentScreen = SCR_CRUISE;
 static unsigned long rtc_boot_millis=0;
 static int rtc_boot_seconds=0;
 
@@ -201,14 +210,17 @@ void setup() {
         Serial.printf("[QNH] raw P=%.0f — unplausibel, skip\n", p_cal);
     }
 
+    // Touch init (GT911 ueber raw I2C)
+    touch.init();
+
     // Kalman init
     kf.init(live.altitude);
 
-    // Splash (invertiert, DIREKT gefolgt von Cruise — keine Weiss-Blende)
+    // Splash → Cruise → nach 15s Thermik-Demo
     showBootSplash(&hl, AURA_VERSION);
     delay(4000);
     showCruiseScreen(&hl, live);
-    Serial.println("READY");
+    Serial.println("READY — Cruise aktiv, Thermik-Demo in 15s");
 }
 
 // === LOOP ===
@@ -257,19 +269,70 @@ void loop() {
                        live.temp, live.gps_fix?"FIX":"---", live.sats);
     }
 
-    // Display: 2s MODE_DU (schnell, kein Flash)
-    // Alle 30 Updates: GC16 Anti-Ghosting (loescht Geisterbilder)
-    static int du_count = 0;
-    static const int GHOST_INTERVAL = 30;  // alle 30 DU → 1x GC16 (~60s)
+    // === SCREEN-MANAGER (Swipe + Button + Auto-Thermik) ===
 
-    if (millis()-lastDisplay >= 1000) {  // 1 Hz Refresh
+    // Touch-Geste
+    Gesture g = touch.poll();
+    if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+        currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
+        Serial.printf("[SWIPE] → %s\n", currentScreen==SCR_CRUISE?"Cruise":"Thermik");
+        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
+        else showDemoThermalScreen(&hl);
         lastDisplay = millis();
-        du_count++;
-        if (du_count >= GHOST_INTERVAL) {
-            du_count = 0;
-            showCruiseScreen(&hl, live, MODE_GC16);  // Anti-Ghost
-        } else {
-            showCruiseScreen(&hl, live, MODE_DU);     // Schnell
+    } else if (g == GEST_TAP) {
+        Serial.println("[TAP]");
+    } else if (g == GEST_LONG_TAP) {
+        Serial.println("[LONG TAP] → Menu (TODO)");
+    }
+
+    // BOOT-Button als Fallback
+    static bool btn_last = true;
+    bool btn_now = digitalRead(0);
+    if (!btn_now && btn_last) {
+        currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
+        Serial.printf("[BTN] → %s\n", currentScreen==SCR_CRUISE?"Cruise":"Thermik");
+        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
+        else showDemoThermalScreen(&hl);
+        lastDisplay = millis();
+        delay(300);
+    }
+    btn_last = btn_now;
+
+    // Auto-Thermik: avg > 0.5 m/s fuer 10s → Thermik
+    static unsigned long climb_since = 0;
+    if (live.vario_avg > 0.5f) {
+        if (!climb_since) climb_since = millis();
+        if (millis()-climb_since > 10000 && currentScreen==SCR_CRUISE) {
+            currentScreen = SCR_THERMAL;
+            Serial.println("[SCR] Auto → Thermik");
+            showDemoThermalScreen(&hl);
+            lastDisplay = millis();
         }
+    } else {
+        climb_since = 0;
+    }
+
+    // Auto-Sleep: nach 5 Min ohne GPS-Bewegung → Deep Sleep
+    static unsigned long lastActivity = 0;
+    if (live.speed > 2.0f || millis() < 60000) lastActivity = millis();
+    if (millis() - lastActivity > 300000) {  // 5 Min
+        Serial.println("[SLEEP] Auto-Sleep (5 Min idle)");
+        Serial.flush();
+        // Sleep-Screen: invertiertes Logo (wie Boot-Splash)
+        showBootSplash(&hl, AURA_VERSION);
+        delay(500);
+        // Wake auf BOOT-Button (GPIO 0, LOW)
+        esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+        esp_deep_sleep_start();
+    }
+
+    // 1 Hz Display Refresh — NUR MODE_DU (kein schwarzer Balken!)
+    // Anti-Ghosting nur bei Screen-Wechsel (GC16 dort schon eingebaut)
+    if (millis()-lastDisplay >= 1000) {
+        lastDisplay = millis();
+        if (currentScreen==SCR_CRUISE)
+            showCruiseScreen(&hl, live, MODE_DU);
+        else
+            showDemoThermalScreen(&hl);
     }
 }
