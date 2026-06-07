@@ -119,7 +119,8 @@ static void drawCompass(float hdg, int sx, int sy, int sw, uint8_t *fb) {
     }
 }
 
-static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d) {
+static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
+                             enum EpdDrawMode mode = MODE_GC16) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
     char buf[48];
@@ -216,7 +217,7 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d) {
 
     // Push
     epd_poweron();
-    epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
+    epd_hl_update_screen(hl, mode, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 
