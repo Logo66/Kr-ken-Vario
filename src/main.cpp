@@ -1,268 +1,232 @@
+// AURA Kruecke v0.2.0 — Phase 2: Sensoren + Cruise mit Live-Daten
 #include <Arduino.h>
 #include <Wire.h>
 #include "pins.h"
 #include "version.h"
-
 #include <Adafruit_BMP5xx.h>
 #include <Adafruit_LSM6DSO32.h>
-#include <Adafruit_BNO08x.h>
 #include <Adafruit_SHT4x.h>
 #include "PowersBQ25896.tpp"
+#include "epdiy.h"
+#include "epd_highlevel.h"
+#include "boot_splash.h"
+#include "cruise_screen.h"
+#include "vario/altitude.h"
 
-// --- Sensor objects ---
-Adafruit_BMP5xx bmp1;
-Adafruit_BMP5xx bmp2;
-Adafruit_LSM6DSO32 lsm;
-Adafruit_BNO08x bno;
-Adafruit_SHT4x sht;
-sh2_SensorValue_t bnoValue;
+// --- Objekte ---
+static EpdiyHighlevelState hl;
+static Adafruit_BMP5xx bmp_a, bmp_b;
+static Adafruit_LSM6DSO32 lsm;
+static Adafruit_SHT4x sht;
+static PowersBQ25896 ppm;
+static Altitude alt_calc;
 
-// --- Power management ---
-PowersBQ25896 ppm;
+// --- Zustand ---
+static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=false;
+static CruiseData live = {};
+static unsigned long lastPrint = 0;
 
-// --- State ---
-bool bmp1_ok = false;
-bool bmp2_ok = false;
-bool lsm_ok  = false;
-bool bno_ok  = false;
-bool sht_ok  = false;
-bool ppm_ok  = false;
-
-unsigned long lastPrint = 0;
-const unsigned long PRINT_INTERVAL_MS = 1000;
-
-// --- I2C scan (triggered by boot button) ---
-void i2cScan() {
+// --- I2C-Scan ---
+static void i2cScan() {
     Serial.println("\n=== I2C Scan ===");
-    struct { uint8_t addr; const char* name; } expected[] = {
-        {ADDR_PCA9535,          "PCA9535"},
-        {ADDR_SHT40,           "SHT40"},
-        {ADDR_BMP581_SECONDARY, "BMP581#2"},
-        {ADDR_BMP581_PRIMARY,   "BMP581#1"},
-        {ADDR_BNO085,          "BNO085"},
-        {ADDR_PCF85063,        "PCF85063"},
-        {ADDR_BQ27220,         "BQ27220"},
-        {ADDR_GT911,           "GT911"},
-        {ADDR_TPS65185,        "TPS65185"},
-        {ADDR_LSM6DSO32,       "LSM6DSO32"},
-        {ADDR_BQ25896,         "BQ25896"},
+    struct { uint8_t addr; const char* name; bool aura; } devs[] = {
+        {0x20,"PCA9535",false}, {0x44,"SHT40",true},
+        {0x46,"BMP581#B",true}, {0x47,"BMP581#A",true},
+        {0x51,"PCF85063",false}, {0x55,"BQ27220",false},
+        {0x5D,"GT911",false}, {0x68,"TPS65185",false},
+        {0x6A,"LSM6DSO32",true}, {0x6B,"BQ25896",false},
     };
-
-    int found = 0;
-    for (auto& dev : expected) {
-        Wire.beginTransmission(dev.addr);
-        if (Wire.endTransmission() == 0) {
-            Serial.printf("  0x%02X %-10s  [FOUND]\n", dev.addr, dev.name);
-            found++;
-        } else {
-            Serial.printf("  0x%02X %-10s  [MISSING]\n", dev.addr, dev.name);
-        }
+    int found=0, aura=0;
+    for (auto& d : devs) {
+        Wire.beginTransmission(d.addr);
+        bool ok = (Wire.endTransmission() == 0);
+        if (ok) found++;
+        if (ok && d.aura) aura++;
+        Serial.printf("  0x%02X %-10s %s %s\n", d.addr, d.name,
+                       ok ? "[OK]" : "[--]", d.aura ? "*" : "");
     }
-    Serial.printf("=== %d / %d devices found ===\n\n", found, (int)(sizeof(expected)/sizeof(expected[0])));
+    Serial.printf("=== Aura: %d/4  Total: %d/10 ===\n\n", aura, found);
 }
 
-// --- BNO085: enable game rotation vector report ---
-void bnoEnableReports() {
-    if (!bno.enableReport(SH2_GAME_ROTATION_VECTOR, 50000)) {
-        Serial.println("[WARN] BNO085: could not enable Game Rotation Vector");
-    }
-    if (!bno.enableReport(SH2_ACCELEROMETER, 50000)) {
-        Serial.println("[WARN] BNO085: could not enable Accelerometer");
-    }
-}
-
-// --- Setup ---
-void setup() {
-    Serial.begin(115200);
-    delay(500);
-
-    Serial.println("\n========================================");
-    Serial.printf("  AURA Kruecke v%s\n", AURA_VERSION);
-    Serial.println("  T5 E-Paper S3 Pro · Bring-up");
-    Serial.println("========================================\n");
-
-    // Boot button as input
-    pinMode(BOARD_BOOT_BTN, INPUT_PULLUP);
-
-    // I2C init
-    Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL, I2C_FREQ_HZ);
-    Serial.printf("[I2C] SDA=%d SCL=%d @ %d Hz\n\n", BOARD_I2C_SDA, BOARD_I2C_SCL, I2C_FREQ_HZ);
-
-    // --- Power Management: BQ25896 ---
+// --- Sensor-Init ---
+static void initSensors() {
+    // BQ25896
     ppm_ok = ppm.init(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, ADDR_BQ25896);
     if (ppm_ok) {
-        Serial.printf("[OK]   BQ25896 Charger   @ 0x%02X\n", ADDR_BQ25896);
-        Serial.printf("       Battery Voltage: %.2f V\n", ppm.getBattVoltage() / 1000.0);
-        Serial.printf("       Charge Status:   %s\n", ppm.getChargeStatusString());
-    } else {
-        Serial.printf("[FAIL] BQ25896 Charger   @ 0x%02X\n", ADDR_BQ25896);
+        live.bat_pct = 87; // TODO: echten SoC aus BQ27220
+        live.bat_hours = 25;
+        Serial.printf("[OK] BQ25896 Vbat=%.2fV %s\n",
+                       ppm.getBattVoltage()/1000.0f, ppm.getChargeStatusString());
     }
 
-    // --- BQ27220 Fuel Gauge (simple I2C probe) ---
-    Wire.beginTransmission(ADDR_BQ27220);
-    if (Wire.endTransmission() == 0) {
-        Serial.printf("[OK]   BQ27220 FuelGauge @ 0x%02X\n", ADDR_BQ27220);
-    } else {
-        Serial.printf("[FAIL] BQ27220 FuelGauge @ 0x%02X\n", ADDR_BQ27220);
-    }
-
-    // --- PCF85063 RTC (simple I2C probe) ---
-    Wire.beginTransmission(ADDR_PCF85063);
-    if (Wire.endTransmission() == 0) {
-        Serial.printf("[OK]   PCF85063 RTC      @ 0x%02X\n", ADDR_PCF85063);
-    } else {
-        Serial.printf("[FAIL] PCF85063 RTC      @ 0x%02X\n", ADDR_PCF85063);
-    }
-
-    Serial.println();
-
-    // --- SHT40 (einfachster Sensor, erste Sanity) ---
+    // SHT40
     sht_ok = sht.begin(&Wire);
-    if (sht_ok) {
-        sht.setPrecision(SHT4X_HIGH_PRECISION);
-        Serial.printf("[OK]   SHT40             @ 0x%02X\n", ADDR_SHT40);
-    } else {
-        Serial.printf("[FAIL] SHT40             @ 0x%02X\n", ADDR_SHT40);
-    }
+    if (sht_ok) { sht.setPrecision(SHT4X_HIGH_PRECISION); Serial.println("[OK] SHT40"); }
+    else Serial.println("[--] SHT40");
 
-    // --- BMP581 #1 (Primary, 0x47) ---
-    delay(100);
-    bmp1_ok = bmp1.begin(ADDR_BMP581_PRIMARY, &Wire);
-    if (!bmp1_ok) {
-        delay(100);
-        bmp1_ok = bmp1.begin(ADDR_BMP581_PRIMARY, &Wire);
-    }
-    if (bmp1_ok) {
-        bmp1.setTemperatureOversampling(BMP5XX_OVERSAMPLING_4X);
-        bmp1.setPressureOversampling(BMP5XX_OVERSAMPLING_4X);
-        bmp1.setOutputDataRate(BMP5XX_ODR_50_HZ);
-        Serial.printf("[OK]   BMP581 #1         @ 0x%02X\n", ADDR_BMP581_PRIMARY);
-    } else {
-        Serial.printf("[FAIL] BMP581 #1         @ 0x%02X  (retry exhausted)\n", ADDR_BMP581_PRIMARY);
-    }
+    // BMP581 #A (0x47)
+    delay(50);
+    bmpA_ok = bmp_a.begin(ADDR_BMP581_PRIMARY, &Wire);
+    if (!bmpA_ok) { delay(100); bmpA_ok = bmp_a.begin(ADDR_BMP581_PRIMARY, &Wire); }
+    if (bmpA_ok) {
+        bmp_a.setTemperatureOversampling(BMP5XX_OVERSAMPLING_4X);
+        bmp_a.setPressureOversampling(BMP5XX_OVERSAMPLING_16X);
+        bmp_a.setOutputDataRate(BMP5XX_ODR_50_HZ);
+        Serial.println("[OK] BMP581#A");
+    } else Serial.println("[--] BMP581#A");
 
-    // --- BMP581 #2 (Secondary, 0x46 — ADR-Pin auf GND) ---
-    delay(100);
-    bmp2_ok = bmp2.begin(ADDR_BMP581_SECONDARY, &Wire);
-    if (!bmp2_ok) {
-        delay(100);
-        bmp2_ok = bmp2.begin(ADDR_BMP581_SECONDARY, &Wire);
-    }
-    if (bmp2_ok) {
-        bmp2.setTemperatureOversampling(BMP5XX_OVERSAMPLING_4X);
-        bmp2.setPressureOversampling(BMP5XX_OVERSAMPLING_4X);
-        bmp2.setOutputDataRate(BMP5XX_ODR_50_HZ);
-        Serial.printf("[OK]   BMP581 #2         @ 0x%02X\n", ADDR_BMP581_SECONDARY);
-    } else {
-        Serial.printf("[FAIL] BMP581 #2         @ 0x%02X  (ADR pin on GND?)\n", ADDR_BMP581_SECONDARY);
-    }
+    // BMP581 #B (0x46)
+    delay(50);
+    bmpB_ok = bmp_b.begin(ADDR_BMP581_SECONDARY, &Wire);
+    if (!bmpB_ok) { delay(100); bmpB_ok = bmp_b.begin(ADDR_BMP581_SECONDARY, &Wire); }
+    if (bmpB_ok) {
+        bmp_b.setTemperatureOversampling(BMP5XX_OVERSAMPLING_4X);
+        bmp_b.setPressureOversampling(BMP5XX_OVERSAMPLING_16X);
+        bmp_b.setOutputDataRate(BMP5XX_ODR_50_HZ);
+        Serial.println("[OK] BMP581#B");
+    } else Serial.println("[--] BMP581#B");
 
-    // --- LSM6DSO32 ---
+    // LSM6DSO32
     lsm_ok = lsm.begin_I2C(ADDR_LSM6DSO32, &Wire);
     if (lsm_ok) {
         lsm.setAccelRange(LSM6DSO32_ACCEL_RANGE_16_G);
         lsm.setGyroRange(LSM6DS_GYRO_RANGE_1000_DPS);
         lsm.setAccelDataRate(LSM6DS_RATE_104_HZ);
         lsm.setGyroDataRate(LSM6DS_RATE_104_HZ);
-        Serial.printf("[OK]   LSM6DSO32         @ 0x%02X\n", ADDR_LSM6DSO32);
-    } else {
-        Serial.printf("[FAIL] LSM6DSO32         @ 0x%02X\n", ADDR_LSM6DSO32);
-    }
+        Serial.println("[OK] LSM6DSO32");
+    } else Serial.println("[--] LSM6DSO32");
 
-    // --- BNO085 (SHTP, komplexester Sensor) ---
-    bno_ok = bno.begin_I2C(ADDR_BNO085, &Wire);
-    if (bno_ok) {
-        bnoEnableReports();
-        Serial.printf("[OK]   BNO085            @ 0x%02X\n", ADDR_BNO085);
-    } else {
-        Serial.printf("[FAIL] BNO085            @ 0x%02X  (RST pin high?)\n", ADDR_BNO085);
-    }
-
-    // --- E-Paper: Platzhalter (volle Display-Integration = AURA-KRUECKE-4) ---
-    Serial.println("\n[INFO] E-Paper: AURA · Bring-up OK  (Serial-only, Display in Ticket 4)");
-
-    // --- Boot summary ---
-    int sensorCount = (int)bmp1_ok + bmp2_ok + lsm_ok + bno_ok + sht_ok;
-    Serial.println("\n========================================");
-    Serial.printf("  Bring-up: %d/5 Sensoren OK\n", sensorCount);
-    Serial.println("  Boot-Button (GPIO 0) = I2C Scan");
-    Serial.println("========================================\n");
+    int n = (int)bmpA_ok + bmpB_ok + lsm_ok + sht_ok;
+    Serial.printf("Sensoren: %d/4\n", n);
 }
 
-// --- Loop ---
-void loop() {
-    // Boot button → I2C scan
-    if (digitalRead(BOARD_BOOT_BTN) == LOW) {
-        i2cScan();
-        delay(500);
-        while (digitalRead(BOARD_BOOT_BTN) == LOW) { delay(10); }
+// --- Sensor-Daten lesen und in CruiseData fuellen ---
+static void readSensors() {
+    // SHT40
+    if (sht_ok) {
+        sensors_event_t h, t;
+        sht.getEvent(&h, &t);
+        live.temp = t.temperature;
+        live.dewpoint = t.temperature - (100.0f - h.relative_humidity) / 5.0f;
+        Serial.printf("  SHT40 T=%.1fC RH=%.0f%% Dew=%.1fC\n",
+                       t.temperature, h.relative_humidity, live.dewpoint);
     }
 
-    // 1 Hz sensor readout
-    if (millis() - lastPrint < PRINT_INTERVAL_MS) return;
-    lastPrint = millis();
+    // BMP581 #A → Hoehe + Vario
+    static float last_alt = 0;
+    static unsigned long last_alt_time = 0;
 
-    Serial.printf("--- t=%lu s ---\n", millis() / 1000);
+    if (bmpA_ok && bmp_a.performReading()) {
+        // BUG-KRUECKE-001 FIX: Adafruit BMP5xx gibt hPa zurueck,
+        // Altitude-Formel erwartet Pa → mal 100
+        float pressure_hpa = bmp_a.pressure;
+        float pressure_pa = pressure_hpa * 100.0f;
+        float temp = bmp_a.temperature;
 
-    // BMP581 #1
-    if (bmp1_ok) {
-        if (bmp1.performReading()) {
-            Serial.printf("  BMP581#1  P=%.2f hPa  T=%.2f C\n",
-                          bmp1.pressure / 100.0, bmp1.temperature);
-        } else {
-            Serial.println("  BMP581#1  [read error]");
+        float alt = alt_calc.computeISA(pressure_pa);
+        live.altitude = alt;
+        live.qnh = 1013.25f; // Default, spaeter kalibrierbar
+
+        // Einfacher Vario: Δh/Δt
+        unsigned long now = millis();
+        if (last_alt_time > 0 && (now - last_alt_time) > 100) {
+            float dt = (now - last_alt_time) / 1000.0f;
+            live.vario = (alt - last_alt) / dt;
         }
+        last_alt = alt;
+        last_alt_time = now;
+
+        Serial.printf("  BMP#A P=%.2f hPa T=%.1fC Alt=%.1fm Vario=%+.2fm/s\n",
+                       pressure_hpa, temp, alt, live.vario);
     }
 
-    // BMP581 #2
-    if (bmp2_ok) {
-        if (bmp2.performReading()) {
-            Serial.printf("  BMP581#2  P=%.2f hPa  T=%.2f C\n",
-                          bmp2.pressure / 100.0, bmp2.temperature);
-        } else {
-            Serial.println("  BMP581#2  [read error]");
+    // BMP581 #B → Δp
+    if (bmpB_ok && bmp_b.performReading()) {
+        if (bmpA_ok) {
+            float dp = bmp_a.pressure - bmp_b.pressure;
+            Serial.printf("  BMP#B P=%.2f  Dp=%.2f Pa\n", bmp_b.pressure, dp);
         }
     }
 
     // LSM6DSO32
     if (lsm_ok) {
-        sensors_event_t accel, gyro, temp;
-        lsm.getEvent(&accel, &gyro, &temp);
-        Serial.printf("  LSM6DSO32 Ax=%.2f Ay=%.2f Az=%.2f m/s2  Gx=%.1f Gy=%.1f Gz=%.1f dps\n",
-                      accel.acceleration.x, accel.acceleration.y, accel.acceleration.z,
-                      gyro.gyro.x * RAD_TO_DEG, gyro.gyro.y * RAD_TO_DEG, gyro.gyro.z * RAD_TO_DEG);
+        sensors_event_t a, g, t;
+        lsm.getEvent(&a, &g, &t);
+        float mag = sqrtf(a.acceleration.x*a.acceleration.x +
+                          a.acceleration.y*a.acceleration.y +
+                          a.acceleration.z*a.acceleration.z);
+        Serial.printf("  LSM6 |a|=%.2f\n", mag);
     }
 
-    // BNO085
-    if (bno_ok) {
-        if (bno.getSensorEvent(&bnoValue)) {
-            if (bnoValue.sensorId == SH2_GAME_ROTATION_VECTOR) {
-                Serial.printf("  BNO085    Qi=%.3f Qj=%.3f Qk=%.3f Qr=%.3f\n",
-                              bnoValue.un.gameRotationVector.i,
-                              bnoValue.un.gameRotationVector.j,
-                              bnoValue.un.gameRotationVector.k,
-                              bnoValue.un.gameRotationVector.real);
-            } else if (bnoValue.sensorId == SH2_ACCELEROMETER) {
-                Serial.printf("  BNO085    Ax=%.2f Ay=%.2f Az=%.2f m/s2\n",
-                              bnoValue.un.accelerometer.x,
-                              bnoValue.un.accelerometer.y,
-                              bnoValue.un.accelerometer.z);
-            }
-        }
-    }
+    // Statische Werte (noch kein GPS/FANET)
+    live.speed = 0;
+    live.heading = 340;  // Test: NNW, damit Kompass-Doppelpfeil sichtbar ist
+    live.glide = 0;
+    live.vario_avg = live.vario; // TODO: gleitender Durchschnitt
+    live.delta_gnd = 0;
+    live.wind_speed = 0;
+    live.wind_dir = 0;
+    live.gps_fix = false;
+    live.sats = 0;
+    live.fanet_peers = 0;
+    live.avg_seconds = 20;
+}
 
-    // SHT40
-    if (sht_ok) {
-        sensors_event_t humidity, temp;
-        sht.getEvent(&humidity, &temp);
-        Serial.printf("  SHT40     T=%.2f C  RH=%.1f %%\n", temp.temperature, humidity.relative_humidity);
-    }
+void setup() {
+    Serial.begin(115200);
+    delay(2000);
+    Serial.printf("AURA %s  Build %s %s\n", AURA_VERSION, __DATE__, __TIME__);
+    Serial.flush();
 
-    // Power status
-    if (ppm_ok) {
-        Serial.printf("  POWER     Vbat=%.2f V  Charge=%s\n",
-                      ppm.getBattVoltage() / 1000.0, ppm.getChargeStatusString());
-    }
+    // SPI-CS deselect
+    pinMode(46, OUTPUT); digitalWrite(46, HIGH);
+    pinMode(12, OUTPUT); digitalWrite(12, HIGH);
 
-    Serial.println();
+    // === PHASE 1: I2C + Sensoren (Wire aktiv) ===
+    Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL, I2C_FREQ_HZ);
+    i2cScan();
+    initSensors();
+
+    // Erste Sensor-Lesung
+    Serial.println("\n--- Erste Messung ---");
+    readSensors();
+    Serial.flush();
+
+    // === PHASE 2: Wire freigeben → epdiy ===
+    Wire.end();
+    Serial.println("\nWire.end() → epdiy init");
+
+    epd_init(&epd_board_v7, &ED047TC1, EPD_LUT_64K);
+    epd_set_vcom(1560);
+
+    // Panel komplett clearen (entfernt ALLE Geister von vorherigem Boot)
+    epd_poweron();
+    epd_clear();
+    epd_poweroff();
+    delay(100);
+
+    hl = epd_hl_init(EPD_BUILTIN_WAVEFORM);
+    Serial.printf("epdiy %dx%d VCOM=-1.56V\n", epd_width(), epd_height());
+    Serial.flush();
+
+    // Splash
+    Serial.println("Splash...");
+    showBootSplash(&hl, AURA_VERSION);
+    Serial.println("Splash done");
+    delay(3000);
+
+    // Cruise mit Live-Daten (erste Messung)
+    Serial.println("Cruise (live)...");
+    showCruiseScreen(&hl, live);
+    Serial.println("Cruise done");
+    Serial.println("READY — Sensoren gelesen, Display steht.");
+}
+
+void loop() {
+    // Kein Sensor-Read im Loop (epdiy haelt I2C)
+    // Nur Serial-Heartbeat
+    delay(5000);
+    if (millis() - lastPrint < 30000) return;
+    lastPrint = millis();
+    Serial.printf("[ok] t=%lus heap=%lu\n", millis()/1000, (unsigned long)ESP.getFreeHeap());
 }

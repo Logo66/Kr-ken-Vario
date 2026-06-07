@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "aura_sensors")(type "KiCad")(uri "${KIPRJMOD}/../lib/aura_sensors.pretty")(options "")(descr "Aura Kruecke custom sensor footprints (BMP581)"))
+  (lib (name "SparkFun-Sensor")(type "KiCad")(uri "${KIPRJMOD}/../lib/SparkFun-KiCad-Libraries/footprints/SparkFun-Sensor.pretty")(options "")(descr "SparkFun sensor footprints"))
+)

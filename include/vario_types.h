@@ -1,14 +1,14 @@
 #pragma once
 #include <stdint.h>
 
-// --- Vario State (output of KF4D, 10 Hz → BLE VARIO packet) ---
+// --- Vario State (output of KF4D, 10 Hz) ---
 struct VarioState {
     float altitude;         // m (barometric, temp-corrected)
     float vario;            // m/s (vertical speed, from Kalman)
     float vario_integrated; // m/s (smoothed, longer time constant)
     float accel_vertical;   // m/s² (vertical acceleration estimate)
     float accel_bias;       // m/s² (estimated accelerometer bias)
-    uint32_t pressure_pa;   // Pa (raw BMP581 #1)
+    uint32_t pressure_pa;   // Pa (raw BMP581 #A)
     float temperature;      // °C (from SHT40, NOT BMP581)
     bool is_flying;
     bool is_thermal;
@@ -20,7 +20,7 @@ struct VarioState {
 struct ThermalInfo {
     bool detected;          // true if currently in thermal
     float avg_climb;        // m/s (8s sliding window average)
-    float turn_rate;        // °/s (absolute, from BNO085 gyro Z)
+    float turn_rate;        // °/s (absolute, from LSM6DSO32 gyro Z)
     uint8_t mode;           // 0=ground, 1=cruise, 2=thermal
     uint32_t mode_since_ms; // timestamp of last mode change
 };
@@ -34,27 +34,27 @@ struct EnvironmentData {
     uint32_t timestamp_ms;
 };
 
-// --- Delta-P raw recording (BMP581 #2) ---
+// --- Delta-P raw recording (BMP581 #B) ---
 struct DeltaPState {
-    float dp_raw;           // Pa (baro1 - baro2 - dc_offset)
+    float dp_raw;           // Pa (baro_A - baro_B - dc_offset)
     float dc_offset;        // Pa (slow moving average, tau=60s)
     float dp_rms_2s;        // Pa (RMS over last 2s, turbulence indicator)
-    uint32_t pressure2_pa;  // Pa (raw BMP581 #2)
+    uint32_t pressure2_pa;  // Pa (raw BMP581 #B)
 };
 
-// --- GPS data (1 Hz → BLE GPS packet) ---
+// --- GPS data (1 Hz) ---
 struct GpsData {
     double latitude;        // decimal degrees
     double longitude;       // decimal degrees
     int16_t altitude_msl;   // m
     float speed_kmh;        // km/h (ground speed)
-    float heading_deg;      // degrees
+    float heading_deg;      // degrees (GPS course-over-ground; invalid at rest)
     uint8_t satellites;
     bool fix_valid;
     uint32_t timestamp_ms;
 };
 
-// --- Power / Status (1 Hz → BLE STATUS packet) ---
+// --- Power / Status (1 Hz) ---
 struct PowerStatus {
     uint8_t battery_pct;    // 0-100%
     float battery_voltage;  // V

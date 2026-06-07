@@ -1,0 +1,10 @@
+Designator,Quantity,Value,Footprint,MPN,Manufacturer,Description
+"C1,C2,C3,C4,C5,C7",6,"100nF","C_0402_1005Metric","GRM155R71C104KA88D","Murata","MLCC 100nF 16V X7R 0402"
+"C6",1,"10uF","C_0805_2012Metric","GRM21BR61A106ME51","Murata","MLCC 10uF 10V X5R 0805"
+"R1,R2",2,"4.7kOhm","R_0402_1005Metric","RC0402FR-074K7L","Yageo","Chip Resistor 4.7k 1% 0402"
+"R3,R4",2,"10kOhm","R_0402_1005Metric","RC0402FR-0710KL","Yageo","Chip Resistor 10k 1% 0402"
+"U1,U2",2,"BMP581","BMP581_LGA-10_2x2mm","BMP581","Bosch Sensortec","Pressure Sensor LGA-10 2x2mm"
+"U3",1,"LSM6DSO32","Bosch_LGA-14_3x2.5mm_P0.5mm","LSM6DSO32","STMicroelectronics","6-axis IMU Accel+Gyro LGA-14"
+"U4",1,"BNO085","LGA-28_5.2x3.8mm_P0.5mm","BNO085","CEVA/Bosch","9-axis IMU SiP LGA-28"
+"U5",1,"SHT40-AD1B","Sensirion_DFN-4_1.5x1.5mm_P0.8mm","SHT40-AD1B-R2","Sensirion","Temp/Humidity Sensor DFN-4"
+"J1",1,"Qwiic","JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm","SM04B-SRSS-TB(LF)(SN)","JST","4-pin SMD Horizontal 1mm pitch"

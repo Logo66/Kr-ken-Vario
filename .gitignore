@@ -7,3 +7,15 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+
+# KiCad
+*.lck
+*-backups/
+fp-info-cache
+
+# Sensor board specifics
+hardware/sensor_board/archive/
+hardware/sensor_board/project/test_zone*
+hardware/sensor_board/project/temp-*
+hardware/reference/
+hardware/sensor_board/lib/SparkFun-KiCad-Libraries/
