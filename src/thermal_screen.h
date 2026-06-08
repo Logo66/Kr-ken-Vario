@@ -9,14 +9,7 @@
 //   Rechts:  x 360-950  | Kompass-Rose (North-Up, Lift-Punkte)
 //   Unten:   y 490-540   | Kern: links · 36m
 
-#include "epdiy.h"
-#include "epd_highlevel.h"
-#include <string.h>
-#include <stdio.h>
-#include <math.h>
-#include "arialbold40.h"
-#include "arialbold28.h"
-#include "arialbold16.h"
+#include "ui_utils.h"
 
 // Lift-Sample: Position relativ zum Piloten, Steigrate, Alter
 struct LiftSample {
@@ -52,20 +45,11 @@ struct ThermalData {
     float bat_hours;
 };
 
-// Draw helpers (gleiche wie cruise_screen.h)
-static void TT(const EpdFont *f, const char *s, int x, int y, uint8_t *fb) {
-    int cx=x, cy=y; EpdFontProperties p=epd_font_properties_default(); p.fg_color=0;
-    epd_write_string(f,s,&cx,&cy,fb,&p);
-}
-static void HH(int x,int y,int w,uint8_t *fb) { EpdRect r={x,y,w,2}; epd_fill_rect(r,0,fb); }
-static void VV(int x,int y,int h,uint8_t *fb) { EpdRect r={x,y,2,h}; epd_fill_rect(r,0,fb); }
-static void FF(int x,int y,int w,int h,uint8_t *fb) { EpdRect r={x,y,w,h}; epd_fill_rect(r,0,fb); }
-
 // Gefuellter Kreis (Bresenham)
 static void fillCircle(int cx, int cy, int r, uint8_t *fb) {
     for (int y=-r; y<=r; y++) {
         int hw = (int)sqrtf(r*r - y*y);
-        FF(cx-hw, cy+y, 2*hw+1, 1, fb);
+        uiFill(cx-hw, cy+y, 2*hw+1, 1, fb);
     }
 }
 
@@ -76,7 +60,7 @@ static void drawCircle(int cx, int cy, int r, uint8_t *fb) {
         int x = cx + (int)(r * cosf(rad));
         int y = cy - (int)(r * sinf(rad));
         if (x>=0 && x<960 && y>=0 && y<540)
-            FF(x, y, 2, 2, fb);
+            uiFill(x, y, 2, 2, fb);
     }
 }
 
@@ -109,7 +93,7 @@ static void drawPilotTriangle(int cx, int cy, float heading_deg, int size, uint8
         float t3 = (r_y != l_y) ? (float)(y - l_y) / (r_y - l_y) : -1;
         if (t3 >= 0 && t3 <= 1) { int x = (int)(l_x + t3*(r_x-l_x)); if(x<min_x)min_x=x; if(x>max_x)max_x=x; }
         if (min_x <= max_x && min_x >= 0 && max_x < 960)
-            FF(min_x, y, max_x-min_x+1, 1, fb);
+            uiFill(min_x, y, max_x-min_x+1, 1, fb);
     }
 }
 
@@ -121,43 +105,43 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
 
     // === STATUS BAR ===
     snprintf(buf,48,"%02d:%02d", d.rtc_hour, d.rtc_min);
-    TT(&ArialBold16, buf, 20, 30, fb);
+    drawText(&ArialBold16, buf, 20, 30, fb);
 
     unsigned long thermal_s = (millis() - d.thermal_start_ms) / 1000;
     snprintf(buf,48,"THERMIK %d:%02d", (int)(thermal_s/60), (int)(thermal_s%60));
-    TT(&ArialBold16, buf, 120, 30, fb);
+    drawText(&ArialBold16, buf, 120, 30, fb);
 
     snprintf(buf,48,"+%.0f m", d.gained);
-    TT(&ArialBold16, buf, 380, 30, fb);
+    drawText(&ArialBold16, buf, 380, 30, fb);
 
     snprintf(buf,48,"%d%%", d.bat_pct);
-    TT(&ArialBold16, buf, 880, 30, fb);
+    drawText(&ArialBold16, buf, 880, 30, fb);
 
-    HH(10, 48, 940, fb);
+    uiHLine(10, 48, 940, fb);
 
     // === LINKE SPALTE (Daten) ===
-    TT(&ArialBold16, "AVG CLIMB 20s", 20, 80, fb);
+    drawText(&ArialBold16, "AVG CLIMB 20s", 20, 80, fb);
     snprintf(buf,48,"%+.1f", d.vario_avg);
-    TT(&ArialBold40, buf, 30, 150, fb);
-    TT(&ArialBold16, "m/s", 30, 175, fb);
+    drawText(&ArialBold40, buf, 30, 150, fb);
+    drawText(&ArialBold16, "m/s", 30, 175, fb);
 
     snprintf(buf,48,"jetzt %+.1f", d.vario);
-    TT(&ArialBold16, buf, 30, 205, fb);
+    drawText(&ArialBold16, buf, 30, 205, fb);
 
-    HH(20, 220, 320, fb);
+    uiHLine(20, 220, 320, fb);
 
-    TT(&ArialBold16, "HOEHE", 30, 250, fb);
+    drawText(&ArialBold16, "HOEHE", 30, 250, fb);
     snprintf(buf,48,"%.0f m", d.altitude);
-    TT(&ArialBold28, buf, 30, 290, fb);
+    drawText(&ArialBold28, buf, 30, 290, fb);
 
-    HH(20, 310, 320, fb);
+    uiHLine(20, 310, 320, fb);
 
-    TT(&ArialBold16, "BASE EST", 30, 340, fb);
+    drawText(&ArialBold16, "BASE EST", 30, 340, fb);
     snprintf(buf,48,"%.0f m", d.base_est);
-    TT(&ArialBold28, buf, 30, 380, fb);
+    drawText(&ArialBold28, buf, 30, 380, fb);
 
     // === VERTIKALER DIVIDER ===
-    VV(355, 50, 440, fb);
+    uiVLine(355, 50, 440, fb);
 
     // === KOMPASS-ROSE (rechts, North-Up) ===
     int rose_cx = 655;  // Zentrum
@@ -169,10 +153,10 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     drawCircle(rose_cx, rose_cy, rose_r/2, fb);  // innerer Ring
 
     // Himmelsrichtungen (fix, North-Up)
-    TT(&ArialBold28, "N", rose_cx-10, rose_cy-rose_r-5, fb);
-    TT(&ArialBold16, "E", rose_cx+rose_r+8, rose_cy+6, fb);
-    TT(&ArialBold16, "S", rose_cx-5, rose_cy+rose_r+20, fb);
-    TT(&ArialBold16, "W", rose_cx-rose_r-25, rose_cy+6, fb);
+    drawText(&ArialBold28, "N", rose_cx-10, rose_cy-rose_r-5, fb);
+    drawText(&ArialBold16, "E", rose_cx+rose_r+8, rose_cy+6, fb);
+    drawText(&ArialBold16, "S", rose_cx-5, rose_cy+rose_r+20, fb);
+    drawText(&ArialBold16, "W", rose_cx-rose_r-25, rose_cy+6, fb);
 
     // Pilot-Dreieck (dreht sich mit Heading)
     drawPilotTriangle(rose_cx, rose_cy, d.heading, 18, fb);
@@ -203,18 +187,18 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
         int kern_px = rose_cx + (int)(d.kern_dx * scale);
         int kern_py = rose_cy - (int)(d.kern_dy * scale);
         // Pfeil vom Zentrum zum Kern
-        FF(fminf(rose_cx,kern_px), fminf(rose_cy,kern_py),
+        uiFill(fminf(rose_cx,kern_px), fminf(rose_cy,kern_py),
            abs(kern_px-rose_cx)+2, 2, fb);  // Linie (vereinfacht)
     }
 
     // === UNTEN: Kern-Hinweis ===
-    HH(10, 490, 940, fb);
+    uiHLine(10, 490, 940, fb);
     if (d.kern_dist > 5) {
         snprintf(buf,48,"Kern: %s  %.0f m", d.kern_hint, d.kern_dist);
     } else {
         snprintf(buf,48,"Kern: zentriert");
     }
-    TT(&ArialBold16, buf, 360, 520, fb);
+    drawText(&ArialBold16, buf, 360, 520, fb);
 
     // Push
     epd_poweron();

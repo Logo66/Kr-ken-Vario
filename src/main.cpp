@@ -14,6 +14,7 @@
 #include "boot_splash.h"
 #include "cruise_screen.h"
 #include "thermal_screen.h"
+#include "thermal_manager.h"
 #include "landing_screen.h"
 #include "menu_screen.h"
 #include "qnh_screen.h"
@@ -24,6 +25,7 @@
 static TouchManager touch;
 static FlightDetector flight;
 static Flugbuch flugbuch;
+static ThermalManager thermal;
 #include "vario/altitude.h"
 #include "kalman_vario.h"
 #include "esp_sleep.h"
@@ -441,8 +443,12 @@ void loop() {
         if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
             Serial.printf("[SWIPE] → %s\n", currentScreen==SCR_CRUISE?"Cruise":"Thermik");
-            if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
-            else showDemoThermalScreen(&hl);
+            if (currentScreen==SCR_CRUISE) {
+                showCruiseScreen(&hl, live, MODE_GC16);
+            } else {
+                if (!thermal.active) thermal.start(live.altitude);
+                showThermalScreen(&hl, thermal.data);
+            }
             lastDisplay = millis();
         } else if (g == GEST_TAP) {
             Serial.printf("[TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
@@ -461,19 +467,30 @@ void loop() {
     if (!btn_now && btn_last && currentScreen != SCR_MENU && currentScreen != SCR_LANDING) {
         currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
         if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
-        else showDemoThermalScreen(&hl);
+        else showThermalScreen(&hl, thermal.data);
         lastDisplay = millis();
         delay(300);
     }
     btn_last = btn_now;
+
+    // Thermal-Manager updaten (immer, auch am Boden)
+    float gps_lat = gps.location.isValid() ? gps.location.lat() : 0;
+    float gps_lon = gps.location.isValid() ? gps.location.lng() : 0;
+    if (thermal.active) {
+        thermal.update(gps_lat, gps_lon, live.heading, live.speed,
+                       live.vario, live.vario_avg, live.altitude,
+                       live.temp, live.dewpoint, live.bat_pct,
+                       live.rtc_hour, live.rtc_min);
+    }
 
     // Auto-Thermik bei Steigen
     static unsigned long climb_since = 0;
     if (live.vario_avg > 0.5f && flight.state == FLIGHT_FLYING) {
         if (!climb_since) climb_since = millis();
         if (millis()-climb_since > 10000 && currentScreen==SCR_CRUISE) {
+            if (!thermal.active) thermal.start(live.altitude);
             currentScreen = SCR_THERMAL;
-            showDemoThermalScreen(&hl);
+            showThermalScreen(&hl, thermal.data);
             lastDisplay = millis();
         }
     } else { climb_since = 0; }
@@ -485,6 +502,6 @@ void loop() {
         if (currentScreen == SCR_CRUISE)
             showCruiseScreen(&hl, live, MODE_DU);
         else
-            showDemoThermalScreen(&hl);
+            showThermalScreen(&hl, thermal.data);
     }
 }
