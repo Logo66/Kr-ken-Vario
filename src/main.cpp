@@ -285,10 +285,9 @@ void setup() {
         live.dewpoint = live.temp - (100.0f-h.relative_humidity)/5.0f;
     }
 
-    // GPS: 38400 Baud (bewiesene Baudrate — hatte vorher Fix mit 7+ Sats)
-    // Die 9600-Erkennung war ein False-Positive (UART-Rauschen)
-    Serial2.begin(38400, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
-    Serial.println("[GPS] UART2 38400 Baud gestartet");
+    // GPS: 9600 Baud (Diagnose bewiesen: ok=72 bei 9600, ok=0 bei 38400)
+    Serial2.begin(9600, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
+    Serial.println("[GPS] 9600 Baud");
 
     // Wire freigeben → epdiy
     Wire.end();
@@ -369,10 +368,12 @@ void loop() {
     // Serial alle 5s
     if (millis()-lastPrint >= 5000) {
         lastPrint = millis();
-        Serial.printf("[%02d:%02d] V=%+.1f avg=%+.1f Alt=%.0f T=%.1f GPS:%s s=%d bytes=%lu\n",
+        Serial.printf("[%02d:%02d] V=%+.1f Alt=%.0f GPS:%s s=%d ok=%lu fail=%lu bytes=%lu\n",
                        live.rtc_hour, live.rtc_min,
-                       live.vario, live.vario_avg, live.altitude,
-                       live.temp, live.gps_fix?"FIX":"---", live.sats, gps_total_bytes);
+                       live.vario, live.altitude,
+                       live.gps_fix?"FIX":"---", live.sats,
+                       gps.passedChecksum(), gps.failedChecksum(),
+                       gps_total_bytes);
     }
 
     // === FLUG-ERKENNUNG ===
