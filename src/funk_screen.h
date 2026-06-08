@@ -10,8 +10,8 @@ static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
     epd_hl_set_all_white(hl);
     char buf[48];
 
-    drawHCenter(&ArialBold28, "FUNK", 0, 960, 40, fb);
-    uiHLine(14, 54, 932, fb);
+    drawHCenter(&ArialBold28, "FUNK", 0, 960, 44, fb);
+    uiHLine(14, 58, 932, fb);
 
     // 3 grosse Buttons vertikal
     int bx = 200, bw = 560, bh = 90, gap = 20;

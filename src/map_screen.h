@@ -133,7 +133,11 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
             char path[48];
             snprintf(path, 48, "/tiles/%d_%d_%d.png", zoom, tx, ty);
             File f = SD.open(path, FILE_READ);
-            if (!f) continue;
+            if (!f) {
+                Serial.printf("[MAP] Tile fehlt: %s\n", path);
+                continue;
+            }
+            Serial.printf("[MAP] Tile laden: %s (%d bytes) → (%d,%d)\n", path, f.size(), ox, oy);
 
             pngle_t *pngle = pngle_new();
             TileCtx ctx = {fb, ox, oy, MAP_CLIP_X+2, MAP_CLIP_Y+2, MAP_CLIP_W-4, MAP_CLIP_H-4};
@@ -231,9 +235,41 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uiVLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_H, fb);
     uiVLine(MAP_CLIP_X+MAP_CLIP_W-2, MAP_CLIP_Y, MAP_CLIP_H, fb);
 
-    // === OSM TILE HINTERGRUND ===
+    // === OSM TILE HINTERGRUND (wenn auf SD vorhanden) ===
+    bool tiles_drawn = false;
     if (d.lat != 0 && d.lon != 0) {
-        drawTiles(d.lat, d.lon, 11, fb);  // Zoom 11 fest (passend zu Download)
+        drawTiles(d.lat, d.lon, 11, fb);
+        // Prüfen ob mindestens 1 Tile existierte (grob: Center-Tile)
+        char tp[48];
+        snprintf(tp, 48, "/tiles/11_%d_%d.png", lon2tile(d.lon,11), lat2tile(d.lat,11));
+        tiles_drawn = SD.exists(tp);
+    }
+
+    // === KOORDINATEN-GITTER (wenn keine Tiles) ===
+    if (!tiles_drawn && d.lat != 0 && d.lon != 0) {
+        float m_per_px = ZOOM_M[mapZoomIdx] / (float)MAP_CLIP_W;
+        // Horizontale + vertikale Linien alle 500m / 1km je nach Zoom
+        float grid_m = (ZOOM_M[mapZoomIdx] <= 2000) ? 500.0f : 1000.0f;
+        float grid_px = grid_m / m_per_px;
+
+        // Gitter zentriert auf Pilot
+        if (grid_px > 30) {  // Nur zeichnen wenn Abstand > 30px
+            for (float gx = MAP_PILOT_X - 5*grid_px; gx < MAP_PILOT_X + 5*grid_px; gx += grid_px) {
+                int ix = (int)gx;
+                if (ix > MAP_CLIP_X+2 && ix < MAP_CLIP_X+MAP_CLIP_W-4) {
+                    // Gestrichelte Linie
+                    for (int y = MAP_CLIP_Y+4; y < MAP_CLIP_Y+MAP_CLIP_H-4; y += 8)
+                        uiFill(ix, y, 1, 4, fb);
+                }
+            }
+            for (float gy = MAP_PILOT_Y - 5*grid_px; gy < MAP_PILOT_Y + 5*grid_px; gy += grid_px) {
+                int iy = (int)gy;
+                if (iy > MAP_CLIP_Y+2 && iy < MAP_CLIP_Y+MAP_CLIP_H-4) {
+                    for (int x = MAP_CLIP_X+4; x < MAP_CLIP_X+MAP_CLIP_W-4; x += 8)
+                        uiFill(x, iy, 4, 1, fb);
+                }
+            }
+        }
     }
 
     // === TRACK-SPUR (dicke Linie, stroke 3.5) ===

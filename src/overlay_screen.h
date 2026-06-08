@@ -6,9 +6,14 @@
 #include "ui_utils.h"
 #include "sd_manager.h"
 
-// OpenAIP URLs (Schweiz) — kein Auth noetig, woechentlich aktualisiert
-#define URL_AIRSPACE_CH "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/ch_asp.txt"
-#define URL_OBSTACLES_CH "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/ch_obs.txt"
+// Schweiz: Luftraeume von openAIP, Hindernisse vom BAZL (amtlich, tagesaktuell)
+#define URL_AIRSPACE_CH   "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/ch_asp.txt"
+// BAZL Luftfahrthindernisse — GeoJSON, taeglich ab 04:00 aktualisiert
+// Antennen, Gebaeude, Kabel, Krane, Seilbahnen, Hochspannung, Windenergie
+// Erfassung: >25m unbebaut, >60m bebaut, >40m Mobilkrane
+#define URL_OBSTACLES_CH  "https://data.geo.admin.ch/api/stac/v0.9/collections/ch.bazl.luftfahrthindernis/items?limit=5000"
+// Hotspots (Thermik) von openAIP
+#define URL_HOTSPOTS_CH   "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/ch_hot.cup"
 
 enum OverlayState {
     OVL_MENU,
@@ -40,7 +45,8 @@ public:
         case OVL_MENU: {
             bool wifi = (WiFi.status() == WL_CONNECTED);
             bool has_asp = sd && sd->ok && sd->exists("/airspace/ch_asp.txt");
-            bool has_obs = sd && sd->ok && sd->exists("/obstacles/ch_obs.txt");
+            bool has_obs = sd && sd->ok && sd->exists("/obstacles/ch_bazl.json");
+            bool has_hot = sd && sd->ok && sd->exists("/obstacles/ch_hot.cup");
 
             if (!wifi) {
                 drawHCenter(&ArialBold16, "WiFi nicht verbunden — erst unter FUNK > WLAN verbinden",
@@ -56,15 +62,25 @@ public:
             snprintf(asp_label, 48, "Luftraeume CH  %s", has_asp ? "[OK]" : "");
             drawBoxCenter(&ArialBold24, asp_label, 100, 120, 760, 70, fb);
 
-            // Hindernisse — zentriert in Box
-            uiBox(100, 210, 760, 70, fb);
+            // BAZL Hindernisse — zentriert in Box
+            uiBox(100, 200, 760, 60, fb);
             char obs_label[48];
-            snprintf(obs_label, 48, "Hindernisse CH  %s", has_obs ? "[OK]" : "");
-            drawBoxCenter(&ArialBold24, obs_label, 100, 210, 760, 70, fb);
+            snprintf(obs_label, 48, "Hindernisse BAZL  %s", has_obs ? "[OK]" : "");
+            drawBoxCenter(&ArialBold16, obs_label, 100, 200, 760, 60, fb);
+
+            // Thermik-Hotspots
+            uiBox(100, 275, 760, 60, fb);
+            char hot_label[48];
+            snprintf(hot_label, 48, "Hotspots CH  %s", has_hot ? "[OK]" : "");
+            drawBoxCenter(&ArialBold16, hot_label, 100, 275, 760, 60, fb);
 
             // Karten-Tiles
-            uiBox(100, 300, 760, 70, fb);
-            drawBoxCenter(&ArialBold24, "Karten Download", 100, 300, 760, 70, fb);
+            uiBox(100, 350, 760, 60, fb);
+            drawBoxCenter(&ArialBold16, "Karten Download", 100, 350, 760, 60, fb);
+
+            // Hinweis
+            drawHCenter(&ArialBold16, "BAZL: tagesaktuell, >25m Hindernisse",
+                        0, 960, 435, fb);
 
             // Status SD
             if (!sd || !sd->ok) {
@@ -120,11 +136,13 @@ public:
                     snprintf(status_msg, 64, "Erst FUNK > WLAN verbinden!");
                     state = OVL_ERROR; draw(hl);
                     return false;
-                } else if (ty >= 120 && ty < 190) {
+                } else if (ty >= 120 && ty < 180) {
                     downloadFile(hl, URL_AIRSPACE_CH, "/airspace/ch_asp.txt", "Luftraeume CH");
-                } else if (ty >= 210 && ty < 280) {
-                    downloadFile(hl, URL_OBSTACLES_CH, "/obstacles/ch_obs.txt", "Hindernisse CH");
-                } else if (ty >= 300 && ty < 370) {
+                } else if (ty >= 200 && ty < 260) {
+                    downloadFile(hl, URL_OBSTACLES_CH, "/obstacles/ch_bazl.json", "Hindernisse BAZL");
+                } else if (ty >= 275 && ty < 335) {
+                    downloadFile(hl, URL_HOTSPOTS_CH, "/obstacles/ch_hot.cup", "Hotspots CH");
+                } else if (ty >= 350 && ty < 410) {
                     downloadTiles(hl);
                 }
             }
@@ -211,10 +229,11 @@ private:
         download_pct = 0;
         draw(hl);
 
-        // Zoom 11: Schweiz ca. x=1060-1075, y=720-730 (10 * 10 = ~100 Tiles)
+        // Zoom 11: Ganze Schweiz (46.0-47.8°N, 6.0-10.5°E)
+        // x: 1060-1076, y: 713-724 (~17 * 12 = ~204 Tiles)
         int zoom = 11;
-        int x_min = 1060, x_max = 1075;
-        int y_min = 720, y_max = 730;
+        int x_min = 1060, x_max = 1076;
+        int y_min = 713, y_max = 724;
         int total_tiles = (x_max - x_min + 1) * (y_max - y_min + 1);
         int done_tiles = 0;
 

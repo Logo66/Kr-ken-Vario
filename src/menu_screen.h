@@ -14,9 +14,9 @@ static void drawMBtn(int c, int r, const char *label, const char *label2,
     uiBox(x, y, MBTN, MBTN, fb);
 
     if (label2) {
-        // Zweizeilig: beide ArialBold24, vertikal zentriert in Box
-        drawHCenter(&ArialBold24, label,  x, MBTN, y + 78, fb);
-        drawHCenter(&ArialBold24, label2, x, MBTN, y + 114, fb);
+        // Zweizeilig: beide ArialBold24, mehr Abstand, vertikal zentriert
+        drawHCenter(&ArialBold24, label,  x, MBTN, y + 72, fb);
+        drawHCenter(&ArialBold24, label2, x, MBTN, y + 120, fb);
     } else if (info) {
         // Label oben, Info unten
         drawHCenter(&ArialBold24, label, x, MBTN, y + 80, fb);
