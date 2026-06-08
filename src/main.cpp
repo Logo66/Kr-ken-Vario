@@ -171,14 +171,14 @@ static float rawBMP581Pressure() {
     return (float)raw / 64.0f;  // Pa
 }
 
-// SHT40 lesen (raw I2C, Measure High Precision = 0xFD)
-static bool rawSHT40(float *temp, float *rh) {
+// SHT45 lesen (raw I2C, Measure High Precision = 0xFD)
+static bool rawSHT45(float *temp, float *rh) {
     uint8_t cmd = 0xFD;
-    if (i2c_master_write_to_device(I2C_NUM_0, ADDR_SHT40, &cmd, 1,
+    if (i2c_master_write_to_device(I2C_NUM_0, ADDR_SHT45, &cmd, 1,
                                     pdMS_TO_TICKS(50)) != ESP_OK) return false;
     vTaskDelay(pdMS_TO_TICKS(10));  // Messzeit
     uint8_t d[6];
-    if (i2c_master_read_from_device(I2C_NUM_0, ADDR_SHT40, d, 6,
+    if (i2c_master_read_from_device(I2C_NUM_0, ADDR_SHT45, d, 6,
                                      pdMS_TO_TICKS(50)) != ESP_OK) return false;
     uint16_t t_raw = (d[0]<<8)|d[1];
     uint16_t h_raw = (d[3]<<8)|d[4];
@@ -400,12 +400,12 @@ void loop() {
         }
     }
 
-    // SHT40 raw read (alle 5s)
+    // SHT45 raw read (alle 5s)
     static unsigned long lastSHT=0;
     if (millis()-lastSHT > 5000) {
         lastSHT = millis();
         float t,rh;
-        if (rawSHT40(&t,&rh)) {
+        if (rawSHT45(&t,&rh)) {
             live.temp = t - 3.8f;
             live.dewpoint = live.temp - (100.0f-rh)/5.0f;
         }

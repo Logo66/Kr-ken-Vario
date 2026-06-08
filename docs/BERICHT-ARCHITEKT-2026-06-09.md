@@ -29,7 +29,7 @@ Das Geraet kann autonom fliegen — ohne Handy, ohne Internet, ohne Bodenstation
 │  AURA KRUECKE (ESP32-S3-WROOM-1 N16R8)                 │
 │                                                         │
 │  ┌─────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐ │
-│  │ BMP581  │  │ SHT40    │  │ LSM6DSO32│  │ L76K GPS│ │
+│  │ BMP581  │  │ SHT45    │  │ LSM6DSO32│  │ L76K GPS│ │
 │  │ Druck   │  │ Temp/Hum │  │ Accel/Gyr│  │ 9600 Bd │ │
 │  │ 20 Hz   │  │ 1 Hz     │  │ (ready)  │  │ UART2   │ │
 │  └────┬────┘  └────┬─────┘  └────┬─────┘  └────┬────┘ │
@@ -163,7 +163,7 @@ Fuer Bilder/Tiles: `memset(hl->back_fb, 0xFF, fb_size)` ZUSAETZLICH.
 ## 7. I2C-ARCHITEKTUR (FUER NEUE SENSOREN)
 
 ```
-Wire.begin(39, 40) → Sensor-Init (BMP581, SHT40, LSM6DSO32, GT911, RTC, BQ25896)
+Wire.begin(39, 40) → Sensor-Init (BMP581, SHT45, LSM6DSO32, GT911, RTC, BQ25896)
 Wire.end()         → epdiy uebernimmt I2C-Driver
                    → Ab hier NUR raw I2C: i2c_master_write_read_device(I2C_NUM_0, ...)
 ```
@@ -239,7 +239,7 @@ Das Ding fliegt.
    milchig. Periodischer GC16-Reset muss rein vor laengeren Fluegen.
 
 ### Faktenkorrekturen
-4. **SHT40 vs SHT45** — im Code und allen Tickets steht SHT40. Physisch am
+4. **SHT45 vs SHT45** — im Code und allen Tickets steht SHT45. Physisch am
    Sensor-Board verifizieren (Beschriftung auf Chip). Adresse identisch,
    Genauigkeit unterschiedlich (±0.2 vs ±0.1°C).
 5. **"Das erste KI-entwickelte Vario"** → geaendert zu **"Mit KI-Architekt

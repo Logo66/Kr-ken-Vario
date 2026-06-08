@@ -7,7 +7,7 @@ Letzte Aktualisierung: 2026-06-09
 ### Hardware & Sensoren
 - **Kalman-Vario** 2-State (Hoehe/Vario) auf BMP581 @ 20 Hz, live auf Display 1 Hz
 - **GPS** L76K @ 9600 Baud, Fix mit 7+ Satelliten, Speed/Heading/Position live
-- **Alle 4 Sensoren** via Raw I2C (BMP581, SHT40, LSM6DSO32, GT911)
+- **Alle 4 Sensoren** via Raw I2C (BMP581, SHT45, LSM6DSO32, GT911)
 - **RTC** PCF8563, Software-Clock im Loop
 - **Batterie** SoC aus BQ25896 Spannung (4.2V=100%, 3.3V=0%)
 - **Touch** GT911, Portrait→Landscape Transform, 50 Hz Polling, Swipe-Schwelle 35px

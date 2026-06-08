@@ -37,7 +37,7 @@
 #define ADDR_BQ27220        0x55
 
 // I2C addresses — Aura sensor board
-#define ADDR_SHT40             0x44
+#define ADDR_SHT45             0x44
 #define ADDR_BMP581_SECONDARY  0x46
 #define ADDR_BMP581_PRIMARY    0x47
 #define ADDR_LSM6DSO32         0x6A
