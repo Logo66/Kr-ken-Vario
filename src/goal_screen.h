@@ -1,195 +1,166 @@
 #pragma once
-// goal_screen.h — AURA XC GOAL / Final Glide Screen
-// KRUECKE-5: Pixelgenaue Umsetzung der Koordinaten-Tabelle
-// Alle Positionen 1:1 aus dem Ticket, KEINE Schaetzungen
+// goal_screen.h — KRUECKE-5 Goal/Final Glide
+// ALLE Texte BERECHNET mit measureText + drawHCenter/drawBoxCenter
 #include "ui_utils.h"
 #include "arialbold72.h"
 #include "arialbold32.h"
 #include "arialbold24.h"
 #include <math.h>
 
-// Font-Tiers (aus Ticket §1)
-// T1 HERO = ArialBold72  (~72px Versalhoehe)
-// T2 XL   = ArialBold40  (~40px)
-// T3 L    = ArialBold32  (~32px)
-// T4 TITLE= ArialBold24  (~24px)
-// T5 LABEL= ArialBold16  (~15px)
-// T6 STATUS=ArialBold16  (~17px)
-
 struct GoalData {
-    // Ziel
-    const char *wp_name;      // "FIESCH"
-    float distance_km;        // km zum Ziel
-    float arrival_m;          // Ankunftshoehe ueber/unter Ziel (m, mit Vorzeichen)
-    float gr_needed;          // Gleitzahl noetig
-    float gr_current;         // Gleitzahl aktuell
-    float bearing_abs;        // Absolute Peilung (Grad)
-    float bearing_rel;        // Relative Peilung (Grad, 0=geradeaus)
-
-    // Status
-    int rtc_hour, rtc_min;
-    int sats, bat_pct;
-    int fanet_peers;
+    const char *wp_name;
+    float distance_km, arrival_m, gr_needed, gr_current;
+    float bearing_abs, bearing_rel;
+    int rtc_hour, rtc_min, sats, bat_pct, fanet_peers;
     bool buddy_connected;
-    const char *buddy_hint;   // NULL wenn kein Buddy
+    const char *buddy_hint;
 };
 
-// === Dreieck-Formel aus Ticket §2 ===
-// tri(cx, cy, ang, L, Wd) — ang in Grad, 0=Norden, im Uhrzeigersinn
-static void drawTri(int cx, int cy, float ang_deg, int L, int Wd, uint8_t *fb) {
-    float a = ang_deg * M_PI / 180.0f;
-    float sa = sinf(a), ca = cosf(a);
-
-    float tip_x = cx + 0.6f * L * sa;
-    float tip_y = cy - 0.6f * L * ca;
-    float bc_x  = cx - 0.4f * L * sa;
-    float bc_y  = cy + 0.4f * L * ca;
-    float bl_x  = bc_x + 0.5f * Wd * ca;
-    float bl_y  = bc_y + 0.5f * Wd * sa;
-    float br_x  = bc_x - 0.5f * Wd * ca;
-    float br_y  = bc_y - 0.5f * Wd * sa;
-
-    // Scanline-Fill des Dreiecks
-    int min_y = (int)fminf(tip_y, fminf(bl_y, br_y));
-    int max_y = (int)fmaxf(tip_y, fmaxf(bl_y, br_y));
-    for (int y = min_y; y <= max_y; y++) {
-        int lx = 960, rx = 0;
-        // 3 Kanten pruefen
-        float edges[][4] = {
-            {tip_x, tip_y, bl_x, bl_y},
-            {tip_x, tip_y, br_x, br_y},
-            {bl_x, bl_y, br_x, br_y}
-        };
-        for (int e = 0; e < 3; e++) {
-            float y1 = edges[e][1], y2 = edges[e][3];
-            if ((y >= y1 && y <= y2) || (y >= y2 && y <= y1)) {
-                float dy = y2 - y1;
-                if (fabsf(dy) < 0.5f) continue;
-                float t = (y - y1) / dy;
-                int x = (int)(edges[e][0] + t * (edges[e][2] - edges[e][0]));
-                if (x < lx) lx = x;
-                if (x > rx) rx = x;
-            }
+// Dreieck-Formel aus Ticket §2
+static void drawTri(int cx, int cy, float ang, int L, int Wd, uint8_t *fb) {
+    float a=ang*M_PI/180.0f, sa=sinf(a), ca=cosf(a);
+    float tx=cx+0.6f*L*sa, ty=cy-0.6f*L*ca;
+    float bx=cx-0.4f*L*sa, by=cy+0.4f*L*ca;
+    float blx=bx+0.5f*Wd*ca, bly=by+0.5f*Wd*sa;
+    float brx=bx-0.5f*Wd*ca, bry=by-0.5f*Wd*sa;
+    int miny=(int)fminf(ty,fminf(bly,bry)), maxy=(int)fmaxf(ty,fmaxf(bly,bry));
+    for(int y=miny;y<=maxy;y++){
+        int xl=960,xr=0;
+        float e[][4]={{tx,ty,blx,bly},{tx,ty,brx,bry},{blx,bly,brx,bry}};
+        for(int i=0;i<3;i++){
+            float dy=e[i][3]-e[i][1]; if(fabsf(dy)<0.5f)continue;
+            float t=(y-e[i][1])/dy; if(t<0||t>1)continue;
+            int x=(int)(e[i][0]+t*(e[i][2]-e[i][0]));
+            if(x<xl)xl=x; if(x>xr)xr=x;
         }
-        if (lx <= rx && lx >= 0 && rx < 960 && y >= 0 && y < 540)
-            uiFill(lx, y, rx - lx + 1, 1, fb);
+        if(xl<=xr&&xl>=0&&xr<960&&y>=0&&y<540) uiFill(xl,y,xr-xl+1,1,fb);
     }
 }
 
-// === Statusbar (identisch auf allen Screens, aus Ticket §3) ===
-static void drawGoalStatusbar(uint8_t *fb, const GoalData &d) {
-    char buf[32];
-    // Uhr
-    snprintf(buf, 32, "%02d:%02d", d.rtc_hour, d.rtc_min);
-    drawText(&ArialBold16, buf, 22, 38, fb);
+// Layout-Felder
+static const int GL_LEFT_W = 556;   // Linke Spalte bis Divider
+static const int GL_RIGHT_X = 580;  // Rechte Spalte
+static const int GL_RIGHT_W = 380;  // Rechte Spalte Breite
+// Linke Sub-Felder
+static const int GL_LABEL_X = 38;
+static const int GL_VALUE_X = 34;
+static const int GL_VALUE_W = 522;  // 556-34
+// GR Felder (zwei nebeneinander)
+static const int GL_GR1_X = 34, GL_GR1_W = 100;
+static const int GL_GR2_X = 140, GL_GR2_W = 416;
 
-    // Sat-Dots
-    for (int i = 0; i < 11; i++) {
-        int cx = 150 + i * 15, cy = 29;
-        if (i < d.sats) fillCircle(cx, cy, 5, fb);
-        else drawCircle(cx, cy, 5, fb);
-    }
-
-    // FANET
-    snprintf(buf, 32, "FANET %d", d.fanet_peers);
-    drawText(&ArialBold16, buf, 332, 38, fb);
-
-    // Buddy
-    if (d.buddy_connected) {
-        fillCircle(494, 29, 8, fb);
-    } else {
-        drawCircle(494, 29, 8, fb);
-    }
-    drawText(&ArialBold16, "BUDDY", 510, 38, fb);
-
-    // Akku
-    uiBox(866, 16, 58, 26, fb);
-    uiFill(924, 22, 7, 14, fb);
-    int fill_w = (int)(42.0f * d.bat_pct / 100.0f);
-    uiFill(870, 20, fill_w, 18, fb);
-
-    // Trennlinie
-    uiHLine(14, 54, 932, fb);
-}
-
-// === GOAL SCREEN ===
 static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
                            enum EpdDrawMode mode = MODE_GC16) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
     char buf[48];
+    int tw, th;
 
-    drawGoalStatusbar(fb, d);
+    // === STATUSBAR (Ticket §3, alle Positionen aus Spec) ===
+    snprintf(buf,48,"%02d:%02d",d.rtc_hour,d.rtc_min);
+    drawText(&ArialBold16, buf, 22, 38, fb);
+
+    for(int i=0;i<11;i++){
+        int cx=150+i*15;
+        if(i<d.sats) fillCircle(cx,29,5,fb);
+        else drawCircle(cx,29,5,fb);
+    }
+
+    snprintf(buf,48,"FANET %d",d.fanet_peers);
+    drawText(&ArialBold16, buf, 332, 38, fb);
+
+    if(d.buddy_connected) fillCircle(494,29,8,fb);
+    else drawCircle(494,29,8,fb);
+    drawText(&ArialBold16, "BUDDY", 510, 38, fb);
+
+    uiBox(866,16,58,26,fb);
+    uiFill(924,22,7,14,fb);
+    uiFill(870,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
+
+    uiHLine(14, 54, 932, fb);
 
     // === LINKE SPALTE ===
 
-    // Ziel-Pfeil (rechts zeigend)
+    // Ziel-Pfeil + Name
     drawTri(50, 82, 90, 30, 22, fb);
-
-    // Zielname
-    snprintf(buf, 48, "ZIEL: %s", d.wp_name);
-    drawText(&ArialBold24, buf, 76, 92, fb);
+    snprintf(buf,48,"ZIEL: %s", d.wp_name);
+    // Prüfen ob Name passt (max GL_LEFT_W - 76 = 480px)
+    measureText(&ArialBold24, buf, &tw, &th);
+    if (tw > GL_LEFT_W - 76) {
+        drawText(&ArialBold16, buf, 76, 92, fb);  // Fallback kleiner
+    } else {
+        drawText(&ArialBold24, buf, 76, 92, fb);
+    }
 
     // Label
-    drawText(&ArialBold16, "ANKUNFT UEBER ZIEL", 38, 142, fb);
+    drawText(&ArialBold16, "ANKUNFT UEBER ZIEL", GL_LABEL_X, 142, fb);
 
-    // Vorzeichen-Dreieck (hoch wenn >=0, runter wenn <0)
-    float tri_ang = (d.arrival_m >= 0) ? 0 : 180;
-    drawTri(68, 210, tri_ang, 56, 46, fb);
+    // Vorzeichen-Dreieck
+    drawTri(68, 210, (d.arrival_m>=0)?0:180, 56, 46, fb);
 
-    // Ankunftswert (T1 HERO, linkbuendig bei x=108)
-    snprintf(buf, 48, "%+.0f", d.arrival_m);
-    drawText(&ArialBold72, buf, 108, 238, fb);
-
-    // Einheit "m" — x = rechtes Ende der Zahl + 12px (gemessen!)
-    int tw = 0, th = 0;
+    // Ankunftswert — BERECHNET: links bei x=108, prüfe Breite
+    snprintf(buf,48,"%+.0f", d.arrival_m);
     measureText(&ArialBold72, buf, &tw, &th);
-    drawText(&ArialBold32, "m", 108 + tw + 12, 238, fb);
+    if (tw > GL_LEFT_W - 108 - 50) {
+        // Zu breit → kleinere Font
+        drawText(&ArialBold40, buf, 108, 230, fb);
+        measureText(&ArialBold40, buf, &tw, &th);
+        drawText(&ArialBold28, "m", 108+tw+8, 230, fb);
+    } else {
+        drawText(&ArialBold72, buf, 108, 238, fb);
+        drawText(&ArialBold32, "m", 108+tw+12, 238, fb);
+    }
 
-    // Trennlinie
-    uiHLine(38, 258, 518, fb);
+    uiHLine(GL_LABEL_X, 258, GL_LEFT_W-GL_LABEL_X, fb);
 
-    // Distanz
-    drawText(&ArialBold16, "DISTANZ", 38, 296, fb);
-    snprintf(buf, 48, "%.1f km", d.distance_km);
-    drawText(&ArialBold40, buf, 34, 352, fb);
+    // Distanz — links, prüfe Breite
+    drawText(&ArialBold16, "DISTANZ", GL_LABEL_X, 296, fb);
+    snprintf(buf,48,"%.1f km", d.distance_km);
+    measureText(&ArialBold40, buf, &tw, &th);
+    if (tw > GL_VALUE_W) {
+        drawText(&ArialBold28, buf, GL_VALUE_X, 348, fb);
+    } else {
+        drawText(&ArialBold40, buf, GL_VALUE_X, 352, fb);
+    }
 
-    // Gleitzahl
-    drawText(&ArialBold16, "GLEITZAHL NOETIG / IST", 38, 402, fb);
-    snprintf(buf, 48, "%.1f", d.gr_needed);
-    drawText(&ArialBold32, buf, 34, 442, fb);
-    snprintf(buf, 48, "/ %.1f", d.gr_current);
-    drawText(&ArialBold32, buf, 134, 442, fb);
+    // Gleitzahl — zwei Felder nebeneinander
+    drawText(&ArialBold16, "GLEITZAHL NOETIG / IST", GL_LABEL_X, 402, fb);
+
+    snprintf(buf,48,"%.1f", d.gr_needed);
+    measureText(&ArialBold32, buf, &tw, &th);
+    drawText(&ArialBold32, buf, GL_GR1_X, 442, fb);
+
+    snprintf(buf,48,"/ %.1f", d.gr_current);
+    measureText(&ArialBold32, buf, &tw, &th);
+    // Platziere rechts vom ersten Wert
+    int gr1_tw;
+    {char b2[16]; snprintf(b2,16,"%.1f",d.gr_needed); measureText(&ArialBold32,b2,&gr1_tw,&th);}
+    drawText(&ArialBold32, buf, GL_GR1_X + gr1_tw + 16, 442, fb);
 
     // === RECHTE SPALTE ===
-
-    // Vertikale Trennlinie
     uiVLine(580, 64, 388, fb);
 
-    // Richtungs-Ring
-    int ring_cx = 762, ring_cy = 222, ring_r = 118;
-    drawCircle(ring_cx, ring_cy, ring_r, fb);
+    // Ring + Pfeil
+    int rcx=762, rcy=222, rr=118;
+    drawCircle(rcx, rcy, rr, fb);
+    drawTri(rcx, rcy, d.bearing_rel, 150, 92, fb);
 
-    // Grosser Ziel-Pfeil (dreht mit REL_BEARING)
-    drawTri(ring_cx, ring_cy, d.bearing_rel, 150, 92, fb);
+    // Peilung — BERECHNET zentriert
+    snprintf(buf,48,"%.0f > %.0f", d.bearing_abs, d.bearing_rel);
+    drawHCenter(&ArialBold32, buf, GL_RIGHT_X, GL_RIGHT_W, 392, fb);
 
-    // Peilung Text (zentriert unter dem Ring)
-    snprintf(buf, 48, "%.0f%c %.0f%c",
-             d.bearing_abs, (d.bearing_rel >= 0) ? '>' : '<',
-             fabsf(d.bearing_rel), (d.bearing_rel >= 0) ? '>' : '<');
-    drawHCenter(&ArialBold32, buf, 580, 380, 392, fb);
-
-    // === BUDDY-BAND (nur wenn connected + hint) ===
+    // === BUDDY-BAND (nur wenn connected) ===
     if (d.buddy_connected && d.buddy_hint) {
         uiBox(14, 470, 932, 54, fb);
-        uiFill(14, 470, 104, 54, fb);  // Tag gefuellt
-        // "BUDDY" weiss auf schwarz
-        EpdFontProperties wp = epd_font_properties_default();
-        wp.fg_color = 0xFF;
-        int cx = 40, cy = 505;
-        epd_write_string(&ArialBold16, "BUDDY", &cx, &cy, fb, &wp);
-        // Hinweistext
-        drawText(&ArialBold16, d.buddy_hint, 132, 505, fb);
+        uiFill(14, 470, 104, 54, fb);
+        drawBoxCenter(&ArialBold16, "BUDDY", 14, 104, 470, 54, fb, 0xFF);
+        // Hinweis — prüfe Breite (max 932-132-14 = 786px)
+        measureText(&ArialBold16, d.buddy_hint, &tw, &th);
+        if (tw < 786) {
+            drawText(&ArialBold16, d.buddy_hint, 132, 505, fb);
+        } else {
+            drawText(&ArialBold16, "...", 132, 505, fb);  // Truncate
+        }
     }
 
     epd_poweron();
@@ -197,22 +168,13 @@ static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
     epd_poweroff();
 }
 
-// Demo
 static void showDemoGoalScreen(EpdiyHighlevelState *hl) {
-    GoalData gd = {};
-    gd.wp_name = "FIESCH";
-    gd.distance_km = 12.4f;
-    gd.arrival_m = 340;
-    gd.gr_needed = 6.8f;
-    gd.gr_current = 9.1f;
-    gd.bearing_abs = 247;
-    gd.bearing_rel = 12;
-    gd.rtc_hour = 14;
-    gd.rtc_min = 45;
-    gd.sats = 9;
-    gd.bat_pct = 78;
-    gd.fanet_peers = 3;
-    gd.buddy_connected = true;
-    gd.buddy_hint = "Hans: +2.1 m/s  3.2 km voraus";
+    GoalData gd={};
+    gd.wp_name="FIESCH"; gd.distance_km=12.4f; gd.arrival_m=340;
+    gd.gr_needed=6.8f; gd.gr_current=9.1f;
+    gd.bearing_abs=247; gd.bearing_rel=12;
+    gd.rtc_hour=14; gd.rtc_min=45; gd.sats=9; gd.bat_pct=78;
+    gd.fanet_peers=3; gd.buddy_connected=true;
+    gd.buddy_hint="Hans: +2.1 m/s  3.2 km voraus";
     showGoalScreen(hl, gd);
 }

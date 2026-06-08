@@ -1,251 +1,208 @@
 #pragma once
-// thermal_screen.h — AURA Thermik-Zentrier-Screen
-// North-Up Kompass-Rose, Lift-Punkte, Kern-Indikator
-// 1-Bit S/W, fette Fonts, MODE_DU/GC16
-//
-// Layout 960x540:
-//   Status:  y 0-48     | THERMIK mm:ss | +245m | BAT
-//   Links:   x 0-350    | AVG CLIMB, jetzt, HOEHE, BASE
-//   Rechts:  x 360-950  | Kompass-Rose (North-Up, Lift-Punkte)
-//   Unten:   y 490-540   | Kern: links · 36m
-
+// thermal_screen.h — Alle Texte BERECHNET, keine Schaetzungen
 #include "ui_utils.h"
+#include <math.h>
 
-// Lift-Sample: Position relativ zum Piloten, Steigrate, Alter
 struct LiftSample {
-    float dx, dy;    // Meter relativ zum Piloten (North-Up: x=Ost, y=Nord)
-    float climb;     // m/s
-    unsigned long ts; // millis() Zeitstempel
+    float dx, dy; float climb; unsigned long ts;
 };
 
 struct ThermalData {
-    // Vario
-    float vario, vario_avg;
-    float altitude;
-    float base_est;      // geschaetzte Basis (Wolkenuntergrenze)
-    float gained;        // Hoehenmeter gewonnen seit Thermik-Eintritt
+    float vario, vario_avg, altitude, base_est, gained;
     unsigned long thermal_start_ms;
-
-    // Pilot
-    float heading;       // GPS COG (Grad, North-Up)
-    float speed;         // km/h
-
-    // Lift-Punkte
-    LiftSample samples[30];
-    int sample_count;
-
-    // Kern
-    float kern_dx, kern_dy;  // Richtung zum Kern (Meter)
-    float kern_dist;         // Distanz (Meter)
-    const char *kern_hint;   // "links", "rechts", "vorne", "hinten"
-
-    // Status
-    int rtc_hour, rtc_min;
-    int bat_pct;
-    float bat_hours;
+    float heading, speed;
+    LiftSample samples[30]; int sample_count;
+    float kern_dx, kern_dy, kern_dist;
+    const char *kern_hint;
+    int rtc_hour, rtc_min, bat_pct;
 };
 
-// Gefuellter Kreis (Bresenham)
 static void fillCircle(int cx, int cy, int r, uint8_t *fb) {
     for (int y=-r; y<=r; y++) {
-        int hw = (int)sqrtf(r*r - y*y);
+        int hw=(int)sqrtf(r*r-y*y);
         uiFill(cx-hw, cy+y, 2*hw+1, 1, fb);
     }
 }
-
-// Hohler Kreis (duenn)
 static void drawCircle(int cx, int cy, int r, uint8_t *fb) {
     for (int a=0; a<360; a+=2) {
-        float rad = a * M_PI / 180.0f;
-        int x = cx + (int)(r * cosf(rad));
-        int y = cy - (int)(r * sinf(rad));
-        if (x>=0 && x<960 && y>=0 && y<540)
-            uiFill(x, y, 2, 2, fb);
+        float rad=a*M_PI/180.0f;
+        int x=cx+(int)(r*cosf(rad)), y=cy-(int)(r*sinf(rad));
+        if(x>=0&&x<960&&y>=0&&y<540) uiFill(x,y,2,2,fb);
+    }
+}
+static void drawPilotTriangle(int cx, int cy, float hdg, int sz, uint8_t *fb) {
+    float a=hdg*M_PI/180.0f;
+    float tx=cx+sinf(a)*sz, ty=cy-cosf(a)*sz;
+    float bx=cx-sinf(a)*sz*0.6f, by=cy+cosf(a)*sz*0.6f;
+    float lx=bx+cosf(a)*sz*0.4f, ly=by+sinf(a)*sz*0.4f;
+    float rx=bx-cosf(a)*sz*0.4f, ry=by-sinf(a)*sz*0.4f;
+    int miny=(int)fminf(ty,fminf(ly,ry)), maxy=(int)fmaxf(ty,fmaxf(ly,ry));
+    for(int y=miny;y<=maxy;y++){
+        int xl=960,xr=0;
+        float e[][4]={{tx,ty,lx,ly},{tx,ty,rx,ry},{lx,ly,rx,ry}};
+        for(int i=0;i<3;i++){
+            float dy=e[i][3]-e[i][1]; if(fabsf(dy)<0.5f)continue;
+            float t=(y-e[i][1])/dy; if(t<0||t>1)continue;
+            int x=(int)(e[i][0]+t*(e[i][2]-e[i][0]));
+            if(x<xl)xl=x; if(x>xr)xr=x;
+        }
+        if(xl<=xr&&xl>=0&&xr<960) uiFill(xl,y,xr-xl+1,1,fb);
     }
 }
 
-// Gedrehtes Dreieck (Pilot-Marker, heading in Grad, North-Up)
-static void drawPilotTriangle(int cx, int cy, float heading_deg, int size, uint8_t *fb) {
-    float rad = heading_deg * M_PI / 180.0f;
-    // Spitze zeigt in Flugrichtung
-    float tip_x = cx + sinf(rad) * size;
-    float tip_y = cy - cosf(rad) * size;
-    // Zwei Ecken hinten
-    float back_rad = rad + M_PI;
-    float l_x = cx + sinf(back_rad - 0.5f) * size * 0.6f;
-    float l_y = cy - cosf(back_rad - 0.5f) * size * 0.6f;
-    float r_x = cx + sinf(back_rad + 0.5f) * size * 0.6f;
-    float r_y = cy - cosf(back_rad + 0.5f) * size * 0.6f;
-
-    // Gefuelltes Dreieck (Scanline)
-    int min_y = (int)fminf(tip_y, fminf(l_y, r_y));
-    int max_y = (int)fmaxf(tip_y, fmaxf(l_y, r_y));
-    for (int y = min_y; y <= max_y; y++) {
-        // Simpel: zeichne Linie von links nach rechts fuer jede Zeile
-        int min_x = 960, max_x = 0;
-        // Kante tip→l
-        float t1 = (l_y != tip_y) ? (float)(y - tip_y) / (l_y - tip_y) : -1;
-        if (t1 >= 0 && t1 <= 1) { int x = (int)(tip_x + t1*(l_x-tip_x)); if(x<min_x)min_x=x; if(x>max_x)max_x=x; }
-        // Kante tip→r
-        float t2 = (r_y != tip_y) ? (float)(y - tip_y) / (r_y - tip_y) : -1;
-        if (t2 >= 0 && t2 <= 1) { int x = (int)(tip_x + t2*(r_x-tip_x)); if(x<min_x)min_x=x; if(x>max_x)max_x=x; }
-        // Kante l→r
-        float t3 = (r_y != l_y) ? (float)(y - l_y) / (r_y - l_y) : -1;
-        if (t3 >= 0 && t3 <= 1) { int x = (int)(l_x + t3*(r_x-l_x)); if(x<min_x)min_x=x; if(x>max_x)max_x=x; }
-        if (min_x <= max_x && min_x >= 0 && max_x < 960)
-            uiFill(min_x, y, max_x-min_x+1, 1, fb);
-    }
-}
+// Layout-Felder (definiert, nicht geschaetzt)
+// Linke Spalte: x=0, w=350
+// Rechte Spalte (Rose): x=360, w=590
+// Status: y=0-48
+// Vario: y=55-215 in linker Spalte
+// Hoehe: y=220-300 in linker Spalte
+// Base: y=305-385 in linker Spalte
+// Rose: y=55-470 in rechter Spalte
+// Kern: y=480-535
+static const int TH_LEFT_W = 350;
+static const int TH_RIGHT_X = 360;
 
 static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
                                enum EpdDrawMode mode = MODE_GC16) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
     char buf[48];
+    int tw, th;
 
-    // === STATUS BAR ===
+    // === STATUS BAR (Felder berechnet) ===
     snprintf(buf,48,"%02d:%02d", d.rtc_hour, d.rtc_min);
-    drawText(&ArialBold16, buf, 20, 30, fb);
+    drawText(&ArialBold16, buf, 20, 30, fb);  // Links, fix
 
-    unsigned long thermal_s = (millis() - d.thermal_start_ms) / 1000;
-    snprintf(buf,48,"THERMIK %d:%02d", (int)(thermal_s/60), (int)(thermal_s%60));
-    drawText(&ArialBold16, buf, 120, 30, fb);
+    unsigned long ts = d.thermal_start_ms ? (millis()-d.thermal_start_ms)/1000 : 0;
+    snprintf(buf,48,"THERMIK %d:%02d",(int)(ts/60),(int)(ts%60));
+    drawHCenter(&ArialBold16, buf, 120, 260, 30, fb);  // Feld 120-380
 
     snprintf(buf,48,"+%.0f m", d.gained);
-    drawText(&ArialBold16, buf, 380, 30, fb);
+    drawText(&ArialBold16, buf, 400, 30, fb);  // Nach Thermik-Text
 
     snprintf(buf,48,"%d%%", d.bat_pct);
-    drawText(&ArialBold16, buf, 880, 30, fb);
+    measureText(&ArialBold16, buf, &tw, &th);
+    drawText(&ArialBold16, buf, 940-tw, 30, fb);  // Rechtsbündig
 
     uiHLine(10, 48, 940, fb);
 
-    // === LINKE SPALTE (Daten) ===
-    drawText(&ArialBold16, "AVG CLIMB 20s", 20, 80, fb);
+    // === LINKE SPALTE: VARIO (Feld x=0, w=350, y=55-215) ===
+    drawHCenter(&ArialBold16, "AVG CLIMB 20s", 0, TH_LEFT_W, 78, fb);
+
     snprintf(buf,48,"%+.1f", d.vario_avg);
-    drawText(&ArialBold40, buf, 30, 150, fb);
-    drawText(&ArialBold16, "m/s", 30, 175, fb);
+    measureText(&ArialBold40, buf, &tw, &th);
+    if (tw > TH_LEFT_W - 20) {
+        drawHCenter(&ArialBold28, buf, 0, TH_LEFT_W, 140, fb);  // Fallback
+    } else {
+        drawHCenter(&ArialBold40, buf, 0, TH_LEFT_W, 145, fb);
+    }
+    drawHCenter(&ArialBold16, "m/s", 0, TH_LEFT_W, 170, fb);
 
     snprintf(buf,48,"jetzt %+.1f", d.vario);
-    drawText(&ArialBold16, buf, 30, 205, fb);
+    drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 200, fb);
 
-    uiHLine(20, 220, 320, fb);
+    uiHLine(10, 218, TH_LEFT_W-10, fb);
 
-    drawHCenter(&ArialBold16, "HOEHE", 20, 320, 245, fb);
+    // === HOEHE (Feld x=0, w=350, y=220-298) ===
+    drawHCenter(&ArialBold16, "HOEHE", 0, TH_LEFT_W, 242, fb);
     snprintf(buf,48,"%.0f m", d.altitude);
-    drawHCenter(&ArialBold28, buf, 20, 320, 282, fb);
+    measureText(&ArialBold28, buf, &tw, &th);
+    if (tw > TH_LEFT_W - 20) {
+        drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 280, fb);
+    } else {
+        drawHCenter(&ArialBold28, buf, 0, TH_LEFT_W, 280, fb);
+    }
 
-    uiHLine(20, 300, 320, fb);
+    uiHLine(10, 300, TH_LEFT_W-10, fb);
 
-    drawHCenter(&ArialBold16, "BASE EST", 20, 320, 325, fb);
+    // === BASE EST (Feld x=0, w=350, y=305-383) ===
+    drawHCenter(&ArialBold16, "BASE EST", 0, TH_LEFT_W, 325, fb);
     snprintf(buf,48,"%.0f m", d.base_est);
-    drawHCenter(&ArialBold28, buf, 20, 320, 362, fb);
+    measureText(&ArialBold28, buf, &tw, &th);
+    if (tw > TH_LEFT_W - 20) {
+        drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 365, fb);
+    } else {
+        drawHCenter(&ArialBold28, buf, 0, TH_LEFT_W, 365, fb);
+    }
 
-    // === VERTIKALER DIVIDER ===
-    uiVLine(355, 50, 440, fb);
+    // === DIVIDER ===
+    uiVLine(TH_LEFT_W+5, 50, 430, fb);
 
-    // === KOMPASS-ROSE (rechts, North-Up) ===
-    int rose_cx = 655;  // Zentrum
-    int rose_cy = 270;
-    int rose_r = 180;   // Radius
+    // === KOMPASS-ROSE (zentriert in rechter Spalte) ===
+    int rose_cx = TH_RIGHT_X + 295;  // 655
+    int rose_cy = 265;
+    int rose_r = 175;
 
-    // Kreis
     drawCircle(rose_cx, rose_cy, rose_r, fb);
-    drawCircle(rose_cx, rose_cy, rose_r/2, fb);  // innerer Ring
+    drawCircle(rose_cx, rose_cy, rose_r/2, fb);
 
-    // Himmelsrichtungen (fix, North-Up)
-    drawText(&ArialBold28, "N", rose_cx-10, rose_cy-rose_r-5, fb);
-    drawText(&ArialBold16, "E", rose_cx+rose_r+8, rose_cy+6, fb);
-    drawText(&ArialBold16, "S", rose_cx-5, rose_cy+rose_r+20, fb);
-    drawText(&ArialBold16, "W", rose_cx-rose_r-25, rose_cy+6, fb);
+    // N/E/S/W — BERECHNET zentriert an den Achsen
+    drawHCenter(&ArialBold28, "N", rose_cx-40, 80, rose_cy-rose_r-8, fb);
+    drawHCenter(&ArialBold16, "S", rose_cx-30, 60, rose_cy+rose_r+18, fb);
 
-    // Pilot-Dreieck (dreht sich mit Heading)
+    measureText(&ArialBold16, "E", &tw, &th);
+    drawText(&ArialBold16, "E", rose_cx+rose_r+6, rose_cy+th/2, fb);
+
+    measureText(&ArialBold16, "W", &tw, &th);
+    drawText(&ArialBold16, "W", rose_cx-rose_r-6-tw, rose_cy+th/2, fb);
+
+    // Pilot-Dreieck
     drawPilotTriangle(rose_cx, rose_cy, d.heading, 18, fb);
 
-    // Lift-Punkte (nur gueltige Samples mit timestamp > 0)
+    // Lift-Punkte (nur gueltige)
     float scale = rose_r / 200.0f;
     unsigned long now = millis();
     for (int i = 0; i < d.sample_count; i++) {
         const LiftSample &s = d.samples[i];
-        if (s.ts == 0) continue;                    // Ungueltig
+        if (s.ts == 0) continue;
         unsigned long age = (now - s.ts) / 1000;
-        if (age > 60) continue;                     // Aelter als 60s
-
+        if (age > 60) continue;
         int px = rose_cx + (int)(s.dx * scale);
         int py = rose_cy - (int)(s.dy * scale);
-        if (px < 380 || px > 930 || py < 60 || py > 480) continue;
-
-        int r = 3 + (int)(fabsf(s.climb) * 2);
+        if (px<TH_RIGHT_X+10 || px>940 || py<60 || py>470) continue;
+        int r = 2 + (int)(fabsf(s.climb) * 2);
         if (r > 12) r = 12;
-        if (r < 2) r = 2;
-
         if (age < 10) fillCircle(px, py, r, fb);
         else drawCircle(px, py, r, fb);
     }
 
-    // Kern-Indikator: Pfeil vom Zentrum Richtung Kern
+    // Kern-Linie
     if (d.kern_dist > 5 && d.kern_dist < 500) {
-        int kern_px = rose_cx + (int)(d.kern_dx * scale);
-        int kern_py = rose_cy - (int)(d.kern_dy * scale);
-        // Clipping
-        if (kern_px >= 380 && kern_px <= 930 && kern_py >= 60 && kern_py <= 480) {
-            // Dicke Linie vom Zentrum zum Kern (Bresenham simpel: horizontal/vertikal)
-            int dx = kern_px - rose_cx;
-            int dy = kern_py - rose_cy;
-            int steps = max(abs(dx), abs(dy));
-            if (steps > 0) {
-                for (int s = 0; s <= steps; s++) {
-                    int lx = rose_cx + dx * s / steps;
-                    int ly = rose_cy + dy * s / steps;
-                    uiFill(lx-1, ly-1, 3, 3, fb);
-                }
+        int kpx = rose_cx + (int)(d.kern_dx * scale);
+        int kpy = rose_cy - (int)(d.kern_dy * scale);
+        if (kpx>=TH_RIGHT_X+10 && kpx<=940 && kpy>=60 && kpy<=470) {
+            int dx=kpx-rose_cx, dy=kpy-rose_cy;
+            int steps=max(abs(dx),abs(dy));
+            if(steps>0) for(int s=0;s<=steps;s++) {
+                int lx=rose_cx+dx*s/steps, ly=rose_cy+dy*s/steps;
+                uiFill(lx-1,ly-1,3,3,fb);
             }
         }
     }
 
-    // === UNTEN: Kern-Hinweis ===
-    uiHLine(10, 490, 940, fb);
+    // === KERN-HINWEIS (zentriert auf volle Breite) ===
+    uiHLine(10, 480, 940, fb);
     if (d.kern_dist > 5) {
         snprintf(buf,48,"Kern: %s  %.0f m", d.kern_hint, d.kern_dist);
+    } else if (d.kern_hint) {
+        snprintf(buf,48,"Kern: %s", d.kern_hint);
     } else {
-        snprintf(buf,48,"Kern: zentriert");
+        snprintf(buf,48,"Kern: ---");
     }
-    drawText(&ArialBold16, buf, 360, 520, fb);
+    drawHCenter(&ArialBold16, buf, 0, 960, 515, fb);
 
-    // Push
     epd_poweron();
     epd_hl_update_screen(hl, mode, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 
-// Demo-Daten
 static void showDemoThermalScreen(EpdiyHighlevelState *hl) {
     ThermalData td = {};
-    td.vario = 2.4f;
-    td.vario_avg = 1.8f;
-    td.altitude = 2847;
-    td.base_est = 3120;
-    td.gained = 245;
-    td.thermal_start_ms = millis() - 134000;  // 2:14
-    td.heading = 320;
-    td.speed = 35;
-    td.rtc_hour = 14;
-    td.rtc_min = 31;
-    td.bat_pct = 86;
-
-    // Sim Lift-Punkte (Kreis mit variablem Steigen)
-    td.sample_count = 12;
-    for (int i = 0; i < 12; i++) {
-        float angle = i * 30.0f * M_PI / 180.0f;
-        float r = 60 + 40 * sinf(angle * 2);
-        td.samples[i].dx = cosf(angle) * r + 30;  // Kern leicht rechts
-        td.samples[i].dy = sinf(angle) * r + 20;  // Kern leicht vorne
-        td.samples[i].climb = 1.0f + 2.0f * fmaxf(0, sinf(angle - 1));
-        td.samples[i].ts = millis() - (12-i) * 3000;
-    }
-
-    td.kern_dx = 30; td.kern_dy = 20;
-    td.kern_dist = 36;
-    td.kern_hint = "rechts";
-
+    td.vario=2.4f; td.vario_avg=1.8f; td.altitude=2847;
+    td.base_est=3120; td.gained=245;
+    td.thermal_start_ms=millis()-134000;
+    td.heading=320; td.speed=35;
+    td.rtc_hour=14; td.rtc_min=31; td.bat_pct=86;
+    td.sample_count=0; td.kern_dist=0; td.kern_hint="zu wenig Daten";
     showThermalScreen(hl, td);
 }
