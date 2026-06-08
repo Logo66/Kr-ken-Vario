@@ -14,6 +14,7 @@
 #include "boot_splash.h"
 #include "cruise_screen.h"
 #include "thermal_screen.h"
+#include "goal_screen.h"
 #include "thermal_manager.h"
 #include "landing_screen.h"
 #include "menu_screen.h"
@@ -46,7 +47,7 @@ static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
-enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH };
+enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH };
 static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
 static float qnh_ref_alt = 489.0f;  // Referenzhoehe fuer QNH (kalibrierbar)
@@ -441,13 +442,18 @@ void loop() {
     } else {
         // Cruise/Thermik: Swipe = wechseln, Long-Tap = Menu
         if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
-            currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
-            Serial.printf("[SWIPE] → %s\n", currentScreen==SCR_CRUISE?"Cruise":"Thermik");
+            // Karussell: Cruise → Thermal → Goal → Cruise
+            if (currentScreen==SCR_CRUISE) currentScreen = SCR_THERMAL;
+            else if (currentScreen==SCR_THERMAL) currentScreen = SCR_GOAL;
+            else currentScreen = SCR_CRUISE;
+            Serial.printf("[SWIPE] → %d\n", currentScreen);
             if (currentScreen==SCR_CRUISE) {
                 showCruiseScreen(&hl, live, MODE_GC16);
-            } else {
+            } else if (currentScreen==SCR_THERMAL) {
                 if (!thermal.active) thermal.start(live.altitude);
                 showThermalScreen(&hl, thermal.data);
+            } else if (currentScreen==SCR_GOAL) {
+                showDemoGoalScreen(&hl);
             }
             lastDisplay = millis();
         } else if (g == GEST_TAP) {
@@ -465,9 +471,12 @@ void loop() {
     static bool btn_last = true;
     bool btn_now = digitalRead(0);
     if (!btn_now && btn_last && currentScreen != SCR_MENU && currentScreen != SCR_LANDING) {
-        currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
+        if (currentScreen==SCR_CRUISE) currentScreen = SCR_THERMAL;
+        else if (currentScreen==SCR_THERMAL) currentScreen = SCR_GOAL;
+        else currentScreen = SCR_CRUISE;
         if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
-        else showThermalScreen(&hl, thermal.data);
+        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl, thermal.data); }
+        else if (currentScreen==SCR_GOAL) showDemoGoalScreen(&hl);
         lastDisplay = millis();
         delay(300);
     }
@@ -496,12 +505,14 @@ void loop() {
     } else { climb_since = 0; }
 
     // 1 Hz Display Refresh — NUR Flug-Screens (Menu/Landing/QNH/Flugbuch sind statisch)
-    if ((currentScreen == SCR_CRUISE || currentScreen == SCR_THERMAL)
+    if ((currentScreen == SCR_CRUISE || currentScreen == SCR_THERMAL || currentScreen == SCR_GOAL)
         && millis()-lastDisplay >= 1000) {
         lastDisplay = millis();
         if (currentScreen == SCR_CRUISE)
             showCruiseScreen(&hl, live, MODE_DU);
-        else
-            showThermalScreen(&hl, thermal.data);
+        else if (currentScreen == SCR_THERMAL)
+            showThermalScreen(&hl, thermal.data, MODE_DU);
+        else if (currentScreen == SCR_GOAL)
+            showDemoGoalScreen(&hl);  // TODO: live GoalData
     }
 }

@@ -7,9 +7,12 @@ OUTDIR = r"C:\Users\Ivo\aura_kruecke\include"
 CHARS = r""" !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_abcdefghijklmnopqrstuvwxyz{|}~"""
 
 SIZES = [
-    ("ArialBold40", 40),
-    ("ArialBold28", 28),
-    ("ArialBold16", 16),
+    ("ArialBold72", 72),   # T1 HERO — Ankunftswert
+    ("ArialBold40", 40),   # T2 XL — Distanz
+    ("ArialBold32", 32),   # T3 L — Einheiten, GR
+    ("ArialBold28", 28),   # (behalten fuer Kompatibilitaet)
+    ("ArialBold24", 24),   # T4 TITLE — Zielname
+    ("ArialBold16", 16),   # T5 LABEL + T6 STATUS
 ]
 
 for name, size in SIZES:
