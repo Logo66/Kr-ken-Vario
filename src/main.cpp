@@ -100,7 +100,8 @@ static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
 
 // === updateGoalData (braucht gps + live, daher hier nach den Variablen) ===
-static double lastGoodLat = 0, lastGoodLon = 0;
+// Default: Niederneunforn — wird beim ersten GPS-Fix ueberschrieben
+static double lastGoodLat = 47.5973, lastGoodLon = 8.7848;
 
 static void updateGoalData() {
     // GPS-Position merken wenn gueltig
@@ -492,7 +493,7 @@ void loop() {
                     ble.stop();
                 }
                 showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
-                               fanet.ok, fanet.pilot_count);
+                               fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0);
                 Serial.printf("[FUNK] BLE %s\n", ble.ok ? "AN" : "AUS");
             } else if (fi == FUNK_FANET) {
                 Serial.println("[FUNK] FANET Einstellungen (TODO)");

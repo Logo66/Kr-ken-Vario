@@ -5,7 +5,7 @@
 enum FunkItem { FUNK_NONE, FUNK_WLAN, FUNK_BLE, FUNK_FANET, FUNK_BACK };
 
 static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
-                           bool fanet_on, int fanet_peers) {
+                           bool fanet_on, int fanet_peers, uint32_t ble_pin = 0) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
     char buf[48];
@@ -26,7 +26,12 @@ static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
     int y1 = y0 + bh + gap;
     uiBox(bx, y1, bw, bh, fb);
     drawText(&ArialBold28, "BLE", bx + 30, y1 + 55, fb);
-    drawHCenter(&ArialBold16, ble_on ? "AN" : "AUS", bx + bw/2, bw/2, y1 + 55, fb);
+    if (ble_on && ble_pin > 0) {
+        snprintf(buf, 48, "AN  PIN: %04lu", ble_pin);
+        drawHCenter(&ArialBold16, buf, bx + bw/2, bw/2, y1 + 55, fb);
+    } else {
+        drawHCenter(&ArialBold16, ble_on ? "AN" : "AUS", bx + bw/2, bw/2, y1 + 55, fb);
+    }
 
     // FANET
     int y2 = y1 + bh + gap;

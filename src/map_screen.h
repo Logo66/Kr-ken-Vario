@@ -81,8 +81,9 @@ static double lat2pix(double lat, int z) {
 // PNG-Decode Callback Kontext
 struct TileCtx {
     uint8_t *fb;
-    int draw_x, draw_y;  // Offset auf dem Framebuffer
+    int draw_x, draw_y;
     int clip_x, clip_y, clip_w, clip_h;
+    int pixels_drawn;  // Debug-Zaehler
 };
 
 static void tileDrawCb(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
@@ -95,8 +96,8 @@ static void tileDrawCb(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint3
     if (py < ctx->clip_y || py >= ctx->clip_y + ctx->clip_h) return;
     // RGB → Graustufen (0=schwarz, 255=weiss)
     uint8_t grey = (uint8_t)(0.299f * rgba[0] + 0.587f * rgba[1] + 0.114f * rgba[2]);
-    // epdiy: epd_draw_pixel nutzt 0=schwarz, 255=weiss (gleich wie RGB grey)
     epd_draw_pixel(px, py, grey, ctx->fb);
+    ctx->pixels_drawn++;
 }
 
 static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
@@ -134,16 +135,28 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
             Serial.printf("[MAP] Tile laden: %s (%d bytes) → (%d,%d)\n", path, f.size(), ox, oy);
 
             pngle_t *pngle = pngle_new();
-            TileCtx ctx = {fb, ox, oy, MAP_CLIP_X+2, MAP_CLIP_Y+2, MAP_CLIP_W-4, MAP_CLIP_H-4};
+            TileCtx ctx = {fb, ox, oy, MAP_CLIP_X+2, MAP_CLIP_Y+2, MAP_CLIP_W-4, MAP_CLIP_H-4, 0};
             pngle_set_user_data(pngle, &ctx);
             pngle_set_draw_callback(pngle, tileDrawCb);
 
-            uint8_t buf[256];
+            // LoRa CS HIGH waehrend SD-Zugriff (geteilter SPI)
+            digitalWrite(BOARD_LORA_CS, HIGH);
+
+            uint8_t buf[512];
+            int total_fed = 0;
             while (f.available()) {
                 int rd = f.read(buf, sizeof(buf));
-                if (rd > 0) pngle_feed(pngle, buf, rd);
+                if (rd > 0) {
+                    int ret = pngle_feed(pngle, buf, rd);
+                    total_fed += rd;
+                    if (ret < 0) {
+                        Serial.printf("[MAP] pngle error: %s\n", pngle_error(pngle));
+                        break;
+                    }
+                }
             }
             f.close();
+            Serial.printf("[MAP] Tile %d_%d: fed=%d pixels=%d\n", tx, ty, total_fed, ctx.pixels_drawn);
             pngle_destroy(pngle);
         }
     }

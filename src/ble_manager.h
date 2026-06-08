@@ -34,13 +34,21 @@ public:
     bool connected = false;
     char device_name[32] = "Aura Vario";
 
+    uint32_t pin = 1234;  // Default PIN, aenderbar
+
     bool init(const char *name = "Aura Vario") {
         strncpy(device_name, name, 31);
         device_name[31] = 0;
 
         NimBLEDevice::init(device_name);
-        NimBLEDevice::setPower(ESP_PWR_LVL_P6);  // +6 dBm
+        NimBLEDevice::setPower(ESP_PWR_LVL_P6);
         NimBLEDevice::setMTU(64);
+
+        // Sicherheit: PIN-Pairing erforderlich
+        NimBLEDevice::setSecurityAuth(true, true, true);  // Bond, MITM, SC
+        NimBLEDevice::setSecurityPasskey(pin);
+        NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
+        Serial.printf("[BLE] PIN: %06lu\n", pin);
 
         // GATT Server
         NimBLEServer *server = NimBLEDevice::createServer();
