@@ -31,12 +31,12 @@ static void mapTri(int cx, int cy, float ang, int L, int Wd, uint8_t *fb) {
 }
 
 // === Layout-Konstanten (exakt aus Ticket) ===
-// Karte nutzt VOLLE Breite (960px - 2*Rand = 932px)
-static const int MAP_CLIP_X=14, MAP_CLIP_Y=56, MAP_CLIP_W=932, MAP_CLIP_H=470;
-static const int MAP_PILOT_X=480, MAP_PILOT_Y=288;
-// Zoom-Buttons als kleine Overlays IN der Karte (rechts oben)
-static const int MAP_BTN_X=840, MAP_BTN_W=80, MAP_BTN_H=56;
-static const int MAP_BTN_PLUS_Y=66, MAP_BTN_MINUS_Y=130, MAP_BTN_CENTER_Y=194;
+// Karte bis zum rechten Rand (960px)
+static const int MAP_CLIP_X=0, MAP_CLIP_Y=56, MAP_CLIP_W=960, MAP_CLIP_H=484;
+static const int MAP_PILOT_X=480, MAP_PILOT_Y=296;
+// Zoom-Buttons: rechts, ueber der Karte, Handschuh-gross
+static const int MAP_BTN_X=850, MAP_BTN_W=100, MAP_BTN_H=140;
+static const int MAP_BTN_PLUS_Y=66, MAP_BTN_MINUS_Y=220, MAP_BTN_CENTER_Y=374;
 
 // Zoom-Stufen (Index 0..4 → Kartenbreite in Metern)
 static const float ZOOM_M[] = {500, 1000, 2000, 5000, 10000};
@@ -120,9 +120,9 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
     int tile_origin_x = MAP_PILOT_X - px_in_tile_x;
     int tile_origin_y = MAP_PILOT_Y - px_in_tile_y;
 
-    // 3x3 Tiles um den Center-Tile
+    // 4x3 Tiles um den Center-Tile (960px breit braucht 4 Tiles)
     for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
+        for (int dx = -1; dx <= 2; dx++) {
             int tx = center_tx + dx;
             int ty = center_ty + dy;
             int ox = tile_origin_x + dx * 256;
@@ -161,6 +161,7 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
                         break;
                     }
                 }
+                yield();  // Watchdog fuettern waehrend Decode
             }
             f.close();
             Serial.printf("[MAP] Tile %d_%d: fed=%d pixels=%d dark=%d\n",
@@ -184,6 +185,25 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
             }
             pngle_destroy(pngle);
         }
+    }
+}
+
+// === Tile-Cache: Framebuffer-Kopie nach Tile-Rendering ===
+static uint8_t *tileCacheFb = nullptr;  // PSRAM, 259200 Bytes
+
+static void cacheTiles(uint8_t *fb) {
+    int fb_size = epd_width() / 2 * epd_height();
+    if (!tileCacheFb) {
+        tileCacheFb = (uint8_t*)heap_caps_malloc(fb_size, MALLOC_CAP_SPIRAM);
+        if (!tileCacheFb) { Serial.println("[MAP] Cache alloc FAIL"); return; }
+    }
+    memcpy(tileCacheFb, fb, fb_size);
+}
+
+static void restoreTiles(uint8_t *fb) {
+    if (tileCacheFb) {
+        int fb_size = epd_width() / 2 * epd_height();
+        memcpy(fb, tileCacheFb, fb_size);
     }
 }
 
@@ -264,24 +284,19 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
 
     uiHLine(14, 54, 932, fb);
 
-    // === KARTEN-CLIP-RAHMEN (x14 y56 w778 h470, stroke 2) ===
-    uiHLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_W, fb);
-    uiHLine(MAP_CLIP_X, MAP_CLIP_Y+MAP_CLIP_H-2, MAP_CLIP_W, fb);
-    uiVLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_H, fb);
-    uiVLine(MAP_CLIP_X+MAP_CLIP_W-2, MAP_CLIP_Y, MAP_CLIP_H, fb);
+    // Karte edge-to-edge, kein Rahmen noetig
 
-    // mapZoomIdx: 0=500m, 1=1km, 2=2km, 3=5km, 4=10km
-    // OSM Zoom:   15     14     13     12     11
+    // OSM Zoom aus mapZoomIdx, mit Fallback auf vorhandene Tiles
     static const int OSM_ZOOM[] = {15, 14, 13, 12, 11};
     int tileZoom = OSM_ZOOM[mapZoomIdx];
-
+    // Fallback: wenn Tiles fuer gewuenschten Zoom fehlen, Zoom 11 nutzen
     bool tiles_drawn = false;
     if (d.lat != 0 && d.lon != 0) {
-        drawTiles(d.lat, d.lon, tileZoom, fb);
-        // Prüfen ob Center-Tile existiert
         char tp[48];
         snprintf(tp, 48, "/tiles/%d_%d_%d.png", tileZoom, lon2tile(d.lon,tileZoom), lat2tile(d.lat,tileZoom));
-        tiles_drawn = SD.exists(tp);
+        if (!SD.exists(tp)) tileZoom = 11;  // Fallback
+        drawTiles(d.lat, d.lon, tileZoom, fb);
+        tiles_drawn = true;  // Wir haben Tiles geladen (Fallback auf Z11)
     }
 
     // === KOORDINATEN-GITTER (wenn keine Tiles) ===
@@ -316,42 +331,58 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
         drawTrack(d.lat, d.lon, mapZoomIdx, fb);
     }
 
-    // === PILOT-DREIECK (400,288) mit live Heading, tri()-Formel ===
-    mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 46, 34, fb);
+    // === PILOT-MARKER: weisser Kreis + grosses schwarzes Dreieck ===
+    // Weisser Halo damit Marker auf jeder Karte sichtbar ist
+    for (int r = 38; r >= 30; r--)
+        drawCircle(MAP_PILOT_X, MAP_PILOT_Y, r, fb);  // Dicke weisse Umrandung
+    uiFill(MAP_PILOT_X-30, MAP_PILOT_Y-30, 60, 60, fb, 0xFF);  // Weiss fuellen
+    drawCircle(MAP_PILOT_X, MAP_PILOT_Y, 30, fb);  // Schwarzer Kreis-Rand
+    mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 52, 38, fb);  // Grosses Dreieck
 
     // === NORDPFEIL (Linie 56,118→56,78 + Dreieck) ===
     uiVLine(56, 78, 40, fb, 3);  // Linie stroke 3
     mapTri(56, 74, 0, 24, 18, fb);  // Pfeil nach Norden
     drawText(&ArialBold16, "N", 46, 140, fb);
 
-    // === POSITIONS-INFO (im Kartenbereich, unten rechts) ===
-    if (d.gps_fix && d.lat != 0) {
-        snprintf(buf,32,"%.4f N", d.lat);
-        drawText(&ArialBold16, buf, 550, 490, fb);
-        snprintf(buf,32,"%.4f E", d.lon);
-        drawText(&ArialBold16, buf, 550, 510, fb);
+    // === INFO-LEISTE unten (eine Zeile, sauber aufgeteilt) ===
+    // Weisser Balken als Hintergrund
+    uiFill(MAP_CLIP_X+2, MAP_CLIP_Y+MAP_CLIP_H-26, MAP_CLIP_W-4, 24, fb, 0xFF);
+    // Massstab links
+    int bar_y = MAP_CLIP_Y+MAP_CLIP_H-14;
+    uiHLine(20, bar_y, 80, fb, 3);
+    uiVLine(20, bar_y-5, 10, fb, 2);
+    uiVLine(98, bar_y-5, 10, fb, 2);
+    drawText(&ArialBold16, ZOOM_LABEL[mapZoomIdx], 104, bar_y+5, fb);
+    // Koordinaten + Hoehe rechts
+    if (d.lat != 0) {
+        snprintf(buf,32,"%.3fN %.3fE  %.0fm", d.lat, d.lon, d.altitude);
+        drawText(&ArialBold16, buf, 300, bar_y+5, fb);
     }
-    snprintf(buf,32,"%.0f m", d.altitude);
-    drawText(&ArialBold16, buf, 700, 500, fb);
 
-    // === MASSSTAB (Linie 40,506→160,506 + Endmarken) ===
-    uiHLine(40, 506, 120, fb, 3);  // Hauptlinie stroke 3
-    uiVLine(40, 500, 12, fb, 2);   // Endmarke links
-    uiVLine(158, 500, 12, fb, 2);  // Endmarke rechts
-    drawText(&ArialBold16, ZOOM_LABEL[mapZoomIdx], 66, 494, fb);
-
-    // === ZOOM-BUTTONS (kleine Overlays in der Karte, rechts oben) ===
-    // Weisser Hintergrund damit Tiles nicht durchscheinen
-    uiFill(MAP_BTN_X-2, MAP_BTN_PLUS_Y-2, MAP_BTN_W+4, 3*(MAP_BTN_H+8)+4, fb, 0xFF);
+    // === ZOOM-BUTTONS schwebend, fett, Handschuh-tauglich ===
+    int pcx = MAP_BTN_X + MAP_BTN_W/2;
+    // [+]
     uiBox(MAP_BTN_X, MAP_BTN_PLUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
-    drawBoxCenter(&ArialBold24, "+", MAP_BTN_X, MAP_BTN_PLUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
+    uiBox(MAP_BTN_X+3, MAP_BTN_PLUS_Y+3, MAP_BTN_W-6, MAP_BTN_H-6, fb);
+    int pcy = MAP_BTN_PLUS_Y + MAP_BTN_H/2;
+    uiFill(pcx-28, pcy-5, 56, 10, fb);   // Horizontal fett
+    uiFill(pcx-5, pcy-28, 10, 56, fb);   // Vertikal fett
+    // [-]
     uiBox(MAP_BTN_X, MAP_BTN_MINUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
-    drawBoxCenter(&ArialBold24, "-", MAP_BTN_X, MAP_BTN_MINUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
+    uiBox(MAP_BTN_X+3, MAP_BTN_MINUS_Y+3, MAP_BTN_W-6, MAP_BTN_H-6, fb);
+    int mcy = MAP_BTN_MINUS_Y + MAP_BTN_H/2;
+    uiFill(pcx-28, mcy-5, 56, 10, fb);   // Horizontal fett
+    // [Fadenkreuz]
     uiBox(MAP_BTN_X, MAP_BTN_CENTER_Y, MAP_BTN_W, MAP_BTN_H, fb);
-    int ccx = MAP_BTN_X + MAP_BTN_W/2, ccy = MAP_BTN_CENTER_Y + MAP_BTN_H/2;
-    drawCircle(ccx, ccy, 16, fb);
-    uiVLine(ccx, ccy-22, 44, fb, 2);
-    uiHLine(ccx-22, ccy, 44, fb, 2);
+    uiBox(MAP_BTN_X+3, MAP_BTN_CENTER_Y+3, MAP_BTN_W-6, MAP_BTN_H-6, fb);
+    int ccy2 = MAP_BTN_CENTER_Y + MAP_BTN_H/2;
+    drawCircle(pcx, ccy2, 24, fb);
+    drawCircle(pcx, ccy2, 23, fb);
+    uiFill(pcx-36, ccy2-3, 72, 6, fb);   // Horizontal fett
+    uiFill(pcx-3, ccy2-36, 6, 72, fb);   // Vertikal fett
+
+    // Tile-Framebuffer cachen fuer 1Hz Overlay-Updates
+    cacheTiles(fb);
 
     // === RENDER ===
     epd_poweron();
@@ -362,7 +393,12 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
 // === 1Hz Overlay-Update (nur Pilot + Track + Statusbar, KEINE Tiles) ===
 static void updateMapOverlay(EpdiyHighlevelState *hl, const MapData &d) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
-    epd_hl_set_all_white(hl);
+    // Gecachte Tiles wiederherstellen (statt alles loeschen)
+    if (tileCacheFb) {
+        restoreTiles(fb);
+    } else {
+        epd_hl_set_all_white(hl);
+    }
     char buf[32];
 
     // Statusbar
@@ -379,27 +415,28 @@ static void updateMapOverlay(EpdiyHighlevelState *hl, const MapData &d) {
     uiFill(870,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
     uiHLine(14, 54, 932, fb);
 
-    // Karten-Rahmen
-    uiHLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_W, fb);
-    uiHLine(MAP_CLIP_X, MAP_CLIP_Y+MAP_CLIP_H-2, MAP_CLIP_W, fb);
-    uiVLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_H, fb);
-    uiVLine(MAP_CLIP_X+MAP_CLIP_W-2, MAP_CLIP_Y, MAP_CLIP_H, fb);
+    // Kein Rahmen — Karte edge-to-edge
 
     // Track
     if (d.lat != 0 && d.lon != 0)
         drawTrack(d.lat, d.lon, mapZoomIdx, fb);
 
-    // Pilot
-    mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 46, 34, fb);
+    // Pilot-Marker mit weissem Halo
+    uiFill(MAP_PILOT_X-30, MAP_PILOT_Y-30, 60, 60, fb, 0xFF);
+    drawCircle(MAP_PILOT_X, MAP_PILOT_Y, 30, fb);
+    mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 52, 38, fb);
 
-    // Position-Info
-    if (d.gps_fix && d.lat != 0) {
-        snprintf(buf,32,"%.4f N  %.4f E", d.lat, d.lon);
-        drawText(&ArialBold16, buf, 20, 520, fb);
+    // Info-Leiste unten (identisch wie showMapScreen)
+    uiFill(MAP_CLIP_X+2, MAP_CLIP_Y+MAP_CLIP_H-26, MAP_CLIP_W-4, 24, fb, 0xFF);
+    int bar_y = MAP_CLIP_Y+MAP_CLIP_H-14;
+    uiHLine(20, bar_y, 80, fb, 3);
+    uiVLine(20, bar_y-5, 10, fb, 2);
+    uiVLine(98, bar_y-5, 10, fb, 2);
+    drawText(&ArialBold16, ZOOM_LABEL[mapZoomIdx], 104, bar_y+5, fb);
+    if (d.lat != 0) {
+        snprintf(buf,32,"%.3fN %.3fE  %.0fm", d.lat, d.lon, d.altitude);
+        drawText(&ArialBold16, buf, 300, bar_y+5, fb);
     }
-    snprintf(buf,32,"%.0f m", d.altitude);
-    drawText(&ArialBold16, buf, 500, 520, fb);
-    drawText(&ArialBold16, ZOOM_LABEL[mapZoomIdx], 600, 520, fb);
 
     epd_poweron();
     epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
