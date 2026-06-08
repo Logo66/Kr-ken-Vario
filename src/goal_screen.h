@@ -106,21 +106,29 @@ static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
 
     uiHLine(GL_LABEL_X, 258, GL_LEFT_W-GL_LABEL_X, fb);
 
-    // Distanz — links, prüfe Breite
-    drawText(&ArialBold16, "DISTANZ", GL_LABEL_X, 296, fb);
+    // === DISTANZ (Feld: x=34, y=262, w=522, h=90) ===
+    drawHCenter(&ArialBold16, "DISTANZ", GL_VALUE_X, GL_VALUE_W, 282, fb);
     snprintf(buf,48,"%.1f km", d.distance_km);
-    drawText(&ArialBold28, buf, GL_VALUE_X, 340, fb);
+    drawBoxCenter(&ArialBold28, buf, GL_VALUE_X, 290, GL_VALUE_W, 55, fb);
 
-    // Gleitzahl — zwei Felder nebeneinander
-    drawText(&ArialBold16, "GLEITZAHL NOETIG / IST", GL_LABEL_X, 402, fb);
+    uiHLine(GL_LABEL_X, 355, GL_LEFT_W-GL_LABEL_X, fb);
+
+    // === GLEITZAHL (2 Felder nebeneinander: links noetig, rechts ist) ===
+    int gr_half = GL_VALUE_W / 2;  // 261px pro Haelfte
+    drawHCenter(&ArialBold16, "GR NOETIG", GL_VALUE_X, gr_half, 375, fb);
+    drawHCenter(&ArialBold16, "GR IST", GL_VALUE_X + gr_half, gr_half, 375, fb);
 
     snprintf(buf,48,"%.1f", d.gr_needed);
-    measureText(&ArialBold24, buf, &tw, &th);
-    drawText(&ArialBold24, buf, GL_GR1_X, 435, fb);
-    int gr1_end = GL_GR1_X + tw;
+    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X, 385, gr_half, 55, fb);
 
-    snprintf(buf,48,"/ %.1f", d.gr_current);
-    drawText(&ArialBold24, buf, gr1_end + 12, 435, fb);
+    if (d.gr_current > 0 && d.gr_current < 900) {
+        snprintf(buf,48,"%.1f", d.gr_current);
+    } else {
+        snprintf(buf,48,"---");
+    }
+    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X + gr_half, 385, gr_half, 55, fb);
+
+    uiVLine(GL_VALUE_X + gr_half, 358, 90, fb);
 
     // === RECHTE SPALTE ===
     uiVLine(580, 64, 388, fb);
