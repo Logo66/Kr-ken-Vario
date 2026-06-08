@@ -332,7 +332,7 @@ void loop() {
         epd_poweroff();
         delay(3000);
         currentScreen = SCR_CRUISE;
-        showCruiseScreen(&hl, live, MODE_GC16);
+        showCruiseScreen(&hl, live, MODE_DU);
         lastDisplay = millis();
     }
 
@@ -420,7 +420,7 @@ void loop() {
             }
         } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             currentScreen = SCR_CRUISE;
-            showCruiseScreen(&hl, live, MODE_GC16);
+            showCruiseScreen(&hl, live, MODE_DU);
             lastDisplay = millis();
         }
     } else if (currentScreen == SCR_LANDING) {
@@ -431,7 +431,7 @@ void loop() {
                 Serial.println("[LAND] Gut gelandet");
                 flight.reset();
                 currentScreen = SCR_CRUISE;
-                showCruiseScreen(&hl, live, MODE_GC16);
+                showCruiseScreen(&hl, live, MODE_DU);
                 lastDisplay = millis();
             } else if (lc == LAND_RIDE) {
                 Serial.println("[LAND] Brauche Ride → FANET (TODO)");
@@ -448,7 +448,7 @@ void loop() {
             else currentScreen = SCR_CRUISE;
             Serial.printf("[SWIPE] → %d\n", currentScreen);
             if (currentScreen==SCR_CRUISE) {
-                showCruiseScreen(&hl, live, MODE_GC16);
+                showCruiseScreen(&hl, live, MODE_DU);
             } else if (currentScreen==SCR_THERMAL) {
                 if (!thermal.active) thermal.start(live.altitude);
                 showThermalScreen(&hl, thermal.data);
@@ -474,7 +474,7 @@ void loop() {
         if (currentScreen==SCR_CRUISE) currentScreen = SCR_THERMAL;
         else if (currentScreen==SCR_THERMAL) currentScreen = SCR_GOAL;
         else currentScreen = SCR_CRUISE;
-        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
+        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_DU);
         else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl, thermal.data); }
         else if (currentScreen==SCR_GOAL) showDemoGoalScreen(&hl);
         lastDisplay = millis();

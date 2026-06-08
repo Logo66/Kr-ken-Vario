@@ -103,27 +103,21 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
 
     uiHLine(10, 218, TH_LEFT_W-10, fb);
 
-    // === HOEHE (Feld x=0, w=350, y=220-298) ===
-    drawHCenter(&ArialBold16, "HOEHE", 0, TH_LEFT_W, 242, fb);
+    // === HOEHE + BASE EST: 2 exakt gleich grosse Felder ===
+    // Feld 1: y=220-308 (88px), Feld 2: y=312-400 (88px)
+    const int F1_Y=220, F2_Y=312, FH=88;
+
+    // HOEHE
+    drawHCenter(&ArialBold16, "HOEHE", 0, TH_LEFT_W, F1_Y+22, fb);
     snprintf(buf,48,"%.0f m", d.altitude);
-    measureText(&ArialBold28, buf, &tw, &th);
-    if (tw > TH_LEFT_W - 20) {
-        drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 280, fb);
-    } else {
-        drawHCenter(&ArialBold28, buf, 0, TH_LEFT_W, 280, fb);
-    }
+    drawBoxCenter(&ArialBold16, buf, 0, F1_Y+30, TH_LEFT_W, FH-30, fb);
 
-    uiHLine(10, 300, TH_LEFT_W-10, fb);
+    uiHLine(10, F2_Y-2, TH_LEFT_W-10, fb);
 
-    // === BASE EST (Feld x=0, w=350, y=305-383) ===
-    drawHCenter(&ArialBold16, "BASE EST", 0, TH_LEFT_W, 325, fb);
+    // BASE EST
+    drawHCenter(&ArialBold16, "BASE EST", 0, TH_LEFT_W, F2_Y+22, fb);
     snprintf(buf,48,"%.0f m", d.base_est);
-    measureText(&ArialBold28, buf, &tw, &th);
-    if (tw > TH_LEFT_W - 20) {
-        drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 365, fb);
-    } else {
-        drawHCenter(&ArialBold28, buf, 0, TH_LEFT_W, 365, fb);
-    }
+    drawBoxCenter(&ArialBold16, buf, 0, F2_Y+30, TH_LEFT_W, FH-30, fb);
 
     // === DIVIDER ===
     uiVLine(TH_LEFT_W+5, 50, 430, fb);

@@ -98,44 +98,29 @@ static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
     // Vorzeichen-Dreieck
     drawTri(68, 210, (d.arrival_m>=0)?0:180, 56, 46, fb);
 
-    // Ankunftswert — BERECHNET: links bei x=108, prüfe Breite
+    // Ankunftswert — ArialBold40 (statt 72, passt sicher)
     snprintf(buf,48,"%+.0f", d.arrival_m);
-    measureText(&ArialBold72, buf, &tw, &th);
-    if (tw > GL_LEFT_W - 108 - 50) {
-        // Zu breit → kleinere Font
-        drawText(&ArialBold40, buf, 108, 230, fb);
-        measureText(&ArialBold40, buf, &tw, &th);
-        drawText(&ArialBold28, "m", 108+tw+8, 230, fb);
-    } else {
-        drawText(&ArialBold72, buf, 108, 238, fb);
-        drawText(&ArialBold32, "m", 108+tw+12, 238, fb);
-    }
+    measureText(&ArialBold40, buf, &tw, &th);
+    drawText(&ArialBold40, buf, 108, 220, fb);
+    drawText(&ArialBold24, "m", 108+tw+8, 220, fb);
 
     uiHLine(GL_LABEL_X, 258, GL_LEFT_W-GL_LABEL_X, fb);
 
     // Distanz — links, prüfe Breite
     drawText(&ArialBold16, "DISTANZ", GL_LABEL_X, 296, fb);
     snprintf(buf,48,"%.1f km", d.distance_km);
-    measureText(&ArialBold40, buf, &tw, &th);
-    if (tw > GL_VALUE_W) {
-        drawText(&ArialBold28, buf, GL_VALUE_X, 348, fb);
-    } else {
-        drawText(&ArialBold40, buf, GL_VALUE_X, 352, fb);
-    }
+    drawText(&ArialBold28, buf, GL_VALUE_X, 340, fb);
 
     // Gleitzahl — zwei Felder nebeneinander
     drawText(&ArialBold16, "GLEITZAHL NOETIG / IST", GL_LABEL_X, 402, fb);
 
     snprintf(buf,48,"%.1f", d.gr_needed);
-    measureText(&ArialBold32, buf, &tw, &th);
-    drawText(&ArialBold32, buf, GL_GR1_X, 442, fb);
+    measureText(&ArialBold24, buf, &tw, &th);
+    drawText(&ArialBold24, buf, GL_GR1_X, 435, fb);
+    int gr1_end = GL_GR1_X + tw;
 
     snprintf(buf,48,"/ %.1f", d.gr_current);
-    measureText(&ArialBold32, buf, &tw, &th);
-    // Platziere rechts vom ersten Wert
-    int gr1_tw;
-    {char b2[16]; snprintf(b2,16,"%.1f",d.gr_needed); measureText(&ArialBold32,b2,&gr1_tw,&th);}
-    drawText(&ArialBold32, buf, GL_GR1_X + gr1_tw + 16, 442, fb);
+    drawText(&ArialBold24, buf, gr1_end + 12, 435, fb);
 
     // === RECHTE SPALTE ===
     uiVLine(580, 64, 388, fb);
@@ -147,7 +132,7 @@ static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
 
     // Peilung — BERECHNET zentriert
     snprintf(buf,48,"%.0f > %.0f", d.bearing_abs, d.bearing_rel);
-    drawHCenter(&ArialBold32, buf, GL_RIGHT_X, GL_RIGHT_W, 392, fb);
+    drawHCenter(&ArialBold24, buf, GL_RIGHT_X, GL_RIGHT_W, 392, fb);
 
     // === BUDDY-BAND (nur wenn connected) ===
     if (d.buddy_connected && d.buddy_hint) {
