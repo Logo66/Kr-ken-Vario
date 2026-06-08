@@ -65,7 +65,7 @@ static void showFlugbuchScreen(EpdiyHighlevelState *hl, const Flugbuch &fb_data)
 
     // Titel
     snprintf(buf, 64, "FLUGBUCH  %d Fluege", fb_data.count);
-    _ft(&ArialBold28, buf, 250, 35, fb);
+    _ft(&ArialBold28, buf, 310, 35, fb);
     _ff(20, 50, 920, 2, fb);
 
     // Spalten-Header
@@ -88,29 +88,25 @@ static void showFlugbuchScreen(EpdiyHighlevelState *hl, const Flugbuch &fb_data)
         snprintf(buf, 64, "%02d.%02d.%04d", f.day, f.month, f.year);
         _ft(&ArialBold16, buf, 30, y, fb);
 
-        // Dauer
+        // Alle Daten in gleicher Groesse wie Datum (ArialBold16)
         int dur_min = f.duration_sec / 60;
         snprintf(buf, 64, "%dh%02dm", dur_min/60, dur_min%60);
-        _ft(&ArialBold28, buf, 190, y+5, fb);
+        _ft(&ArialBold16, buf, 200, y, fb);
 
-        // Max Hoehe
         snprintf(buf, 64, "%dm", f.max_alt);
-        _ft(&ArialBold28, buf, 330, y+5, fb);
+        _ft(&ArialBold16, buf, 340, y, fb);
 
-        // Max Steigen
         snprintf(buf, 64, "+%.1f", f.max_climb / 100.0f);
-        _ft(&ArialBold28, buf, 470, y+5, fb);
+        _ft(&ArialBold16, buf, 480, y, fb);
 
-        // GPS-Spur
-        snprintf(buf, 64, "%.1f", f.track_dist_m / 1000.0f);
-        _ft(&ArialBold28, buf, 620, y+5, fb);
+        snprintf(buf, 64, "%.1fkm", f.track_dist_m / 1000.0f);
+        _ft(&ArialBold16, buf, 610, y, fb);
 
-        // Strecke (Luftlinie)
-        snprintf(buf, 64, "%.1f", f.straight_dist_m / 1000.0f);
-        _ft(&ArialBold28, buf, 790, y+5, fb);
+        snprintf(buf, 64, "%.1fkm", f.straight_dist_m / 1000.0f);
+        _ft(&ArialBold16, buf, 780, y, fb);
 
-        y += 75;
-        _ff(20, y-5, 920, 1, fb);  // Trennlinie
+        y += 30;
+        _ff(20, y-5, 920, 1, fb);
     }
 
     if (fb_data.count == 0) {

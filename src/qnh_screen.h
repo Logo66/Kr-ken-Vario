@@ -36,17 +36,16 @@ static void showQnhScreen(EpdiyHighlevelState *hl, float ref_alt, float qnh_hpa,
 
     QT(&ArialBold16, "Bekannte Hoehe einstellen:", 300, 90, fb);
 
-    // Hoehe gross in der Mitte
+    // Hoehe gross zentriert zwischen -10 und +10 Buttons (x=260-700)
     snprintf(buf, 48, "%.0f m", ref_alt);
-    QT(&ArialBold40, buf, 370, 180, fb);
+    QT(&ArialBold40, buf, 420, 180, fb);
 
-    // QNH darunter
-    snprintf(buf, 48, "QNH: %.1f hPa", qnh_hpa);
-    QT(&ArialBold28, buf, 310, 260, fb);
+    // QNH zentriert
+    snprintf(buf, 48, "QNH %.0f hPa", qnh_hpa);
+    QT(&ArialBold28, buf, 384, 260, fb);
 
-    // Druck-Info
-    snprintf(buf, 48, "Druck: %.1f hPa", pressure_pa / 100.0f);
-    QT(&ArialBold16, buf, 350, 300, fb);
+    snprintf(buf, 48, "P: %.0f hPa", pressure_pa / 100.0f);
+    QT(&ArialBold16, buf, 410, 295, fb);
 
     // [-] Button (links)
     QB(QNH_MINUS_X, QNH_MINUS_Y, QNH_BTN_W, QNH_BTN_H, fb);
@@ -56,9 +55,9 @@ static void showQnhScreen(EpdiyHighlevelState *hl, float ref_alt, float qnh_hpa,
     QB(QNH_PLUS_X, QNH_PLUS_Y, QNH_BTN_W, QNH_BTN_H, fb);
     QT(&ArialBold40, "+10", QNH_PLUS_X+35, QNH_PLUS_Y+85, fb);
 
-    // [OK] Button (unten mitte)
+    // [OK] Button (unten mitte, Text zentriert)
     QB(QNH_OK_X, QNH_OK_Y, QNH_OK_W, QNH_OK_H, fb);
-    QT(&ArialBold40, "OK", QNH_OK_X+85, QNH_OK_Y+60, fb);
+    QT(&ArialBold40, "OK", QNH_OK_X+105, QNH_OK_Y+55, fb);
 
     // Footer
     QF(30, 520, 900, 2, fb);

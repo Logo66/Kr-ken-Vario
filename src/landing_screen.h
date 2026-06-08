@@ -49,21 +49,21 @@ static void showLandingScreen(EpdiyHighlevelState *hl, float altitude,
 
     // === Button 1: GUT GELANDET ===
     LB(AREA_OK.x, AREA_OK.y, AREA_OK.w, AREA_OK.h, fb);
-    LT(&ArialBold40, "GUT GELANDET", 200, 165, fb);
+    // Text zentriert in 900px breiten Buttons (x=30+900/2-textw/2)
+    LT(&ArialBold40, "GUT GELANDET", 348, 165, fb);
 
     // === Button 2: BRAUCHE RIDE ===
     LB(AREA_RIDE.x, AREA_RIDE.y, AREA_RIDE.w, AREA_RIDE.h, fb);
-    LT(&ArialBold40, "BRAUCHE RIDE", 200, 295, fb);
-    LT(&ArialBold16, "Mitfahrgelegenheit via FANET", 280, 320, fb);
+    LT(&ArialBold40, "BRAUCHE RIDE", 348, 290, fb);
+    LT(&ArialBold16, "Mitfahrgelegenheit via FANET", 310, 318, fb);
 
     // === Button 3: BRAUCHE HILFE ===
-    // Invertiert: schwarzer Hintergrund, weisser Text
     LF(AREA_HELP.x, AREA_HELP.y, AREA_HELP.w, AREA_HELP.h, fb);
     EpdFontProperties wp = epd_font_properties_default();
-    wp.fg_color = 0xFF;  // Weiss auf schwarz
-    int cx=200, cy=430;
+    wp.fg_color = 0xFF;
+    int cx=337, cy=425;
     epd_write_string(&ArialBold40, "BRAUCHE HILFE", &cx, &cy, fb, &wp);
-    cx=300; cy=450;
+    cx=350; cy=452;
     epd_write_string(&ArialBold16, "Notruf via FANET", &cx, &cy, fb, &wp);
 
     // Footer

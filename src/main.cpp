@@ -153,7 +153,8 @@ static void feedGPS() {
     live.sats = gps.satellites.value();
     live.gps_fix = gps.location.isValid();
     if(gps.location.isUpdated()) {
-        live.speed = gps.speed.kmph();
+        float raw_spd = gps.speed.kmph();
+        live.speed = (raw_spd < 3.0f) ? 0 : raw_spd;  // GPS-Rauschen filtern
         live.heading = gps.course.deg();
     }
     if(live.speed < 2.0f) live.heading = 0;
@@ -382,8 +383,8 @@ void loop() {
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
                 alt_calc.setQNH(qnh);
                 kf.init(alt_calc.computeISA(p));
-                currentScreen = SCR_CRUISE;
-                showCruiseScreen(&hl, live, MODE_GC16);
+                currentScreen = SCR_MENU;
+                showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
                 Serial.printf("[QNH] OK → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
             }
         } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {

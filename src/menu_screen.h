@@ -21,7 +21,7 @@ struct MBtn { int col, row; MenuItem item; const char *line1; const char *line2;
 static const MBtn MBTNS[] = {
     {0, 0, MENU_QNH,       "QNH",      NULL},
     {1, 0, MENU_BACKLIGHT,  "LICHT",    NULL},
-    {2, 0, MENU_FLUGBUCH,   "FLUG-",    "BUCH"},
+    {2, 0, MENU_FLUGBUCH,   "FLUG",     "BUCH"},
     {0, 1, MENU_SLOT4,      "---",      NULL},
     {1, 1, MENU_SLOT5,      "---",      NULL},
     {2, 1, MENU_AUS,        "AUS",      NULL},
@@ -61,13 +61,12 @@ static void showMenuScreen(EpdiyHighlevelState *hl, float current_qnh,
         _mf(x,y,MBTN,4,fb); _mf(x,y+MBTN-4,MBTN,4,fb);
         _mf(x,y,4,MBTN,fb); _mf(x+MBTN-4,y,4,MBTN,fb);
 
-        // Zeile 1 (gross, zentriert)
+        // Text vertikal mittig: ArialBold28 Baseline bei y + MBTN/2 + 10
         if (MBTNS[i].line2) {
-            // Zweizeilig
             _mc(&ArialBold28, MBTNS[i].line1, x, MBTN, y + 80, fb);
-            _mc(&ArialBold28, MBTNS[i].line2, x, MBTN, y + 115, fb);
+            _mc(&ArialBold28, MBTNS[i].line2, x, MBTN, y + 112, fb);
         } else {
-            _mc(&ArialBold40, MBTNS[i].line1, x, MBTN, y + 105, fb);
+            _mc(&ArialBold40, MBTNS[i].line1, x, MBTN, y + MBTN/2 + 15, fb);
         }
 
         // Spezial-Info unterhalb

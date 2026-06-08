@@ -19,9 +19,9 @@ public:
         switch (state) {
         case FLIGHT_GROUND:
             // Start-Erkennung: Speed > 15 km/h fuer 5s
-            if (speed_kmh > 15.0f) {
+            if (speed_kmh > 20.0f) {  // 20 km/h statt 15 (GPS-Rauschen)
                 if (_fast_since == 0) _fast_since = millis();
-                if (millis() - _fast_since > 5000) {
+                if (millis() - _fast_since > 10000) {  // 10s statt 5s
                     state = FLIGHT_FLYING;
                     start_time = millis();
                     start_altitude = altitude;
