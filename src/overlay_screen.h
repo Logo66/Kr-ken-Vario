@@ -209,7 +209,7 @@ private:
         draw(hl);
     }
 
-    // OSM Karten-Tiles fuer Schweiz (Zoom 10-13, ~47.0-47.8N, 6.0-10.5E)
+    // OSM Karten-Tiles: Zoom 11-13 fuer Schweiz
     void downloadTiles(EpdiyHighlevelState *hl) {
         if (!sd || !sd->ok) {
             snprintf(status_msg, 64, "Keine SD-Karte");
@@ -217,16 +217,31 @@ private:
         }
         if (!SD.exists("/tiles")) SD.mkdir("/tiles");
 
+        // Zoom-Stufen mit Tile-Bereichen (Schweiz 46.0-47.8N, 6.0-10.5E)
+        struct ZoomRange { int z, x0, x1, y0, y1; };
+        ZoomRange ranges[] = {
+            {11, 1060, 1076, 713, 724},   // ~204 Tiles, Uebersicht
+            {12, 2120, 2152, 1426, 1448},  // ~726 Tiles, Detail
+            {13, 4240, 4304, 2852, 2896},  // ~2880 Tiles, nah
+        };
+        int num_ranges = 3;
+
+        // Gesamtzahl berechnen
+        int total_tiles = 0;
+        for (int r = 0; r < num_ranges; r++) {
+            total_tiles += (ranges[r].x1-ranges[r].x0+1) * (ranges[r].y1-ranges[r].y0+1);
+        }
+
         state = OVL_DOWNLOADING;
-        snprintf(status_msg, 64, "Karten-Tiles Zoom 11...");
+        snprintf(status_msg, 64, "Karten Zoom 11-13...");
         download_pct = 0;
         draw(hl);
 
-        // Zoom 11: Ganze Schweiz (46.0-47.8°N, 6.0-10.5°E)
-        // x: 1060-1076, y: 713-724 (~17 * 12 = ~204 Tiles)
-        int zoom = 11;
-        int x_min = 1060, x_max = 1076;
-        int y_min = 713, y_max = 724;
+        int done_tiles = 0;
+        for (int r = 0; r < num_ranges; r++) {
+            int zoom = ranges[r].z;
+            int x_min = ranges[r].x0, x_max = ranges[r].x1;
+            int y_min = ranges[r].y0, y_max = ranges[r].y1;
         int total_tiles = (x_max - x_min + 1) * (y_max - y_min + 1);
         int done_tiles = 0;
 
@@ -274,6 +289,7 @@ private:
                 }
             }
         }
+        }  // Ende Zoom-Loop
 
         snprintf(status_msg, 64, "%d Karten-Tiles geladen", done_tiles);
         state = OVL_DONE;

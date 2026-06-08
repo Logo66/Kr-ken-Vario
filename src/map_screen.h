@@ -83,7 +83,8 @@ struct TileCtx {
     uint8_t *fb;
     int draw_x, draw_y;
     int clip_x, clip_y, clip_w, clip_h;
-    int pixels_drawn;  // Debug-Zaehler
+    int pixels_drawn;
+    int dark_pixels;   // Nicht-weisse Pixel (Strassen, Text etc.)
 };
 
 static void tileDrawCb(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
@@ -94,10 +95,14 @@ static void tileDrawCb(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint3
     // Clip-Check
     if (px < ctx->clip_x || px >= ctx->clip_x + ctx->clip_w) return;
     if (py < ctx->clip_y || py >= ctx->clip_y + ctx->clip_h) return;
-    // RGB → Graustufen (0=schwarz, 255=weiss)
+    // RGB → S/W fuer E-Paper: nur dunkle Features (Strassen, Text, Grenzen)
     uint8_t grey = (uint8_t)(0.299f * rgba[0] + 0.587f * rgba[1] + 0.114f * rgba[2]);
-    epd_draw_pixel(px, py, grey, ctx->fb);
+    // OSM Hintergrund ~240, Wald ~207, Strassen ~165, Text ~0
+    // Threshold 195: Strassen, Fluesse, Text, Grenzen sichtbar
+    uint8_t epd_val = (grey < 195) ? 0x00 : 0xFF;
+    epd_draw_pixel(px, py, epd_val, ctx->fb);
     ctx->pixels_drawn++;
+    if (epd_val == 0) ctx->dark_pixels++;
 }
 
 static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
@@ -113,7 +118,7 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
     int tile_origin_x = MAP_PILOT_X - px_in_tile_x;
     int tile_origin_y = MAP_PILOT_Y - px_in_tile_y;
 
-    // 3x3 Tiles um den Center-Tile zeichnen
+    // 3x3 Tiles um den Center-Tile
     for (int dy = -1; dy <= 1; dy++) {
         for (int dx = -1; dx <= 1; dx++) {
             int tx = center_tx + dx;
@@ -135,7 +140,7 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
             Serial.printf("[MAP] Tile laden: %s (%d bytes) → (%d,%d)\n", path, f.size(), ox, oy);
 
             pngle_t *pngle = pngle_new();
-            TileCtx ctx = {fb, ox, oy, MAP_CLIP_X+2, MAP_CLIP_Y+2, MAP_CLIP_W-4, MAP_CLIP_H-4, 0};
+            TileCtx ctx = {fb, ox, oy, MAP_CLIP_X+2, MAP_CLIP_Y+2, MAP_CLIP_W-4, MAP_CLIP_H-4, 0, 0};
             pngle_set_user_data(pngle, &ctx);
             pngle_set_draw_callback(pngle, tileDrawCb);
 
@@ -156,7 +161,25 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
                 }
             }
             f.close();
-            Serial.printf("[MAP] Tile %d_%d: fed=%d pixels=%d\n", tx, ty, total_fed, ctx.pixels_drawn);
+            Serial.printf("[MAP] Tile %d_%d: fed=%d pixels=%d dark=%d\n",
+                          tx, ty, total_fed, ctx.pixels_drawn, ctx.dark_pixels);
+            delay(1);  // Watchdog fuettern zwischen Tiles
+            // FB sofort nach diesem Tile pruefen
+            if (tx == 1073 && ty == 715) {
+                uint8_t *bp300 = &fb[300 * 480 + 300/2];
+                Serial.printf("[MAP] FB(300,300) SOFORT nach Tile: 0x%02X\n", *bp300);
+            }
+            // Erste 8 Bytes der PNG roh loggen (PNG magic = 89 50 4E 47)
+            if (ctx.pixels_drawn == 0) {
+                f = SD.open(path, FILE_READ);
+                if (f) {
+                    uint8_t hdr[8];
+                    f.read(hdr, 8);
+                    f.close();
+                    Serial.printf("[MAP] Header: %02X %02X %02X %02X %02X %02X %02X %02X\n",
+                                   hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7]);
+                }
+            }
             pngle_destroy(pngle);
         }
     }
@@ -214,6 +237,9 @@ struct MapData {
 static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
+    // KRITISCH: back_fb auch weiss setzen → sauberer Diff fuer Tile-Rendering
+    int fb_size = epd_width() / 2 * epd_height();
+    memset(hl->back_fb, 0xFF, fb_size);
     char buf[32];
 
     // === STATUSBAR (Akku bei x700, nicht x866 — Ticket §3 Karte) ===
@@ -242,13 +268,17 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uiVLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_H, fb);
     uiVLine(MAP_CLIP_X+MAP_CLIP_W-2, MAP_CLIP_Y, MAP_CLIP_H, fb);
 
-    // === OSM TILE HINTERGRUND (wenn auf SD vorhanden) ===
+    // mapZoomIdx: 0=500m, 1=1km, 2=2km, 3=5km, 4=10km
+    // OSM Zoom:   15     14     13     12     11
+    static const int OSM_ZOOM[] = {15, 14, 13, 12, 11};
+    int tileZoom = OSM_ZOOM[mapZoomIdx];
+
     bool tiles_drawn = false;
     if (d.lat != 0 && d.lon != 0) {
-        drawTiles(d.lat, d.lon, 11, fb);
-        // Prüfen ob mindestens 1 Tile existierte (grob: Center-Tile)
+        drawTiles(d.lat, d.lon, tileZoom, fb);
+        // Prüfen ob Center-Tile existiert
         char tp[48];
-        snprintf(tp, 48, "/tiles/11_%d_%d.png", lon2tile(d.lon,11), lat2tile(d.lat,11));
+        snprintf(tp, 48, "/tiles/%d_%d_%d.png", tileZoom, lon2tile(d.lon,tileZoom), lat2tile(d.lat,tileZoom));
         tiles_drawn = SD.exists(tp);
     }
 
@@ -331,7 +361,7 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
 
     // === RENDER ===
     epd_poweron();
-    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
+    epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 
