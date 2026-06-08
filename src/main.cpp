@@ -64,6 +64,7 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "wifi_screen.h"
 #include "overlay_screen.h"
 #include "ble_manager.h"
+#include "ble_screen.h"
 #include "touch.h"
 
 static TouchManager touch;
@@ -75,6 +76,7 @@ static SDManager sdcard;
 static WiFiScreen wifiScreen;
 static OverlayScreen overlayScreen;
 static BLEManager ble;
+static BleScreen bleScreen;
 #include "vario/altitude.h"
 #include "kalman_vario.h"
 #include "esp_sleep.h"
@@ -95,7 +97,7 @@ static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
-enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY };
+enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY, SCR_BLE };
 static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
 
@@ -478,6 +480,18 @@ void loop() {
             currentScreen = SCR_MENU;
             showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
         }
+    } else if (currentScreen == SCR_BLE) {
+        if (g == GEST_TAP) {
+            if (bleScreen.handleTap(touch.lastX(), touch.lastY(), &hl)) {
+                currentScreen = SCR_FUNK;
+                showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
+                               fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0);
+            }
+        } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = SCR_FUNK;
+            showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
+                           fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0);
+        }
     } else if (currentScreen == SCR_FUNK) {
         if (g == GEST_TAP) {
             FunkItem fi = checkFunkTap(touch.lastX(), touch.lastY());
@@ -487,14 +501,10 @@ void loop() {
                 wifiScreen.doScan(&hl);  // Sofort scannen
                 Serial.println("[FUNK] → WLAN Scan");
             } else if (fi == FUNK_BLE) {
-                if (!ble.ok) {
-                    ble.init("Aura Vario");
-                } else {
-                    ble.stop();
-                }
-                showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
-                               fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0);
-                Serial.printf("[FUNK] BLE %s\n", ble.ok ? "AN" : "AUS");
+                currentScreen = SCR_BLE;
+                bleScreen.begin(&ble, &sdcard);
+                bleScreen.draw(&hl);
+                Serial.println("[FUNK] → BLE Screen");
             } else if (fi == FUNK_FANET) {
                 Serial.println("[FUNK] FANET Einstellungen (TODO)");
             } else if (fi == FUNK_BACK) {

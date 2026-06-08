@@ -220,9 +220,9 @@ private:
         // Zoom-Stufen mit Tile-Bereichen (Schweiz 46.0-47.8N, 6.0-10.5E)
         struct ZoomRange { int z, x0, x1, y0, y1; };
         ZoomRange ranges[] = {
-            {11, 1060, 1076, 713, 724},   // ~204 Tiles, Uebersicht
-            {12, 2120, 2152, 1426, 1448},  // ~726 Tiles, Detail
-            {13, 4240, 4304, 2852, 2896},  // ~2880 Tiles, nah
+            {11, 1060, 1076, 713, 724},   // ~204 Tiles, ganze CH
+            {12, 2130, 2150, 1426, 1440},  // ~315 Tiles, CH Mitte+Ost
+            {13, 4270, 4296, 2852, 2870},  // ~513 Tiles, Ostschweiz
         };
         int num_ranges = 3;
 
@@ -255,7 +255,7 @@ private:
                 if (!sd->exists(path)) {
                     HTTPClient http;
                     http.begin(url);
-                    http.setTimeout(10000);
+                    http.setTimeout(5000);  // 5s statt 10s
                     http.addHeader("User-Agent", "AuraVario/1.0");
                     int code = http.GET();
                     if (code == 200) {
@@ -265,19 +265,25 @@ private:
                         if (f) {
                             uint8_t buf[1024];
                             int recv = 0;
+                            unsigned long dl_start = millis();
                             while (http.connected() && (sz < 0 || recv < sz)) {
                                 int av = stream->available();
                                 if (av > 0) {
                                     int rd = stream->readBytes(buf, min(av, 1024));
                                     f.write(buf, rd); recv += rd;
                                 }
+                                // Timeout: max 8s pro Tile
+                                if (millis() - dl_start > 8000) break;
                                 delay(1);
                             }
                             f.close();
                         }
+                    } else {
+                        Serial.printf("[DL] Tile FAIL %d: %s\n", code, path);
                     }
                     http.end();
-                    delay(100);  // Rate-Limit respektieren
+                    delay(50);  // Rate-Limit
+                    yield();
                 }
 
                 done_tiles++;
