@@ -71,16 +71,19 @@ static void drawCompass(float hdg, int sx, int sy, int sw, uint8_t *fb) {
     int cx = sx + sw/2;
     int base_y = sy + 60;  // Vertikal zentriert in Zone (400-540, Mitte=470)
 
-    // Doppelpfeil an der Heading-Position (gross, 22px halb, 22px hoch)
-    // Oberes Dreieck ▼ (Spitze bei base_y)
-    for(int r=0; r<22; r++) {
-        int hw = 22 - r*22/22;
-        if(hw>0) FB(cx-hw, base_y-22+r, 2*hw+1, 1, fb);
+    // Doppelpfeil: Mittellinie der Buchstaben = base_y - 10
+    // Dreiecke je 28px hoch, 28px breit, Spitzen treffen sich auf Mittellinie
+    int mid = base_y - 10;  // Textmitte ArialBold28
+    int th = 28;             // Dreieck-Hoehe
+    // Oberes Dreieck ▼ (Spitze bei mid)
+    for(int r=0; r<th; r++) {
+        int hw = th - r;
+        if(hw>0) FB(cx-hw, mid-th+r, 2*hw+1, 1, fb);
     }
-    // Unteres Dreieck ▲ (Spitze bei base_y)
-    for(int r=0; r<22; r++) {
-        int hw = 22 - r*22/22;
-        if(hw>0) FB(cx-hw, base_y+22-r, 2*hw+1, 1, fb);
+    // Unteres Dreieck ▲ (Spitze bei mid)
+    for(int r=0; r<th; r++) {
+        int hw = th - r;
+        if(hw>0) FB(cx-hw, mid+th-r, 2*hw+1, 1, fb);
     }
 
     // Kleine Ticks an der Baseline (duenne Linie nur als Tick-Referenz)
@@ -99,12 +102,12 @@ static void drawCompass(float hdg, int sx, int sy, int sw, uint8_t *fb) {
         // Tick (kleine vertikale Marke)
         FB(px, base_y-3, 2, 6, fb);
 
-        // Buchstabe — Baseline = gleiche Hoehe wie Pfeil-Mitte
-        // ArialBold28 hat ~28px Hoehe, Baseline bei base_y bedeutet Text von base_y-28 bis base_y
+        // Buchstabe — zentriert auf Mittellinie (mid = base_y - 10)
+        // ArialBold28 Baseline → Oberkante ca. -20px, also Baseline = mid + 10
         if(dg[i]%90==0)
-            T(&ArialBold28, lb[i], px-12, base_y+2, fb);
+            T(&ArialBold28, lb[i], px-12, mid+10, fb);
         else
-            T(&ArialBold16, lb[i], px-10, base_y, fb);
+            T(&ArialBold16, lb[i], px-10, mid+6, fb);
     }
 
     // 10er-Grad-Ticks (fein, ueber der Baseline)

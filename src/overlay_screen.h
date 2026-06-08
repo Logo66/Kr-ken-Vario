@@ -112,10 +112,14 @@ public:
     bool handleTap(int tx, int ty, EpdiyHighlevelState *hl) {
         switch (state) {
         case OVL_MENU:
+            // Zurueck (grosszuegig: ganze untere Zone)
+            if (ty >= 440) return true;
             if (tx >= 100 && tx < 860) {
                 if (WiFi.status() != WL_CONNECTED) {
+                    // Fehlermeldung kurz anzeigen, dann zurück
                     snprintf(status_msg, 64, "Erst FUNK > WLAN verbinden!");
                     state = OVL_ERROR; draw(hl);
+                    return false;
                 } else if (ty >= 120 && ty < 190) {
                     downloadFile(hl, URL_AIRSPACE_CH, "/airspace/ch_asp.txt", "Luftraeume CH");
                 } else if (ty >= 210 && ty < 280) {
@@ -130,10 +134,9 @@ public:
 
         case OVL_DONE:
         case OVL_ERROR:
-            if (ty >= 380 && ty < 432 && tx >= 350 && tx < 610) {
-                state = OVL_MENU;
-                draw(hl);
-            }
+            // Jeder Tap → zurueck zu OVL_MENU
+            state = OVL_MENU;
+            draw(hl);
             break;
         default: break;
         }

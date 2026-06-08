@@ -6,6 +6,8 @@
 #include "arialbold32.h"
 #include "arialbold24.h"
 #include <math.h>
+#include <SD.h>
+#include <pngle.h>
 
 // === Dreieck-Formel aus Ticket §2 (identisch zu goal_screen) ===
 static void mapTri(int cx, int cy, float ang, int L, int Wd, uint8_t *fb) {
@@ -55,6 +57,98 @@ static void projectToScreen(double myLat, double myLon, double pLat, double pLon
 static bool inClip(int x, int y) {
     return x >= MAP_CLIP_X+2 && x <= MAP_CLIP_X+MAP_CLIP_W-4 &&
            y >= MAP_CLIP_Y+2 && y <= MAP_CLIP_Y+MAP_CLIP_H-4;
+}
+
+// === OSM Tile Rendering ===
+// OSM Tiles: Zoom 11, 256x256 PNG → Graustufen auf Framebuffer
+// Tile-Nummer aus Lat/Lon: x = floor((lon+180)/360 * 2^z), y = floor((1-log(tan(lat)+1/cos(lat))/pi)/2 * 2^z)
+static int lon2tile(double lon, int z) { return (int)floor((lon + 180.0) / 360.0 * (1 << z)); }
+static int lat2tile(double lat, int z) {
+    double lr = lat * M_PI / 180.0;
+    return (int)floor((1.0 - log(tan(lr) + 1.0/cos(lr)) / M_PI) / 2.0 * (1 << z));
+}
+// Pixel-Position innerhalb eines Tiles
+static double lon2pix(double lon, int z) {
+    double t = (lon + 180.0) / 360.0 * (1 << z);
+    return (t - floor(t)) * 256.0;
+}
+static double lat2pix(double lat, int z) {
+    double lr = lat * M_PI / 180.0;
+    double t = (1.0 - log(tan(lr) + 1.0/cos(lr)) / M_PI) / 2.0 * (1 << z);
+    return (t - floor(t)) * 256.0;
+}
+
+// PNG-Decode Callback Kontext
+struct TileCtx {
+    uint8_t *fb;
+    int draw_x, draw_y;  // Offset auf dem Framebuffer
+    int clip_x, clip_y, clip_w, clip_h;
+};
+
+static void tileDrawCb(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                        const uint8_t rgba[4]) {
+    TileCtx *ctx = (TileCtx *)pngle_get_user_data(pngle);
+    int px = ctx->draw_x + (int)x;
+    int py = ctx->draw_y + (int)y;
+    // Clip-Check
+    if (px < ctx->clip_x || px >= ctx->clip_x + ctx->clip_w) return;
+    if (py < ctx->clip_y || py >= ctx->clip_y + ctx->clip_h) return;
+    // RGB → Graustufen (0=schwarz, 255=weiss)
+    uint8_t grey = (uint8_t)(0.299f * rgba[0] + 0.587f * rgba[1] + 0.114f * rgba[2]);
+    // epdiy Framebuffer: 4-bit pro Pixel, 2 Pixel pro Byte
+    int fb_w = 960;
+    int idx = py * (fb_w / 2) + px / 2;
+    if (px % 2 == 0) {
+        ctx->fb[idx] = (ctx->fb[idx] & 0x0F) | ((grey >> 4) << 4);
+    } else {
+        ctx->fb[idx] = (ctx->fb[idx] & 0xF0) | (grey >> 4);
+    }
+}
+
+static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
+    if (lat == 0 && lon == 0) return;
+
+    int center_tx = lon2tile(lon, zoom);
+    int center_ty = lat2tile(lat, zoom);
+    int px_in_tile_x = (int)lon2pix(lon, zoom);
+    int px_in_tile_y = (int)lat2pix(lat, zoom);
+
+    // Pilot sitzt bei MAP_PILOT_X, MAP_PILOT_Y
+    // Offset: wo das Center-Tile hingezeichnet wird
+    int tile_origin_x = MAP_PILOT_X - px_in_tile_x;
+    int tile_origin_y = MAP_PILOT_Y - px_in_tile_y;
+
+    // 3x3 Tiles um den Center-Tile zeichnen
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            int tx = center_tx + dx;
+            int ty = center_ty + dy;
+            int ox = tile_origin_x + dx * 256;
+            int oy = tile_origin_y + dy * 256;
+
+            // Sichtbarkeits-Check
+            if (ox + 256 < MAP_CLIP_X || ox > MAP_CLIP_X + MAP_CLIP_W) continue;
+            if (oy + 256 < MAP_CLIP_Y || oy > MAP_CLIP_Y + MAP_CLIP_H) continue;
+
+            char path[48];
+            snprintf(path, 48, "/tiles/%d_%d_%d.png", zoom, tx, ty);
+            File f = SD.open(path, FILE_READ);
+            if (!f) continue;
+
+            pngle_t *pngle = pngle_new();
+            TileCtx ctx = {fb, ox, oy, MAP_CLIP_X+2, MAP_CLIP_Y+2, MAP_CLIP_W-4, MAP_CLIP_H-4};
+            pngle_set_user_data(pngle, &ctx);
+            pngle_set_draw_callback(pngle, tileDrawCb);
+
+            uint8_t buf[256];
+            while (f.available()) {
+                int rd = f.read(buf, sizeof(buf));
+                if (rd > 0) pngle_feed(pngle, buf, rd);
+            }
+            f.close();
+            pngle_destroy(pngle);
+        }
+    }
 }
 
 // === Track-Buffer (letzte 200 GPS-Positionen) ===
@@ -136,6 +230,11 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uiHLine(MAP_CLIP_X, MAP_CLIP_Y+MAP_CLIP_H-2, MAP_CLIP_W, fb);
     uiVLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_H, fb);
     uiVLine(MAP_CLIP_X+MAP_CLIP_W-2, MAP_CLIP_Y, MAP_CLIP_H, fb);
+
+    // === OSM TILE HINTERGRUND ===
+    if (d.lat != 0 && d.lon != 0) {
+        drawTiles(d.lat, d.lon, 11, fb);  // Zoom 11 fest (passend zu Download)
+    }
 
     // === TRACK-SPUR (dicke Linie, stroke 3.5) ===
     if (d.lat != 0 && d.lon != 0) {

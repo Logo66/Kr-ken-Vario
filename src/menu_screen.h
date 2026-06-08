@@ -13,8 +13,12 @@ static void drawMBtn(int c, int r, const char *label, const char *label2,
     int x = mbX(c), y = mbY(r);
     uiBox(x, y, MBTN, MBTN, fb);
 
-    if (info) {
-        // Label oben, Info unten — ArialBold24 passt in 190px
+    if (label2) {
+        // Zweizeilig: beide ArialBold24, vertikal zentriert in Box
+        drawHCenter(&ArialBold24, label,  x, MBTN, y + 78, fb);
+        drawHCenter(&ArialBold24, label2, x, MBTN, y + 114, fb);
+    } else if (info) {
+        // Label oben, Info unten
         drawHCenter(&ArialBold24, label, x, MBTN, y + 80, fb);
         drawHCenter(&ArialBold16, info, x, MBTN, y + 120, fb);
     } else {
@@ -33,7 +37,7 @@ static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc) 
     snprintf(buf, 32, "%.0f hPa", qnh);
     drawMBtn(0, 0, "QNH", NULL, buf, fb);
     drawMBtn(1, 0, "LICHT", NULL, bl ? "AN" : "AUS", fb);
-    drawMBtn(2, 0, "BUCH", NULL, NULL, fb);
+    drawMBtn(2, 0, "FLUG", "BUCH", NULL, fb);
     drawMBtn(0, 1, "FUNK", NULL, "WLAN/BLE", fb);
     drawMBtn(1, 1, "KARTE", NULL, NULL, fb);
     drawMBtn(2, 1, "AUS", NULL, NULL, fb);
