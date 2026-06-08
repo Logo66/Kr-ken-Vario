@@ -2,7 +2,7 @@
 #include "ui_utils.h"
 
 enum MenuItem { MENU_NONE, MENU_QNH, MENU_BACKLIGHT, MENU_FLUGBUCH,
-                MENU_SLOT4, MENU_SLOT5, MENU_AUS };
+                MENU_FUNK, MENU_SLOT5, MENU_AUS };
 
 static const int MBTN=190, MGAP=30, MX0=165, MY0=75;
 static int mbX(int c){return MX0+c*(MBTN+MGAP);}
@@ -14,12 +14,12 @@ static void drawMBtn(int c, int r, const char *label, const char *label2,
     uiBox(x, y, MBTN, MBTN, fb);
 
     if (label2) {
-        // Zweizeilig: beide in der oberen 2/3 der Box
-        drawHCenter(&ArialBold28, label, x, MBTN, y + 80, fb);
-        drawHCenter(&ArialBold28, label2, x, MBTN, y + 112, fb);
+        // Zweizeilig: ArialBold16, zentriert mit Abstand
+        drawHCenter(&ArialBold16, label, x, MBTN, y + 85, fb);
+        drawHCenter(&ArialBold16, label2, x, MBTN, y + 108, fb);
     } else {
-        // Einzeilig: vertikal+horizontal zentriert in oberen 130px
-        drawBoxCenter(&ArialBold28, label, x, y, MBTN, 140, fb);
+        // Einzeilig: zentriert in voller Box-Hoehe
+        drawBoxCenter(&ArialBold28, label, x, y, MBTN, MBTN, fb);
     }
 
     if (info) {
@@ -37,22 +37,21 @@ static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc) 
     snprintf(buf, 32, "%.0f hPa", qnh);
     drawMBtn(0, 0, "QNH", NULL, buf, fb);
     drawMBtn(1, 0, "LICHT", NULL, bl ? "AN" : "AUS", fb);
-    snprintf(buf, 32, "%d Fluege", fc);
-    drawMBtn(2, 0, "FLUG", "BUCH", buf, fb);
-    drawMBtn(0, 1, "---", NULL, "(frei)", fb);
+    drawMBtn(2, 0, "FLUG", "BUCH", NULL, fb);
+    drawMBtn(0, 1, "FUNK", NULL, "FANET/BLE", fb);
     drawMBtn(1, 1, "---", NULL, "(frei)", fb);
     drawMBtn(2, 1, "AUS", NULL, NULL, fb);
 
     drawHCenter(&ArialBold16, "Antippen | Wischen = zurueck", 0, 960, 530, fb);
 
     epd_poweron();
-    epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
+    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 
 static MenuItem checkMenuTap(int tx, int ty) {
     MenuItem items[] = {MENU_QNH, MENU_BACKLIGHT, MENU_FLUGBUCH,
-                        MENU_SLOT4, MENU_SLOT5, MENU_AUS};
+                        MENU_FUNK, MENU_SLOT5, MENU_AUS};
     int cols[] = {0,1,2,0,1,2}, rows[] = {0,0,0,1,1,1};
     for (int i = 0; i < 6; i++) {
         int x = mbX(cols[i]), y = mbY(rows[i]);

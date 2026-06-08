@@ -48,7 +48,7 @@ static void showQnhScreen(EpdiyHighlevelState *hl, float alt, float qnh, float p
     drawHCenter(&ArialBold16, "+/- 10m pro Tap    OK = Speichern", 0, 960, 535, fb);
 
     epd_poweron();
-    epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
+    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 

@@ -7,6 +7,7 @@ struct FlightRecord {
     uint16_t year; uint8_t month, day, hour, minute;
     uint16_t duration_sec;
     int16_t max_alt, start_alt, max_climb;
+    int16_t max_g;              // Max G-Kraft (×100, z.B. 320 = 3.2g)
     uint32_t track_dist_m, straight_dist_m;
     bool valid;
 };
@@ -20,9 +21,9 @@ public:
         else { for(int i=0;i<MAX_FLIGHTS-1;i++) flights[i]=flights[i+1]; flights[MAX_FLIGHTS-1]=f; }
     }
     void addDemoFlights() {
-        FlightRecord f1={2026,6,7,14,23,4320,2847,489,340,12400,8200,true};
-        FlightRecord f2={2026,6,6,11,45,2280,1650,520,280,5800,3100,true};
-        FlightRecord f3={2026,6,5,15,2,7500,3120,470,420,28500,15600,true};
+        FlightRecord f1={2026,6,7,14,23,4320,2847,489,340,280,12400,8200,true};
+        FlightRecord f2={2026,6,6,11,45,2280,1650,520,280,220,5800,3100,true};
+        FlightRecord f3={2026,6,5,15,2,7500,3120,470,420,350,28500,15600,true};
         addFlight(f1); addFlight(f2); addFlight(f3);
     }
 };
@@ -38,11 +39,11 @@ static void showFlugbuchScreen(EpdiyHighlevelState *hl, const Flugbuch &data) {
     drawHCenter(&ArialBold16, buf, 0, 960, 80, fb);
     uiHLine(20, 95, 920, fb);
 
-    // Spalten: 6 gleich breite Felder (960/6 = 160px)
-    const int COL_W = 155;
-    const int COL_X[] = {10, 165, 320, 475, 630, 785};
-    const char *HEADERS[] = {"Datum", "Dauer", "MaxAlt", "Climb", "Spur", "Strecke"};
-    for (int i = 0; i < 6; i++)
+    // 7 Spalten
+    const int COL_W = 130;
+    const int COL_X[] = {10, 140, 275, 400, 520, 650, 820};
+    const char *HEADERS[] = {"Datum", "Dauer", "MaxAlt", "Climb", "Gmax", "Spur", "Strecke"};
+    for (int i = 0; i < 7; i++)
         drawHCenter(&ArialBold16, HEADERS[i], COL_X[i], COL_W, 120, fb);
     uiHLine(20, 133, 920, fb);
 
@@ -65,11 +66,14 @@ static void showFlugbuchScreen(EpdiyHighlevelState *hl, const Flugbuch &data) {
         snprintf(buf, 64, "+%.1f", f.max_climb/100.0f);
         drawHCenter(&ArialBold16, buf, COL_X[3], COL_W, y, fb);
 
-        snprintf(buf, 64, "%.1fkm", f.track_dist_m/1000.0f);
+        snprintf(buf, 64, "%.1fg", f.max_g/100.0f);
         drawHCenter(&ArialBold16, buf, COL_X[4], COL_W, y, fb);
 
-        snprintf(buf, 64, "%.1fkm", f.straight_dist_m/1000.0f);
+        snprintf(buf, 64, "%.1fkm", f.track_dist_m/1000.0f);
         drawHCenter(&ArialBold16, buf, COL_X[5], COL_W, y, fb);
+
+        snprintf(buf, 64, "%.1fkm", f.straight_dist_m/1000.0f);
+        drawHCenter(&ArialBold16, buf, COL_X[6], COL_W, y, fb);
 
         y += 30;
         uiHLine(20, y-5, 920, fb, 1);
@@ -82,6 +86,6 @@ static void showFlugbuchScreen(EpdiyHighlevelState *hl, const Flugbuch &data) {
     drawHCenter(&ArialBold16, "Wischen = zurueck    Upload via App (TODO)", 0, 960, 520, fb);
 
     epd_poweron();
-    epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
+    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
     epd_poweroff();
 }

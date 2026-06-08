@@ -34,7 +34,7 @@ static void showLandingScreen(EpdiyHighlevelState *hl, float alt, int h, int m) 
     drawHCenter(&ArialBold16, "Antippen zum Waehlen", 0, 960, 520, fb);
 
     epd_poweron();
-    epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
+    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 
