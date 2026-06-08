@@ -56,35 +56,28 @@ public:
                             0, 960, 80, fb);
             }
 
-            // Luftraeume — zentriert in Box
-            uiBox(100, 120, 760, 70, fb);
-            char asp_label[48];
-            snprintf(asp_label, 48, "Luftraeume CH  %s", has_asp ? "[OK]" : "");
-            drawBoxCenter(&ArialBold24, asp_label, 100, 120, 760, 70, fb);
+            // 4 Buttons: gleich gross, gleichmaessig verteilt
+            int bx = 100, bw = 760, bh = 65, bgap = 18;
+            int by0 = 100;
+            char lb[48];
 
-            // BAZL Hindernisse — zentriert in Box
-            uiBox(100, 200, 760, 60, fb);
-            char obs_label[48];
-            snprintf(obs_label, 48, "Hindernisse BAZL  %s", has_obs ? "[OK]" : "");
-            drawBoxCenter(&ArialBold16, obs_label, 100, 200, 760, 60, fb);
+            uiBox(bx, by0, bw, bh, fb);
+            snprintf(lb, 48, "Luftraeume CH  %s", has_asp ? "[OK]" : "");
+            drawBoxCenter(&ArialBold16, lb, bx, by0, bw, bh, fb);
 
-            // Thermik-Hotspots
-            uiBox(100, 275, 760, 60, fb);
-            char hot_label[48];
-            snprintf(hot_label, 48, "Hotspots CH  %s", has_hot ? "[OK]" : "");
-            drawBoxCenter(&ArialBold16, hot_label, 100, 275, 760, 60, fb);
+            uiBox(bx, by0+bh+bgap, bw, bh, fb);
+            snprintf(lb, 48, "Hindernisse BAZL  %s", has_obs ? "[OK]" : "");
+            drawBoxCenter(&ArialBold16, lb, bx, by0+bh+bgap, bw, bh, fb);
 
-            // Karten-Tiles
-            uiBox(100, 350, 760, 60, fb);
-            drawBoxCenter(&ArialBold16, "Karten Download", 100, 350, 760, 60, fb);
+            uiBox(bx, by0+2*(bh+bgap), bw, bh, fb);
+            snprintf(lb, 48, "Hotspots CH  %s", has_hot ? "[OK]" : "");
+            drawBoxCenter(&ArialBold16, lb, bx, by0+2*(bh+bgap), bw, bh, fb);
 
-            // Hinweis
-            drawHCenter(&ArialBold16, "BAZL: tagesaktuell, >25m Hindernisse",
-                        0, 960, 435, fb);
+            uiBox(bx, by0+3*(bh+bgap), bw, bh, fb);
+            drawBoxCenter(&ArialBold16, "Karten Download", bx, by0+3*(bh+bgap), bw, bh, fb);
 
-            // Status SD
             if (!sd || !sd->ok) {
-                drawHCenter(&ArialBold16, "KEINE SD-KARTE!", 0, 960, 340, fb);
+                drawHCenter(&ArialBold16, "KEINE SD-KARTE!", 0, 960, 440, fb);
             }
 
             // Zurueck
@@ -136,13 +129,13 @@ public:
                     snprintf(status_msg, 64, "Erst FUNK > WLAN verbinden!");
                     state = OVL_ERROR; draw(hl);
                     return false;
-                } else if (ty >= 120 && ty < 180) {
+                } else if (ty >= 100 && ty < 165) {
                     downloadFile(hl, URL_AIRSPACE_CH, "/airspace/ch_asp.txt", "Luftraeume CH");
-                } else if (ty >= 200 && ty < 260) {
+                } else if (ty >= 183 && ty < 248) {
                     downloadFile(hl, URL_OBSTACLES_CH, "/obstacles/ch_bazl.json", "Hindernisse BAZL");
-                } else if (ty >= 275 && ty < 335) {
+                } else if (ty >= 266 && ty < 331) {
                     downloadFile(hl, URL_HOTSPOTS_CH, "/obstacles/ch_hot.cup", "Hotspots CH");
-                } else if (ty >= 350 && ty < 410) {
+                } else if (ty >= 349 && ty < 414) {
                     downloadTiles(hl);
                 }
             }

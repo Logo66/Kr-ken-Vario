@@ -362,6 +362,15 @@ void loop() {
     fanet.poll();
     updateClock();
 
+    // BLE Notifications (1x pro Sekunde)
+    static unsigned long lastBle = 0;
+    if (ble.ok && millis() - lastBle > 1000) {
+        lastBle = millis();
+        ble.update(live.altitude, live.vario, live.speed, live.heading,
+                   lastGoodLat, lastGoodLon, live.sats, live.bat_pct,
+                   live.gps_fix, flight.state == FLIGHT_FLYING, fanet.ok);
+    }
+
     // FANET TX: nur im Flug senden (alle 5s)
     // Am Boden: kein TX, nur RX (Duty-Cycle schonen)
     static unsigned long lastFanetTx = 0;
@@ -478,12 +487,13 @@ void loop() {
                 Serial.println("[FUNK] → WLAN Scan");
             } else if (fi == FUNK_BLE) {
                 if (!ble.ok) {
-                    ble.init();
+                    ble.init("Aura Vario");
+                } else {
+                    ble.stop();
                 }
-                // Zurück zum Funk-Screen mit aktuellem Status
                 showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
                                fanet.ok, fanet.pilot_count);
-                Serial.printf("[FUNK] BLE %s\n", ble.ok ? "AN" : "noch nicht aktiv");
+                Serial.printf("[FUNK] BLE %s\n", ble.ok ? "AN" : "AUS");
             } else if (fi == FUNK_FANET) {
                 Serial.println("[FUNK] FANET Einstellungen (TODO)");
             } else if (fi == FUNK_BACK) {

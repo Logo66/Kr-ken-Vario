@@ -95,14 +95,8 @@ static void tileDrawCb(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint3
     if (py < ctx->clip_y || py >= ctx->clip_y + ctx->clip_h) return;
     // RGB → Graustufen (0=schwarz, 255=weiss)
     uint8_t grey = (uint8_t)(0.299f * rgba[0] + 0.587f * rgba[1] + 0.114f * rgba[2]);
-    // epdiy Framebuffer: 4-bit pro Pixel, 2 Pixel pro Byte
-    int fb_w = 960;
-    int idx = py * (fb_w / 2) + px / 2;
-    if (px % 2 == 0) {
-        ctx->fb[idx] = (ctx->fb[idx] & 0x0F) | ((grey >> 4) << 4);
-    } else {
-        ctx->fb[idx] = (ctx->fb[idx] & 0xF0) | (grey >> 4);
-    }
+    // epdiy: epd_draw_pixel nutzt 0=schwarz, 255=weiss (gleich wie RGB grey)
+    epd_draw_pixel(px, py, grey, ctx->fb);
 }
 
 static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {

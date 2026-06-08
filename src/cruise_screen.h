@@ -71,20 +71,29 @@ static void drawCompass(float hdg, int sx, int sy, int sw, uint8_t *fb) {
     int cx = sx + sw/2;
     int base_y = sy + 60;  // Vertikal zentriert in Zone (400-540, Mitte=470)
 
-    // Doppelpfeil: Mittellinie der Buchstaben = base_y - 10
-    // Dreiecke je 28px hoch, 28px breit, Spitzen treffen sich auf Mittellinie
-    int mid = base_y - 10;  // Textmitte ArialBold28
-    int th = 28;             // Dreieck-Hoehe
-    // Oberes Dreieck ▼ (Spitze bei mid)
+    // Doppelpfeil: nur Outline, fett (3px Strich), 25% groesser
+    int mid = base_y - 10;
+    int th = 40;              // 35 * 1.15 = ~40
+    int stk = 4;              // Strichstaerke dicker
+    // Oberes Dreieck ▼ (Spitze bei mid) — nur Kanten
+    for(int r=0; r<th; r++) {
+        int hw = th - r;      // Halbe Breite auf dieser Zeile
+        int y = mid - th + r;
+        // Linke Kante + rechte Kante (je sw Pixel breit)
+        FB(cx-hw, y, stk, 1, fb);
+        FB(cx+hw-stk+1, y, stk, 1, fb);
+    }
+    // Basis oben (waagerecht)
+    FB(cx-th, mid-th, 2*th+1, stk, fb);
+    // Unteres Dreieck ▲ (Spitze bei mid) — nur Kanten
     for(int r=0; r<th; r++) {
         int hw = th - r;
-        if(hw>0) FB(cx-hw, mid-th+r, 2*hw+1, 1, fb);
+        int y = mid + th - r;
+        FB(cx-hw, y, stk, 1, fb);
+        FB(cx+hw-stk+1, y, stk, 1, fb);
     }
-    // Unteres Dreieck ▲ (Spitze bei mid)
-    for(int r=0; r<th; r++) {
-        int hw = th - r;
-        if(hw>0) FB(cx-hw, mid+th-r, 2*hw+1, 1, fb);
-    }
+    // Basis unten (waagerecht)
+    FB(cx-th, mid+th, 2*th+1, stk, fb);
 
     // Kleine Ticks an der Baseline (duenne Linie nur als Tick-Referenz)
     const char* lb[]={"N","NE","E","SE","S","SW","W","NW"};
@@ -102,12 +111,11 @@ static void drawCompass(float hdg, int sx, int sy, int sw, uint8_t *fb) {
         // Tick (kleine vertikale Marke)
         FB(px, base_y-3, 2, 6, fb);
 
-        // Buchstabe — zentriert auf Mittellinie (mid = base_y - 10)
-        // ArialBold28 Baseline → Oberkante ca. -20px, also Baseline = mid + 10
+        // Buchstabe — 2mm (~8px) tiefer als Pfeil-Mitte
         if(dg[i]%90==0)
-            T(&ArialBold28, lb[i], px-12, mid+10, fb);
+            T(&ArialBold28, lb[i], px-12, mid+20, fb);
         else
-            T(&ArialBold16, lb[i], px-10, mid+6, fb);
+            T(&ArialBold16, lb[i], px-10, mid+16, fb);
     }
 
     // 10er-Grad-Ticks (fein, ueber der Baseline)
