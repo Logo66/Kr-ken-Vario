@@ -15,6 +15,7 @@
 #include "cruise_screen.h"
 #include "thermal_screen.h"
 #include "goal_screen.h"
+#include "map_screen.h"
 
 // Forward-Declarations (definiert weiter unten nach globalen Variablen)
 static void updateGoalData();
@@ -83,7 +84,7 @@ static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
-enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH };
+enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH };
 static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
 
@@ -503,9 +504,10 @@ void loop() {
     } else {
         // Cruise/Thermik: Swipe = wechseln, Long-Tap = Menu
         if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
-            // Karussell: Cruise → Thermal → Goal → Cruise
+            // Karussell: Cruise → Thermal → Goal → Map → Cruise
             if (currentScreen==SCR_CRUISE) currentScreen = SCR_THERMAL;
             else if (currentScreen==SCR_THERMAL) currentScreen = SCR_GOAL;
+            else if (currentScreen==SCR_GOAL) currentScreen = SCR_MAP;
             else currentScreen = SCR_CRUISE;
             Serial.printf("[SWIPE] → %d\n", currentScreen);
             if (currentScreen==SCR_CRUISE) {
@@ -514,10 +516,33 @@ void loop() {
                 if (!thermal.active) thermal.start(live.altitude);
                 showThermalScreen(&hl, thermal.data);
             } else if (currentScreen==SCR_GOAL) {
-                { updateGoalData(); showGoalScreen(&hl, goalLive); };
+                updateGoalData(); showGoalScreen(&hl, goalLive);
+            } else if (currentScreen==SCR_MAP) {
+                MapData md={live.heading,live.rtc_hour,live.rtc_min,
+                            live.sats,live.bat_pct,0,false};
+                showMapScreen(&hl, md);
             }
             lastDisplay = millis();
         } else if (g == GEST_TAP) {
+            // Map-Touch-Handler
+            if (currentScreen==SCR_MAP) {
+                MapAction ma = checkMapTap(touch.lastX(), touch.lastY());
+                if (ma==MAP_ZOOM_IN && mapZoomIdx>0) {
+                    mapZoomIdx--;
+                    MapData md={live.heading,live.rtc_hour,live.rtc_min,
+                                live.sats,live.bat_pct,0,false};
+                    showMapScreen(&hl, md);
+                } else if (ma==MAP_ZOOM_OUT && mapZoomIdx<4) {
+                    mapZoomIdx++;
+                    MapData md={live.heading,live.rtc_hour,live.rtc_min,
+                                live.sats,live.bat_pct,0,false};
+                    showMapScreen(&hl, md);
+                } else if (ma==MAP_RECENTER) {
+                    MapData md={live.heading,live.rtc_hour,live.rtc_min,
+                                live.sats,live.bat_pct,0,false};
+                    showMapScreen(&hl, md);
+                }
+            }
             Serial.printf("[TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
         } else if (g == GEST_LONG_TAP) {
             Serial.printf("[LONG TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
@@ -532,12 +557,14 @@ void loop() {
     static bool btn_last = true;
     bool btn_now = digitalRead(0);
     if (!btn_now && btn_last && currentScreen != SCR_MENU && currentScreen != SCR_LANDING) {
-        if (currentScreen==SCR_CRUISE) currentScreen = SCR_THERMAL;
-        else if (currentScreen==SCR_THERMAL) currentScreen = SCR_GOAL;
-        else currentScreen = SCR_CRUISE;
-        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_DU);
-        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl, thermal.data); }
-        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive); };
+        if (currentScreen==SCR_CRUISE) currentScreen=SCR_THERMAL;
+        else if (currentScreen==SCR_THERMAL) currentScreen=SCR_GOAL;
+        else if (currentScreen==SCR_GOAL) currentScreen=SCR_MAP;
+        else currentScreen=SCR_CRUISE;
+        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl,live,MODE_DU);
+        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl,thermal.data); }
+        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl,goalLive); }
+        else if (currentScreen==SCR_MAP) { MapData md={live.heading,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,0,false}; showMapScreen(&hl,md); }
         lastDisplay = millis();
         delay(300);
     }
@@ -565,15 +592,12 @@ void loop() {
         }
     } else { climb_since = 0; }
 
-    // 1 Hz Display Refresh — NUR Flug-Screens (Menu/Landing/QNH/Flugbuch sind statisch)
-    if ((currentScreen == SCR_CRUISE || currentScreen == SCR_THERMAL || currentScreen == SCR_GOAL)
+    // 1 Hz Display Refresh (Cruise/Thermal/Goal — Map ist statisch)
+    if ((currentScreen==SCR_CRUISE || currentScreen==SCR_THERMAL || currentScreen==SCR_GOAL)
         && millis()-lastDisplay >= 1000) {
         lastDisplay = millis();
-        if (currentScreen == SCR_CRUISE)
-            showCruiseScreen(&hl, live, MODE_DU);
-        else if (currentScreen == SCR_THERMAL)
-            showThermalScreen(&hl, thermal.data, MODE_DU);
-        else if (currentScreen == SCR_GOAL)
-            { updateGoalData(); showGoalScreen(&hl, goalLive); };  // TODO: live GoalData
+        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_DU);
+        else if (currentScreen==SCR_THERMAL) showThermalScreen(&hl, thermal.data, MODE_DU);
+        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive, MODE_DU); }
     }
 }
