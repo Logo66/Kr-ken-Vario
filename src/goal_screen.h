@@ -111,24 +111,23 @@ static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
     snprintf(buf,48,"%.1f km", d.distance_km);
     drawBoxCenter(&ArialBold28, buf, GL_VALUE_X, 290, GL_VALUE_W, 55, fb);
 
-    uiHLine(GL_LABEL_X, 355, GL_LEFT_W-GL_LABEL_X, fb);
+    uiHLine(GL_LABEL_X, 358, GL_LEFT_W-GL_LABEL_X, fb);
 
-    // === GLEITZAHL (2 Felder nebeneinander: links noetig, rechts ist) ===
-    int gr_half = GL_VALUE_W / 2;  // 261px pro Haelfte
-    drawHCenter(&ArialBold16, "GR NOETIG", GL_VALUE_X, gr_half, 375, fb);
-    drawHCenter(&ArialBold16, "GR IST", GL_VALUE_X + gr_half, gr_half, 375, fb);
+    // === GLEITZAHL (2 Felder: y=362-452, je 261px breit) ===
+    int gr_half = GL_VALUE_W / 2;
+    drawHCenter(&ArialBold16, "GR NOETIG", GL_VALUE_X, gr_half, 385, fb);
+    drawHCenter(&ArialBold16, "GR IST", GL_VALUE_X+gr_half, gr_half, 385, fb);
 
     snprintf(buf,48,"%.1f", d.gr_needed);
-    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X, 385, gr_half, 55, fb);
+    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X, 395, gr_half, 50, fb);
 
-    if (d.gr_current > 0 && d.gr_current < 900) {
+    if (d.gr_current > 0 && d.gr_current < 900)
         snprintf(buf,48,"%.1f", d.gr_current);
-    } else {
+    else
         snprintf(buf,48,"---");
-    }
-    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X + gr_half, 385, gr_half, 55, fb);
+    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X+gr_half, 395, gr_half, 50, fb);
 
-    uiVLine(GL_VALUE_X + gr_half, 358, 90, fb);
+    uiVLine(GL_VALUE_X+gr_half, 362, 88, fb);
 
     // === RECHTE SPALTE ===
     uiVLine(580, 64, 388, fb);

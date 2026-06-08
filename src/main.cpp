@@ -518,8 +518,8 @@ void loop() {
             } else if (currentScreen==SCR_GOAL) {
                 updateGoalData(); showGoalScreen(&hl, goalLive);
             } else if (currentScreen==SCR_MAP) {
-                MapData md={live.heading,live.rtc_hour,live.rtc_min,
-                            live.sats,live.bat_pct,0,false};
+                MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
+                            live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,0,false,live.gps_fix};
                 showMapScreen(&hl, md);
             }
             lastDisplay = millis();

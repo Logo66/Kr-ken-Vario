@@ -43,8 +43,11 @@ enum MapAction { MAP_NONE, MAP_ZOOM_IN, MAP_ZOOM_OUT, MAP_RECENTER };
 
 struct MapData {
     float heading;
+    double lat, lon;
+    float altitude;
     int rtc_hour, rtc_min, sats, bat_pct, fanet_peers;
     bool buddy_connected;
+    bool gps_fix;
 };
 
 static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
@@ -85,6 +88,16 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uiVLine(56, 78, 40, fb, 3);  // Linie stroke 3
     mapTri(56, 74, 0, 24, 18, fb);  // Pfeil nach Norden
     drawText(&ArialBold16, "N", 46, 140, fb);
+
+    // === POSITIONS-INFO (im Kartenbereich, unten rechts) ===
+    if (d.gps_fix && d.lat != 0) {
+        snprintf(buf,32,"%.4f N", d.lat);
+        drawText(&ArialBold16, buf, 550, 490, fb);
+        snprintf(buf,32,"%.4f E", d.lon);
+        drawText(&ArialBold16, buf, 550, 510, fb);
+    }
+    snprintf(buf,32,"%.0f m", d.altitude);
+    drawText(&ArialBold16, buf, 700, 500, fb);
 
     // === MASSSTAB (Linie 40,506→160,506 + Endmarken) ===
     uiHLine(40, 506, 120, fb, 3);  // Hauptlinie stroke 3
