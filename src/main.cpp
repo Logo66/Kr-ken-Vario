@@ -58,12 +58,23 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "qnh_screen.h"
 #include "flight_detect.h"
 #include "flugbuch.h"
+#include "fanet.h"
+#include "sd_manager.h"
+#include "funk_screen.h"
+#include "wifi_screen.h"
+#include "overlay_screen.h"
+#include "ble_manager.h"
 #include "touch.h"
 
 static TouchManager touch;
 static FlightDetector flight;
 static Flugbuch flugbuch;
 static ThermalManager thermal;
+static FanetRadio fanet;
+static SDManager sdcard;
+static WiFiScreen wifiScreen;
+static OverlayScreen overlayScreen;
+static BLEManager ble;
 #include "vario/altitude.h"
 #include "kalman_vario.h"
 #include "esp_sleep.h"
@@ -84,7 +95,7 @@ static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
-enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH };
+enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY };
 static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
 
@@ -96,6 +107,13 @@ static void updateGoalData() {
     if (gps.location.isValid() && gps.location.lat() != 0) {
         lastGoodLat = gps.location.lat();
         lastGoodLon = gps.location.lng();
+    }
+
+    // Track-Punkt sammeln (alle 2s bei GPS-Fix)
+    static unsigned long lastTrack = 0;
+    if (lastGoodLat != 0 && millis() - lastTrack > 2000) {
+        lastTrack = millis();
+        trackAdd(lastGoodLat, lastGoodLon);
     }
 
     if (lastGoodLat == 0) {
@@ -127,7 +145,7 @@ static void updateGoalData() {
     goalLive.rtc_min = live.rtc_min;
     goalLive.sats = live.sats;
     goalLive.bat_pct = live.bat_pct;
-    goalLive.fanet_peers = 0;
+    goalLive.fanet_peers = fanet.pilot_count;
     goalLive.buddy_connected = false;
     goalLive.buddy_hint = NULL;
 }
@@ -294,9 +312,14 @@ void setup() {
     Wire.end();
     epd_init(&epd_board_v7, &ED047TC1, EPD_LUT_64K);
     epd_set_vcom(1600);
-    epd_poweron(); epd_clear(); epd_poweroff();
-    delay(100);
+    // Kein epd_clear() — Splash ueberschreibt direkt, spart 1-2 Schwarzblitze
     hl = epd_hl_init(EPD_BUILTIN_WAVEFORM);
+
+    // FANET LoRa NACH epdiy (beide nutzen gpio_install_isr_service)
+    fanet.init();
+
+    // SD-Karte (geteilter SPI mit LoRa, CS=12)
+    sdcard.init();
 
     // QNH kalibrieren mit raw I2C (zuverlaessig, 96719 Pa bewiesen)
     delay(200);
@@ -323,9 +346,9 @@ void setup() {
     kf.init(live.altitude);
 
     // Splash → Cruise → nach 15s Thermik-Demo
-    showBootSplash(&hl, AURA_VERSION);
+    showBootSplash(&hl, AURA_VERSION);  // Einziger GC16 beim Boot (Graustufen-Logo)
     delay(4000);
-    showCruiseScreen(&hl, live);
+    showCruiseScreen(&hl, live, MODE_DU);  // Kein zweiter Flash
     Serial.println("READY — Cruise aktiv, Thermik-Demo in 15s");
 }
 
@@ -336,7 +359,19 @@ static unsigned long vario_window=0;
 
 void loop() {
     feedGPS();
+    fanet.poll();
     updateClock();
+
+    // FANET TX: nur im Flug senden (alle 5s)
+    // Am Boden: kein TX, nur RX (Duty-Cycle schonen)
+    static unsigned long lastFanetTx = 0;
+    if (fanet.ok && flight.state == FLIGHT_FLYING && millis() - lastFanetTx > 5000) {
+        lastFanetTx = millis();
+        if (lastGoodLat != 0) {
+            fanet.sendTracking(lastGoodLat, lastGoodLon, live.altitude,
+                               live.vario, live.speed, live.heading, 1);
+        }
+    }
 
     // BMP581 raw read + Kalman (~20 Hz)
     float p = rawBMP581Pressure();  // Pa
@@ -364,7 +399,7 @@ void loop() {
         }
     }
 
-    delay(50);
+    delay(20);  // 50Hz Loop (war 20Hz) — Touch reaktiver
 
     // Serial alle 5s
     if (millis()-lastPrint >= 5000) {
@@ -378,19 +413,19 @@ void loop() {
     }
 
     // === FLUG-ERKENNUNG ===
-    flight.update(live.speed, live.vario, live.altitude);
+    flight.update(live.speed, live.vario, live.altitude, live.gps_fix, live.sats);
 
-    // Start erkannt → kurze Meldung auf Display
+    // Start erkannt → Meldung auf Display (zentriert, berechnet)
     if (flight.justStarted()) {
         uint8_t *fb = epd_hl_get_framebuffer(&hl);
         epd_hl_set_all_white(&hl);
-        EpdFontProperties p = epd_font_properties_default(); p.fg_color = 0;
-        int cx=250, cy=280;
-        epd_write_string(&ArialBold40, "START ERKANNT", &cx, &cy, fb, &p);
-        cx=300; cy=330;
-        epd_write_string(&ArialBold16, "Aufzeichnung gestartet", &cx, &cy, fb, &p);
+        // "START" oben gross, "ERKANNT" darunter, alles zentriert
+        drawHCenter(&ArialBold72, "START",    0, 960, 220, fb);
+        drawHCenter(&ArialBold72, "ERKANNT",  0, 960, 310, fb);
+        drawHCenter(&ArialBold24, "KIE Engineering wuenscht Dir", 0, 960, 390, fb);
+        drawHCenter(&ArialBold24, "einen schoenen Flug",          0, 960, 425, fb);
         epd_poweron();
-        epd_hl_update_screen(&hl, MODE_GC16, (int)epd_ambient_temperature());
+        epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature());
         epd_poweroff();
         delay(3000);
         currentScreen = SCR_CRUISE;
@@ -423,7 +458,56 @@ void loop() {
     // === SCREEN-MANAGER (Swipe + Button + Long-Tap=Menu) ===
     Gesture g = touch.poll();
 
-    if (currentScreen == SCR_FLUGBUCH) {
+    if (currentScreen == SCR_OVERLAY) {
+        if (g == GEST_TAP) {
+            if (overlayScreen.handleTap(touch.lastX(), touch.lastY(), &hl)) {
+                currentScreen = SCR_MENU;
+                showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+            }
+        } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = SCR_MENU;
+            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+        }
+    } else if (currentScreen == SCR_FUNK) {
+        if (g == GEST_TAP) {
+            FunkItem fi = checkFunkTap(touch.lastX(), touch.lastY());
+            if (fi == FUNK_WLAN) {
+                currentScreen = SCR_WIFI;
+                wifiScreen.begin(&sdcard);
+                wifiScreen.doScan(&hl);  // Sofort scannen
+                Serial.println("[FUNK] → WLAN Scan");
+            } else if (fi == FUNK_BLE) {
+                if (!ble.ok) {
+                    ble.init();
+                }
+                // Zurück zum Funk-Screen mit aktuellem Status
+                showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
+                               fanet.ok, fanet.pilot_count);
+                Serial.printf("[FUNK] BLE %s\n", ble.ok ? "AN" : "noch nicht aktiv");
+            } else if (fi == FUNK_FANET) {
+                Serial.println("[FUNK] FANET Einstellungen (TODO)");
+            } else if (fi == FUNK_BACK) {
+                currentScreen = SCR_MENU;
+                showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+            }
+        } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = SCR_MENU;
+            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+        }
+    } else if (currentScreen == SCR_WIFI) {
+        if (g == GEST_TAP) {
+            if (wifiScreen.handleTap(touch.lastX(), touch.lastY(), &hl)) {
+                // Zurueck zum Funk-Menu
+                currentScreen = SCR_FUNK;
+                showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, false,
+                               fanet.ok, fanet.pilot_count);
+            }
+        } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = SCR_FUNK;
+            showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, false,
+                           fanet.ok, fanet.pilot_count);
+        }
+    } else if (currentScreen == SCR_FLUGBUCH) {
         if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             currentScreen = SCR_MENU;
             showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
@@ -476,6 +560,16 @@ void loop() {
                 currentScreen = SCR_FLUGBUCH;
                 showFlugbuchScreen(&hl, flugbuch);
                 Serial.println("[MENU] Flugbuch");
+            } else if (mi == MENU_FUNK) {
+                currentScreen = SCR_FUNK;
+                showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, false,
+                               fanet.ok, fanet.pilot_count);
+                Serial.println("[MENU] Funk");
+            } else if (mi == MENU_KARTE) {
+                currentScreen = SCR_OVERLAY;
+                overlayScreen.begin(&sdcard);
+                overlayScreen.draw(&hl);
+                Serial.println("[MENU] Karte Overlays");
             } else if (mi == MENU_AUS) {
                 Serial.println("[MENU] Ausschalten → Credits");
                 showCreditsAndShutdown(&hl);  // Kommt nicht zurueck
@@ -514,12 +608,13 @@ void loop() {
                 showCruiseScreen(&hl, live, MODE_DU);
             } else if (currentScreen==SCR_THERMAL) {
                 if (!thermal.active) thermal.start(live.altitude);
-                showThermalScreen(&hl, thermal.data);
+                showThermalScreen(&hl, thermal.data, MODE_DU);
             } else if (currentScreen==SCR_GOAL) {
-                updateGoalData(); showGoalScreen(&hl, goalLive);
+                updateGoalData(); showGoalScreen(&hl, goalLive, MODE_DU);
             } else if (currentScreen==SCR_MAP) {
                 MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
-                            live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,0,false,live.gps_fix};
+                            live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
+                            fanet.pilot_count,false,live.gps_fix};
                 showMapScreen(&hl, md);
             }
             lastDisplay = millis();
@@ -529,17 +624,20 @@ void loop() {
                 MapAction ma = checkMapTap(touch.lastX(), touch.lastY());
                 if (ma==MAP_ZOOM_IN && mapZoomIdx>0) {
                     mapZoomIdx--;
-                    MapData md={live.heading,live.rtc_hour,live.rtc_min,
-                                live.sats,live.bat_pct,0,false};
+                    MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
+                                live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
+                                fanet.pilot_count,false,live.gps_fix};
                     showMapScreen(&hl, md);
                 } else if (ma==MAP_ZOOM_OUT && mapZoomIdx<4) {
                     mapZoomIdx++;
-                    MapData md={live.heading,live.rtc_hour,live.rtc_min,
-                                live.sats,live.bat_pct,0,false};
+                    MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
+                                live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
+                                fanet.pilot_count,false,live.gps_fix};
                     showMapScreen(&hl, md);
                 } else if (ma==MAP_RECENTER) {
-                    MapData md={live.heading,live.rtc_hour,live.rtc_min,
-                                live.sats,live.bat_pct,0,false};
+                    MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
+                                live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
+                                fanet.pilot_count,false,live.gps_fix};
                     showMapScreen(&hl, md);
                 }
             }
@@ -562,9 +660,9 @@ void loop() {
         else if (currentScreen==SCR_GOAL) currentScreen=SCR_MAP;
         else currentScreen=SCR_CRUISE;
         if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl,live,MODE_DU);
-        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl,thermal.data); }
-        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl,goalLive); }
-        else if (currentScreen==SCR_MAP) { MapData md={live.heading,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,0,false}; showMapScreen(&hl,md); }
+        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl,thermal.data,MODE_DU); }
+        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl,goalLive,MODE_DU); }
+        else if (currentScreen==SCR_MAP) { MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,false,live.gps_fix}; showMapScreen(&hl,md); }
         lastDisplay = millis();
         delay(300);
     }
@@ -587,7 +685,7 @@ void loop() {
         if (millis()-climb_since > 10000 && currentScreen==SCR_CRUISE) {
             if (!thermal.active) thermal.start(live.altitude);
             currentScreen = SCR_THERMAL;
-            showThermalScreen(&hl, thermal.data);
+            showThermalScreen(&hl, thermal.data, MODE_DU);
             lastDisplay = millis();
         }
     } else { climb_since = 0; }

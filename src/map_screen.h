@@ -41,6 +41,62 @@ static int mapZoomIdx = 2;  // Start: 2 km
 
 enum MapAction { MAP_NONE, MAP_ZOOM_IN, MAP_ZOOM_OUT, MAP_RECENTER };
 
+// === Projektion §5: Welt → Bildschirm (North-Up) ===
+// Eigene Position fix in (400, 288). m_per_px = zoom_m / 778
+static void projectToScreen(double myLat, double myLon, double pLat, double pLon,
+                             int zoomIdx, int *sx, int *sy) {
+    float m_per_px = ZOOM_M[zoomIdx] / (float)MAP_CLIP_W;
+    float dx_m = (float)(pLon - myLon) * 111320.0f * cosf((float)myLat * M_PI / 180.0f);
+    float dy_m = (float)(pLat - myLat) * 111320.0f;
+    *sx = MAP_PILOT_X + (int)(dx_m / m_per_px);
+    *sy = MAP_PILOT_Y - (int)(dy_m / m_per_px);  // Norden = oben
+}
+
+static bool inClip(int x, int y) {
+    return x >= MAP_CLIP_X+2 && x <= MAP_CLIP_X+MAP_CLIP_W-4 &&
+           y >= MAP_CLIP_Y+2 && y <= MAP_CLIP_Y+MAP_CLIP_H-4;
+}
+
+// === Track-Buffer (letzte 200 GPS-Positionen) ===
+static const int TRACK_MAX = 200;
+struct TrackPoint { double lat, lon; };
+static TrackPoint trackBuf[TRACK_MAX];
+static int trackCount = 0;
+static int trackHead = 0;
+
+static void trackAdd(double lat, double lon) {
+    if (lat == 0 && lon == 0) return;
+    trackBuf[trackHead] = {lat, lon};
+    trackHead = (trackHead + 1) % TRACK_MAX;
+    if (trackCount < TRACK_MAX) trackCount++;
+}
+
+static void drawTrack(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
+    int prev_x = -1, prev_y = -1;
+    for (int i = 0; i < trackCount; i++) {
+        int idx = (trackHead - trackCount + i + TRACK_MAX) % TRACK_MAX;
+        int sx, sy;
+        projectToScreen(myLat, myLon, trackBuf[idx].lat, trackBuf[idx].lon, zoomIdx, &sx, &sy);
+        if (inClip(sx, sy)) {
+            if (prev_x >= 0 && inClip(prev_x, prev_y)) {
+                // Linie von prev zu current (dicke Linie, stroke 3.5→4px)
+                int dx = sx - prev_x, dy = sy - prev_y;
+                int steps = max(abs(dx), abs(dy));
+                if (steps > 0 && steps < 500) {
+                    for (int s = 0; s <= steps; s++) {
+                        int lx = prev_x + dx * s / steps;
+                        int ly = prev_y + dy * s / steps;
+                        uiFill(lx-1, ly-1, 3, 3, fb);
+                    }
+                }
+            }
+            prev_x = sx; prev_y = sy;
+        } else {
+            prev_x = -1; prev_y = -1;
+        }
+    }
+}
+
 struct MapData {
     float heading;
     double lat, lon;
@@ -81,7 +137,12 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uiVLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_H, fb);
     uiVLine(MAP_CLIP_X+MAP_CLIP_W-2, MAP_CLIP_Y, MAP_CLIP_H, fb);
 
-    // === PILOT-DREIECK (400,288) heading=0 Phase1, tri()-Formel ===
+    // === TRACK-SPUR (dicke Linie, stroke 3.5) ===
+    if (d.lat != 0 && d.lon != 0) {
+        drawTrack(d.lat, d.lon, mapZoomIdx, fb);
+    }
+
+    // === PILOT-DREIECK (400,288) mit live Heading, tri()-Formel ===
     mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 46, 34, fb);
 
     // === NORDPFEIL (Linie 56,118→56,78 + Dreieck) ===
@@ -128,7 +189,7 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
 
     // === RENDER ===
     epd_poweron();
-    epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
+    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 

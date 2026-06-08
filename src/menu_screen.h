@@ -2,7 +2,7 @@
 #include "ui_utils.h"
 
 enum MenuItem { MENU_NONE, MENU_QNH, MENU_BACKLIGHT, MENU_FLUGBUCH,
-                MENU_FUNK, MENU_SLOT5, MENU_AUS };
+                MENU_FUNK, MENU_KARTE, MENU_AUS };
 
 static const int MBTN=190, MGAP=30, MX0=165, MY0=75;
 static int mbX(int c){return MX0+c*(MBTN+MGAP);}
@@ -13,17 +13,13 @@ static void drawMBtn(int c, int r, const char *label, const char *label2,
     int x = mbX(c), y = mbY(r);
     uiBox(x, y, MBTN, MBTN, fb);
 
-    if (label2) {
-        // Zweizeilig: ArialBold16, zentriert mit Abstand
-        drawHCenter(&ArialBold16, label, x, MBTN, y + 85, fb);
-        drawHCenter(&ArialBold16, label2, x, MBTN, y + 108, fb);
-    } else {
-        // Einzeilig: zentriert in voller Box-Hoehe
-        drawBoxCenter(&ArialBold28, label, x, y, MBTN, MBTN, fb);
-    }
-
     if (info) {
-        drawHCenter(&ArialBold16, info, x, MBTN, y + 165, fb);
+        // Label oben, Info unten — ArialBold24 passt in 190px
+        drawHCenter(&ArialBold24, label, x, MBTN, y + 80, fb);
+        drawHCenter(&ArialBold16, info, x, MBTN, y + 120, fb);
+    } else {
+        // Nur Label, voll zentriert
+        drawBoxCenter(&ArialBold24, label, x, y, MBTN, MBTN, fb);
     }
 }
 
@@ -37,9 +33,9 @@ static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc) 
     snprintf(buf, 32, "%.0f hPa", qnh);
     drawMBtn(0, 0, "QNH", NULL, buf, fb);
     drawMBtn(1, 0, "LICHT", NULL, bl ? "AN" : "AUS", fb);
-    drawMBtn(2, 0, "FLUG", "BUCH", NULL, fb);
-    drawMBtn(0, 1, "FUNK", NULL, "FANET/BLE", fb);
-    drawMBtn(1, 1, "---", NULL, "(frei)", fb);
+    drawMBtn(2, 0, "BUCH", NULL, NULL, fb);
+    drawMBtn(0, 1, "FUNK", NULL, "WLAN/BLE", fb);
+    drawMBtn(1, 1, "KARTE", NULL, NULL, fb);
     drawMBtn(2, 1, "AUS", NULL, NULL, fb);
 
     drawHCenter(&ArialBold16, "Antippen | Wischen = zurueck", 0, 960, 530, fb);
@@ -51,7 +47,7 @@ static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc) 
 
 static MenuItem checkMenuTap(int tx, int ty) {
     MenuItem items[] = {MENU_QNH, MENU_BACKLIGHT, MENU_FLUGBUCH,
-                        MENU_FUNK, MENU_SLOT5, MENU_AUS};
+                        MENU_FUNK, MENU_KARTE, MENU_AUS};
     int cols[] = {0,1,2,0,1,2}, rows[] = {0,0,0,1,1,1};
     for (int i = 0; i < 6; i++) {
         int x = mbX(cols[i]), y = mbY(rows[i]);

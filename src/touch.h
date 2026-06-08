@@ -61,7 +61,7 @@ public:
             Gesture g = GEST_NONE;
             if (dt > 800) {
                 g = GEST_LONG_TAP;
-            } else if (abs(dx) > 60 || abs(dy) > 60) {
+            } else if (abs(dx) > 35 || abs(dy) > 35) {  // Schwelle gesenkt (war 60)
                 // Swipe
                 if (abs(dx) > abs(dy)) {
                     g = (dx > 0) ? GEST_SWIPE_RIGHT : GEST_SWIPE_LEFT;

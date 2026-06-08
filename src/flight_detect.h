@@ -15,21 +15,32 @@ public:
     float start_altitude = 0;          // Hoehe bei Start
 
     // Jeden Loop aufrufen mit aktuellen Daten
-    FlightState update(float speed_kmh, float vario, float altitude) {
+    // gps_fix + sats: ohne gültiges GPS kein Start (verhindert Phantom-Start im Büro)
+    FlightState update(float speed_kmh, float vario, float altitude,
+                       bool gps_fix = true, int sats = 10) {
         switch (state) {
         case FLIGHT_GROUND:
-            // Start-Erkennung: Speed > 15 km/h fuer 5s
-            if (speed_kmh > 20.0f) {  // 20 km/h statt 15 (GPS-Rauschen)
-                if (_fast_since == 0) _fast_since = millis();
-                if (millis() - _fast_since > 10000) {  // 10s statt 5s
+            // Start NUR mit GPS-Fix + >=4 Sats + Speed >20 km/h fuer 10s
+            if (speed_kmh > 20.0f && gps_fix && sats >= 4) {
+                if (_fast_since == 0) {
+                    _fast_since = millis();
+                    Serial.printf("[FLY] speed=%.1f fix=%d sats=%d — Zaehler laeuft\n",
+                                   speed_kmh, gps_fix, sats);
+                }
+                if (millis() - _fast_since > 10000) {
                     state = FLIGHT_FLYING;
                     start_time = millis();
                     start_altitude = altitude;
                     max_altitude = altitude;
                     _just_started = true;
-                    Serial.println("[FLY] >>> START ERKANNT <<<");
+                    Serial.printf("[FLY] >>> START ERKANNT (spd=%.1f sats=%d) <<<\n",
+                                   speed_kmh, sats);
                 }
             } else {
+                if (_fast_since != 0) {
+                    Serial.printf("[FLY] Abbruch: spd=%.1f fix=%d sats=%d\n",
+                                   speed_kmh, gps_fix, sats);
+                }
                 _fast_since = 0;
             }
             break;
