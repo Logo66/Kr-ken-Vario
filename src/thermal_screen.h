@@ -130,15 +130,15 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
 
     uiHLine(20, 220, 320, fb);
 
-    drawText(&ArialBold16, "HOEHE", 30, 250, fb);
+    drawHCenter(&ArialBold16, "HOEHE", 20, 320, 245, fb);
     snprintf(buf,48,"%.0f m", d.altitude);
-    drawText(&ArialBold28, buf, 30, 290, fb);
+    drawHCenter(&ArialBold28, buf, 20, 320, 282, fb);
 
-    uiHLine(20, 310, 320, fb);
+    uiHLine(20, 300, 320, fb);
 
-    drawText(&ArialBold16, "BASE EST", 30, 340, fb);
+    drawHCenter(&ArialBold16, "BASE EST", 20, 320, 325, fb);
     snprintf(buf,48,"%.0f m", d.base_est);
-    drawText(&ArialBold28, buf, 30, 380, fb);
+    drawHCenter(&ArialBold28, buf, 20, 320, 362, fb);
 
     // === VERTIKALER DIVIDER ===
     uiVLine(355, 50, 440, fb);
@@ -161,34 +161,45 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     // Pilot-Dreieck (dreht sich mit Heading)
     drawPilotTriangle(rose_cx, rose_cy, d.heading, 18, fb);
 
-    // Lift-Punkte
-    float scale = rose_r / 200.0f;  // 200m = voller Radius
+    // Lift-Punkte (nur gueltige Samples mit timestamp > 0)
+    float scale = rose_r / 200.0f;
     unsigned long now = millis();
     for (int i = 0; i < d.sample_count; i++) {
         const LiftSample &s = d.samples[i];
+        if (s.ts == 0) continue;                    // Ungueltig
+        unsigned long age = (now - s.ts) / 1000;
+        if (age > 60) continue;                     // Aelter als 60s
+
         int px = rose_cx + (int)(s.dx * scale);
         int py = rose_cy - (int)(s.dy * scale);
         if (px < 380 || px > 930 || py < 60 || py > 480) continue;
 
-        int r = 3 + (int)(fabsf(s.climb) * 2);  // Groesse = Steigstaerke
+        int r = 3 + (int)(fabsf(s.climb) * 2);
         if (r > 12) r = 12;
-        unsigned long age = (now - s.ts) / 1000;
+        if (r < 2) r = 2;
 
-        if (age < 10) {
-            fillCircle(px, py, r, fb);       // Frisch: gefuellt
-        } else {
-            drawCircle(px, py, r, fb);       // Alt: hohl
-        }
+        if (age < 10) fillCircle(px, py, r, fb);
+        else drawCircle(px, py, r, fb);
     }
 
-    // Kern-Indikator (grosses Dreieck Richtung Kern)
-    if (d.kern_dist > 5) {
-        float angle = atan2f(d.kern_dx, d.kern_dy) * 180.0f / M_PI;
+    // Kern-Indikator: Pfeil vom Zentrum Richtung Kern
+    if (d.kern_dist > 5 && d.kern_dist < 500) {
         int kern_px = rose_cx + (int)(d.kern_dx * scale);
         int kern_py = rose_cy - (int)(d.kern_dy * scale);
-        // Pfeil vom Zentrum zum Kern
-        uiFill(fminf(rose_cx,kern_px), fminf(rose_cy,kern_py),
-           abs(kern_px-rose_cx)+2, 2, fb);  // Linie (vereinfacht)
+        // Clipping
+        if (kern_px >= 380 && kern_px <= 930 && kern_py >= 60 && kern_py <= 480) {
+            // Dicke Linie vom Zentrum zum Kern (Bresenham simpel: horizontal/vertikal)
+            int dx = kern_px - rose_cx;
+            int dy = kern_py - rose_cy;
+            int steps = max(abs(dx), abs(dy));
+            if (steps > 0) {
+                for (int s = 0; s <= steps; s++) {
+                    int lx = rose_cx + dx * s / steps;
+                    int ly = rose_cy + dy * s / steps;
+                    uiFill(lx-1, ly-1, 3, 3, fb);
+                }
+            }
+        }
     }
 
     // === UNTEN: Kern-Hinweis ===
