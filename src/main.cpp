@@ -701,12 +701,19 @@ void loop() {
         }
     } else { climb_since = 0; }
 
-    // 1 Hz Display Refresh (Cruise/Thermal/Goal — Map ist statisch)
-    if ((currentScreen==SCR_CRUISE || currentScreen==SCR_THERMAL || currentScreen==SCR_GOAL)
+    // 1 Hz Display Refresh (alle Flug-Screens inkl. Map)
+    if ((currentScreen==SCR_CRUISE || currentScreen==SCR_THERMAL ||
+         currentScreen==SCR_GOAL || currentScreen==SCR_MAP)
         && millis()-lastDisplay >= 1000) {
         lastDisplay = millis();
         if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_DU);
         else if (currentScreen==SCR_THERMAL) showThermalScreen(&hl, thermal.data, MODE_DU);
         else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive, MODE_DU); }
+        else if (currentScreen==SCR_MAP) {
+            MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
+                        live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
+                        fanet.pilot_count,false,live.gps_fix};
+            updateMapOverlay(&hl, md);  // Schnell: nur Pilot+Track, keine Tiles
+        }
     }
 }

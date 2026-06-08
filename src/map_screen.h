@@ -31,10 +31,12 @@ static void mapTri(int cx, int cy, float ang, int L, int Wd, uint8_t *fb) {
 }
 
 // === Layout-Konstanten (exakt aus Ticket) ===
-static const int MAP_CLIP_X=14, MAP_CLIP_Y=56, MAP_CLIP_W=778, MAP_CLIP_H=470;
-static const int MAP_PILOT_X=400, MAP_PILOT_Y=288;
-static const int MAP_BTN_X=806, MAP_BTN_W=128, MAP_BTN_H=104, MAP_BTN_RX=10;
-static const int MAP_BTN_PLUS_Y=66, MAP_BTN_MINUS_Y=182, MAP_BTN_CENTER_Y=298;
+// Karte nutzt VOLLE Breite (960px - 2*Rand = 932px)
+static const int MAP_CLIP_X=14, MAP_CLIP_Y=56, MAP_CLIP_W=932, MAP_CLIP_H=470;
+static const int MAP_PILOT_X=480, MAP_PILOT_Y=288;
+// Zoom-Buttons als kleine Overlays IN der Karte (rechts oben)
+static const int MAP_BTN_X=840, MAP_BTN_W=80, MAP_BTN_H=56;
+static const int MAP_BTN_PLUS_Y=66, MAP_BTN_MINUS_Y=130, MAP_BTN_CENTER_Y=194;
 
 // Zoom-Stufen (Index 0..4 → Kartenbreite in Metern)
 static const float ZOOM_M[] = {500, 1000, 2000, 5000, 10000};
@@ -253,10 +255,10 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     snprintf(buf,32,"FANET %d",d.fanet_peers);
     drawText(&ArialBold16, buf, 332, 38, fb);
 
-    // Akku bei x700 (Ticket: Karte hat Tasten rechts)
-    uiBox(700,16,58,26,fb);
-    uiFill(758,22,7,14,fb);
-    uiFill(704,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
+    // Akku rechts (volle Breite jetzt verfuegbar)
+    uiBox(866,16,58,26,fb);
+    uiFill(924,22,7,14,fb);
+    uiFill(870,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
     snprintf(buf,32,"%d%%",d.bat_pct);
     drawText(&ArialBold16, buf, 770, 38, fb);
 
@@ -338,30 +340,69 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uiVLine(158, 500, 12, fb, 2);  // Endmarke rechts
     drawText(&ArialBold16, ZOOM_LABEL[mapZoomIdx], 66, 494, fb);
 
-    // === STEUER-SPALTE (3 Touch-Buttons) ===
-
-    // [+] Taste (x806 y66 w128 h104 rx10)
+    // === ZOOM-BUTTONS (kleine Overlays in der Karte, rechts oben) ===
+    // Weisser Hintergrund damit Tiles nicht durchscheinen
+    uiFill(MAP_BTN_X-2, MAP_BTN_PLUS_Y-2, MAP_BTN_W+4, 3*(MAP_BTN_H+8)+4, fb, 0xFF);
     uiBox(MAP_BTN_X, MAP_BTN_PLUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
-    drawBoxCenter(&ArialBold32, "+", MAP_BTN_X, MAP_BTN_PLUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
-
-    // [-] Taste (x806 y182 w128 h104)
+    drawBoxCenter(&ArialBold24, "+", MAP_BTN_X, MAP_BTN_PLUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
     uiBox(MAP_BTN_X, MAP_BTN_MINUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
-    drawBoxCenter(&ArialBold32, "-", MAP_BTN_X, MAP_BTN_MINUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
-
-    // [Re-Center] Taste (x806 y298 w128 h104) — Fadenkreuz
+    drawBoxCenter(&ArialBold24, "-", MAP_BTN_X, MAP_BTN_MINUS_Y, MAP_BTN_W, MAP_BTN_H, fb);
     uiBox(MAP_BTN_X, MAP_BTN_CENTER_Y, MAP_BTN_W, MAP_BTN_H, fb);
-    int ccx=870, ccy=350;
-    drawCircle(ccx, ccy, 26, fb);         // Kreis
-    uiVLine(ccx, ccy-38, 76, fb, 3);     // Vertikale Linie
-    uiHLine(ccx-38, ccy, 76, fb, 3);     // Horizontale Linie
-
-    // Zoom-Text
-    drawHCenter(&ArialBold16, "ZOOM", MAP_BTN_X, MAP_BTN_W, 448, fb);
-    drawHCenter(&ArialBold32, ZOOM_LABEL[mapZoomIdx], MAP_BTN_X, MAP_BTN_W, 486, fb);
+    int ccx = MAP_BTN_X + MAP_BTN_W/2, ccy = MAP_BTN_CENTER_Y + MAP_BTN_H/2;
+    drawCircle(ccx, ccy, 16, fb);
+    uiVLine(ccx, ccy-22, 44, fb, 2);
+    uiHLine(ccx-22, ccy, 44, fb, 2);
 
     // === RENDER ===
     epd_poweron();
     epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
+    epd_poweroff();
+}
+
+// === 1Hz Overlay-Update (nur Pilot + Track + Statusbar, KEINE Tiles) ===
+static void updateMapOverlay(EpdiyHighlevelState *hl, const MapData &d) {
+    uint8_t *fb = epd_hl_get_framebuffer(hl);
+    epd_hl_set_all_white(hl);
+    char buf[32];
+
+    // Statusbar
+    snprintf(buf,32,"%02d:%02d",d.rtc_hour,d.rtc_min);
+    drawText(&ArialBold16, buf, 22, 38, fb);
+    for(int i=0;i<11;i++){
+        int cx=150+i*15;
+        if(i<d.sats) fillCircle(cx,29,5,fb);
+        else drawCircle(cx,29,5,fb);
+    }
+    snprintf(buf,32,"FANET %d",d.fanet_peers);
+    drawText(&ArialBold16, buf, 332, 38, fb);
+    uiBox(866,16,58,26,fb); uiFill(924,22,7,14,fb);
+    uiFill(870,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
+    uiHLine(14, 54, 932, fb);
+
+    // Karten-Rahmen
+    uiHLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_W, fb);
+    uiHLine(MAP_CLIP_X, MAP_CLIP_Y+MAP_CLIP_H-2, MAP_CLIP_W, fb);
+    uiVLine(MAP_CLIP_X, MAP_CLIP_Y, MAP_CLIP_H, fb);
+    uiVLine(MAP_CLIP_X+MAP_CLIP_W-2, MAP_CLIP_Y, MAP_CLIP_H, fb);
+
+    // Track
+    if (d.lat != 0 && d.lon != 0)
+        drawTrack(d.lat, d.lon, mapZoomIdx, fb);
+
+    // Pilot
+    mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 46, 34, fb);
+
+    // Position-Info
+    if (d.gps_fix && d.lat != 0) {
+        snprintf(buf,32,"%.4f N  %.4f E", d.lat, d.lon);
+        drawText(&ArialBold16, buf, 20, 520, fb);
+    }
+    snprintf(buf,32,"%.0f m", d.altitude);
+    drawText(&ArialBold16, buf, 500, 520, fb);
+    drawText(&ArialBold16, ZOOM_LABEL[mapZoomIdx], 600, 520, fb);
+
+    epd_poweron();
+    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 
