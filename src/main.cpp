@@ -14,9 +14,16 @@
 #include "boot_splash.h"
 #include "cruise_screen.h"
 #include "thermal_screen.h"
+#include "landing_screen.h"
+#include "menu_screen.h"
+#include "qnh_screen.h"
+#include "flight_detect.h"
+#include "flugbuch.h"
 #include "touch.h"
 
 static TouchManager touch;
+static FlightDetector flight;
+static Flugbuch flugbuch;
 #include "vario/altitude.h"
 #include "kalman_vario.h"
 #include "esp_sleep.h"
@@ -37,8 +44,10 @@ static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
-enum Screen { SCR_CRUISE, SCR_THERMAL };
+enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH };
 static Screen currentScreen = SCR_CRUISE;
+static bool backlight_on = false;
+static float qnh_ref_alt = 489.0f;  // Referenzhoehe fuer QNH (kalibrierbar)
 static unsigned long rtc_boot_millis=0;
 static int rtc_boot_seconds=0;
 
@@ -135,8 +144,12 @@ static void updateClock() {
 }
 
 // GPS feed
+static unsigned long gps_total_bytes = 0;
 static void feedGPS() {
-    while(Serial2.available()) gps.encode(Serial2.read());
+    while(Serial2.available()) {
+        gps.encode(Serial2.read());
+        gps_total_bytes++;
+    }
     live.sats = gps.satellites.value();
     live.gps_fix = gps.location.isValid();
     if(gps.location.isUpdated()) {
@@ -152,8 +165,10 @@ void setup() {
     delay(2000);
     Serial.printf("AURA %s Build %s %s\n", AURA_VERSION, __DATE__, __TIME__);
 
-    pinMode(46,OUTPUT); digitalWrite(46,HIGH);
-    pinMode(12,OUTPUT); digitalWrite(12,HIGH);
+    pinMode(46,OUTPUT); digitalWrite(46,HIGH);  // LoRa CS
+    pinMode(12,OUTPUT); digitalWrite(12,HIGH);  // SD CS
+    pinMode(11,OUTPUT); digitalWrite(11,LOW);   // Backlight aus
+    pinMode(0, INPUT_PULLUP);                   // BOOT button
 
     // I2C + Sensoren (Wire Phase)
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL, I2C_FREQ_HZ);
@@ -186,7 +201,30 @@ void setup() {
         live.dewpoint = live.temp - (100.0f-h.relative_humidity)/5.0f;
     }
 
-    Serial2.begin(38400, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
+    // GPS: erst 9600 (L76K), dann 38400 (u-blox) probieren
+    Serial2.begin(9600, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
+    delay(500);
+    int gps_bytes = 0;
+    unsigned long gps_test = millis();
+    while (millis() - gps_test < 2000) {
+        if (Serial2.available()) { Serial2.read(); gps_bytes++; }
+    }
+    if (gps_bytes > 10) {
+        Serial.printf("[GPS] L76K erkannt (9600 Baud, %d Bytes)\n", gps_bytes);
+    } else {
+        Serial2.updateBaudRate(38400);
+        delay(500);
+        gps_bytes = 0;
+        gps_test = millis();
+        while (millis() - gps_test < 2000) {
+            if (Serial2.available()) { Serial2.read(); gps_bytes++; }
+        }
+        if (gps_bytes > 10) {
+            Serial.printf("[GPS] u-blox M10Q erkannt (38400 Baud, %d Bytes)\n", gps_bytes);
+        } else {
+            Serial.printf("[GPS] KEIN GPS-Signal (%d Bytes bei 9600+38400)\n", gps_bytes);
+        }
+    }
 
     // Wire freigeben → epdiy
     Wire.end();
@@ -212,6 +250,10 @@ void setup() {
 
     // Touch init (GT911 ueber raw I2C)
     touch.init();
+
+    // Flugbuch Demo-Daten
+    flugbuch.addDemoFlights();
+    Serial.printf("[FLUGBUCH] %d Demo-Fluege geladen\n", flugbuch.count);
 
     // Kalman init
     kf.init(live.altitude);
@@ -263,34 +305,160 @@ void loop() {
     // Serial alle 5s
     if (millis()-lastPrint >= 5000) {
         lastPrint = millis();
-        Serial.printf("[%02d:%02d] V=%+.1f avg=%+.1f Alt=%.0f P=%.0fPa T=%.1f GPS:%s s=%d\n",
+        Serial.printf("[%02d:%02d] V=%+.1f avg=%+.1f Alt=%.0f T=%.1f GPS:%s s=%d bytes=%lu\n",
                        live.rtc_hour, live.rtc_min,
-                       live.vario, live.vario_avg, live.altitude, p,
-                       live.temp, live.gps_fix?"FIX":"---", live.sats);
+                       live.vario, live.vario_avg, live.altitude,
+                       live.temp, live.gps_fix?"FIX":"---", live.sats, gps_total_bytes);
     }
 
-    // === SCREEN-MANAGER (Swipe + Button + Auto-Thermik) ===
+    // === FLUG-ERKENNUNG ===
+    flight.update(live.speed, live.vario, live.altitude);
 
-    // Touch-Geste
-    Gesture g = touch.poll();
-    if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
-        currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
-        Serial.printf("[SWIPE] → %s\n", currentScreen==SCR_CRUISE?"Cruise":"Thermik");
-        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
-        else showDemoThermalScreen(&hl);
+    // Start erkannt → kurze Meldung auf Display
+    if (flight.justStarted()) {
+        uint8_t *fb = epd_hl_get_framebuffer(&hl);
+        epd_hl_set_all_white(&hl);
+        EpdFontProperties p = epd_font_properties_default(); p.fg_color = 0;
+        int cx=250, cy=280;
+        epd_write_string(&ArialBold40, "START ERKANNT", &cx, &cy, fb, &p);
+        cx=300; cy=330;
+        epd_write_string(&ArialBold16, "Aufzeichnung gestartet", &cx, &cy, fb, &p);
+        epd_poweron();
+        epd_hl_update_screen(&hl, MODE_GC16, (int)epd_ambient_temperature());
+        epd_poweroff();
+        delay(3000);
+        currentScreen = SCR_CRUISE;
+        showCruiseScreen(&hl, live, MODE_GC16);
         lastDisplay = millis();
-    } else if (g == GEST_TAP) {
-        Serial.println("[TAP]");
-    } else if (g == GEST_LONG_TAP) {
-        Serial.println("[LONG TAP] → Menu (TODO)");
     }
 
-    // BOOT-Button als Fallback
+    // Landung erkannt → Flug speichern + Lande-Screen
+    if (flight.state == FLIGHT_LANDED && currentScreen != SCR_LANDING) {
+        // Flug-Record erstellen
+        FlightRecord rec = {};
+        rec.year = 2026; rec.month = 6; rec.day = 8; // TODO: aus RTC
+        rec.hour = live.rtc_hour; rec.minute = live.rtc_min;
+        rec.duration_sec = flight.flightDurationSec();
+        rec.max_alt = (int16_t)flight.max_altitude;
+        rec.start_alt = (int16_t)flight.start_altitude;
+        rec.max_climb = 0; // TODO: max_climb tracken
+        rec.track_dist_m = 0; // TODO: GPS-Spur berechnen
+        rec.straight_dist_m = 0; // TODO: Luftlinie berechnen
+        rec.valid = true;
+        flugbuch.addFlight(rec);
+        Serial.printf("[FLUG] Gespeichert: %dmin, max %dm\n",
+                       rec.duration_sec/60, rec.max_alt);
+
+        currentScreen = SCR_LANDING;
+        showLandingScreen(&hl, live.altitude, live.rtc_hour, live.rtc_min);
+        lastDisplay = millis();
+    }
+
+    // === SCREEN-MANAGER (Swipe + Button + Long-Tap=Menu) ===
+    Gesture g = touch.poll();
+
+    if (currentScreen == SCR_FLUGBUCH) {
+        if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = SCR_MENU;
+            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+        }
+    } else if (currentScreen == SCR_QNH) {
+        if (g == GEST_TAP) {
+            QnhAction qa = checkQnhTap(touch.lastX(), touch.lastY());
+            float p = rawBMP581Pressure();
+            if (qa == QNH_PLUS) {
+                qnh_ref_alt += 10;
+                float qnh = calcQnhFromAlt(qnh_ref_alt, p);
+                alt_calc.setQNH(qnh);
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p);
+                Serial.printf("[QNH] +10 → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
+            } else if (qa == QNH_MINUS) {
+                qnh_ref_alt -= 10;
+                float qnh = calcQnhFromAlt(qnh_ref_alt, p);
+                alt_calc.setQNH(qnh);
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p);
+                Serial.printf("[QNH] -10 → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
+            } else if (qa == QNH_OK) {
+                float qnh = calcQnhFromAlt(qnh_ref_alt, p);
+                alt_calc.setQNH(qnh);
+                kf.init(alt_calc.computeISA(p));
+                currentScreen = SCR_CRUISE;
+                showCruiseScreen(&hl, live, MODE_GC16);
+                Serial.printf("[QNH] OK → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
+            }
+        } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = SCR_MENU;
+            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+        }
+    } else if (currentScreen == SCR_MENU) {
+        // Im Menu: Tap = waehlen, Swipe = schliessen
+        if (g == GEST_TAP) {
+            Serial.printf("[MENU TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
+            MenuItem mi = checkMenuTap(touch.lastX(), touch.lastY());
+            if (mi == MENU_QNH) {
+                currentScreen = SCR_QNH;
+                float p = rawBMP581Pressure();
+                float qnh = calcQnhFromAlt(qnh_ref_alt, p);
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p);
+                Serial.printf("[QNH] Screen: Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
+            } else if (mi == MENU_BACKLIGHT) {
+                backlight_on = !backlight_on;
+                digitalWrite(11, backlight_on ? HIGH : LOW);
+                Serial.printf("[MENU] Backlight %s\n", backlight_on?"AN":"AUS");
+                showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+            } else if (mi == MENU_FLUGBUCH) {
+                currentScreen = SCR_FLUGBUCH;
+                showFlugbuchScreen(&hl, flugbuch);
+                Serial.println("[MENU] Flugbuch");
+            } else if (mi == MENU_AUS) {
+                Serial.println("[MENU] Ausschalten → Credits");
+                showCreditsAndShutdown(&hl);  // Kommt nicht zurueck
+            }
+        } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = SCR_CRUISE;
+            showCruiseScreen(&hl, live, MODE_GC16);
+            lastDisplay = millis();
+        }
+    } else if (currentScreen == SCR_LANDING) {
+        // Lande-Screen: Tap = Option waehlen
+        if (g == GEST_TAP) {
+            LandingChoice lc = checkLandingTap(touch.lastX(), touch.lastY());
+            if (lc == LAND_OK) {
+                Serial.println("[LAND] Gut gelandet");
+                flight.reset();
+                currentScreen = SCR_CRUISE;
+                showCruiseScreen(&hl, live, MODE_GC16);
+                lastDisplay = millis();
+            } else if (lc == LAND_RIDE) {
+                Serial.println("[LAND] Brauche Ride → FANET (TODO)");
+            } else if (lc == LAND_HELP) {
+                Serial.println("[LAND] HILFE → FANET Notruf (TODO)");
+            }
+        }
+    } else {
+        // Cruise/Thermik: Swipe = wechseln, Long-Tap = Menu
+        if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
+            Serial.printf("[SWIPE] → %s\n", currentScreen==SCR_CRUISE?"Cruise":"Thermik");
+            if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
+            else showDemoThermalScreen(&hl);
+            lastDisplay = millis();
+        } else if (g == GEST_TAP) {
+            Serial.printf("[TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
+        } else if (g == GEST_LONG_TAP) {
+            Serial.printf("[LONG TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
+            currentScreen = SCR_MENU;
+            Serial.println("[MENU] Geoeffnet");
+            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+            lastDisplay = millis();
+        }
+    }
+
+    // BOOT-Button = Flug-Screen wechseln
     static bool btn_last = true;
     bool btn_now = digitalRead(0);
-    if (!btn_now && btn_last) {
+    if (!btn_now && btn_last && currentScreen != SCR_MENU && currentScreen != SCR_LANDING) {
         currentScreen = (currentScreen==SCR_CRUISE) ? SCR_THERMAL : SCR_CRUISE;
-        Serial.printf("[BTN] → %s\n", currentScreen==SCR_CRUISE?"Cruise":"Thermik");
         if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_GC16);
         else showDemoThermalScreen(&hl);
         lastDisplay = millis();
@@ -298,28 +466,22 @@ void loop() {
     }
     btn_last = btn_now;
 
-    // Auto-Thermik: avg > 0.5 m/s fuer 10s → Thermik
+    // Auto-Thermik bei Steigen
     static unsigned long climb_since = 0;
-    if (live.vario_avg > 0.5f) {
+    if (live.vario_avg > 0.5f && flight.state == FLIGHT_FLYING) {
         if (!climb_since) climb_since = millis();
         if (millis()-climb_since > 10000 && currentScreen==SCR_CRUISE) {
             currentScreen = SCR_THERMAL;
-            Serial.println("[SCR] Auto → Thermik");
             showDemoThermalScreen(&hl);
             lastDisplay = millis();
         }
-    } else {
-        climb_since = 0;
-    }
+    } else { climb_since = 0; }
 
-    // Auto-Sleep ENTFERNT — Geraet nur ueber Menu/Taste abschaltbar
-    // TODO: Menu-Eintrag "Ausschalten" → epd_clear + Deep Sleep
-
-    // 1 Hz Display Refresh — NUR MODE_DU (kein schwarzer Balken!)
-    // Anti-Ghosting nur bei Screen-Wechsel (GC16 dort schon eingebaut)
-    if (millis()-lastDisplay >= 1000) {
+    // 1 Hz Display Refresh — NUR Flug-Screens (Menu/Landing/QNH/Flugbuch sind statisch)
+    if ((currentScreen == SCR_CRUISE || currentScreen == SCR_THERMAL)
+        && millis()-lastDisplay >= 1000) {
         lastDisplay = millis();
-        if (currentScreen==SCR_CRUISE)
+        if (currentScreen == SCR_CRUISE)
             showCruiseScreen(&hl, live, MODE_DU);
         else
             showDemoThermalScreen(&hl);

@@ -54,9 +54,9 @@ public:
             _touching = false;
             unsigned long dt = millis() - _t0;
 
-            // Letzte bekannte Position als End-Position
-            int dx = _xlast - _x0;
-            int dy = _ylast - _y0;
+            // Display-Koordinaten (transformiert)
+            int dx = _ylast - _y0;         // GT911 Y-Diff → Display X-Diff
+            int dy = -(_xlast - _x0);      // GT911 X-Diff → Display Y-Diff (inv.)
 
             Gesture g = GEST_NONE;
             if (dt > 800) {
@@ -91,6 +91,11 @@ public:
     }
 
     bool ready() { return _ready; }
+
+    // GT911 meldet Portrait (540x960), Display ist Landscape (960x540)
+    // Transform: display_x = gt911_y, display_y = 540 - gt911_x
+    int lastX() { return _ylast; }          // GT911 Y → Display X
+    int lastY() { return 540 - _xlast; }    // GT911 X → Display Y (invertiert)
 
 private:
     bool _ready = false;
