@@ -1,122 +1,85 @@
 #pragma once
-// flugbuch.h — Flugbuch-Verwaltung + Anzeige
-// Speichert Flug-Zusammenfassungen in NVS, IGC auf SD (spaeter)
-// Orientiert an Flight Buddy V5
-#include "epdiy.h"
-#include "epd_highlevel.h"
-#include <string.h>
-#include <stdio.h>
-#include "arialbold40.h"
-#include "arialbold28.h"
-#include "arialbold16.h"
+#include "ui_utils.h"
 
-// Max Fluege im Speicher
 static const int MAX_FLIGHTS = 20;
 
 struct FlightRecord {
-    uint16_t year;
-    uint8_t month, day, hour, minute;
-    uint16_t duration_sec;      // Flugdauer in Sekunden
-    int16_t  max_alt;           // Max Hoehe MSL (m)
-    int16_t  start_alt;         // Starthoehe (m)
-    int16_t  max_climb;         // Max Steigen (cm/s → /100 = m/s)
-    uint32_t track_dist_m;      // GPS-Spur Distanz (m)
-    uint32_t straight_dist_m;   // Luftlinie Start→Landung (m)
-    bool     valid;
+    uint16_t year; uint8_t month, day, hour, minute;
+    uint16_t duration_sec;
+    int16_t max_alt, start_alt, max_climb;
+    uint32_t track_dist_m, straight_dist_m;
+    bool valid;
 };
 
 class Flugbuch {
 public:
     FlightRecord flights[MAX_FLIGHTS];
     int count = 0;
-
-    // Flug hinzufuegen
     void addFlight(const FlightRecord &f) {
-        if (count < MAX_FLIGHTS) {
-            flights[count++] = f;
-        } else {
-            // Aeltesten ueberschreiben (Ringpuffer)
-            for (int i = 0; i < MAX_FLIGHTS-1; i++) flights[i] = flights[i+1];
-            flights[MAX_FLIGHTS-1] = f;
-        }
-        // TODO: in NVS speichern
+        if (count < MAX_FLIGHTS) flights[count++] = f;
+        else { for(int i=0;i<MAX_FLIGHTS-1;i++) flights[i]=flights[i+1]; flights[MAX_FLIGHTS-1]=f; }
     }
-
-    // Demo-Daten fuer Anzeige
     void addDemoFlights() {
-        FlightRecord f1 = {2026,6,7, 14,23, 4320, 2847, 489, 340, 12400, 8200, true};
-        FlightRecord f2 = {2026,6,6, 11,45, 2280, 1650, 520, 280, 5800, 3100, true};
-        FlightRecord f3 = {2026,6,5, 15,2,  7500, 3120, 470, 420, 28500, 15600, true};
+        FlightRecord f1={2026,6,7,14,23,4320,2847,489,340,12400,8200,true};
+        FlightRecord f2={2026,6,6,11,45,2280,1650,520,280,5800,3100,true};
+        FlightRecord f3={2026,6,5,15,2,7500,3120,470,420,28500,15600,true};
         addFlight(f1); addFlight(f2); addFlight(f3);
     }
 };
 
-// === Flugbuch-Screen ===
-static void _ft(const EpdFont *f, const char *s, int x, int y, uint8_t *fb) {
-    int cx=x, cy=y; EpdFontProperties p=epd_font_properties_default(); p.fg_color=0;
-    epd_write_string(f,s,&cx,&cy,fb,&p);
-}
-static void _ff(int x,int y,int w,int h,uint8_t *fb) { EpdRect r={x,y,w,h}; epd_fill_rect(r,0,fb); }
-
-static void showFlugbuchScreen(EpdiyHighlevelState *hl, const Flugbuch &fb_data) {
+static void showFlugbuchScreen(EpdiyHighlevelState *hl, const Flugbuch &data) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
     char buf[64];
 
-    // Titel
-    snprintf(buf, 64, "FLUGBUCH  %d Fluege", fb_data.count);
-    _ft(&ArialBold28, buf, 310, 35, fb);
-    _ff(20, 50, 920, 2, fb);
+    // Titel exakt zentriert
+    drawHCenter(&ArialBold28, "FLUGBUCH", 0, 960, 55, fb);
+    snprintf(buf, 64, "%d Fluege", data.count);
+    drawHCenter(&ArialBold16, buf, 0, 960, 80, fb);
+    uiHLine(20, 95, 920, fb);
 
-    // Spalten-Header
-    _ft(&ArialBold16, "Datum", 30, 75, fb);
-    _ft(&ArialBold16, "Dauer", 200, 75, fb);
-    _ft(&ArialBold16, "MaxAlt", 330, 75, fb);
-    _ft(&ArialBold16, "MaxClimb", 460, 75, fb);
-    _ft(&ArialBold16, "Spur km", 620, 75, fb);
-    _ft(&ArialBold16, "Strecke", 780, 75, fb);
-    _ff(20, 90, 920, 1, fb);
+    // Spalten: 6 gleich breite Felder (960/6 = 160px)
+    const int COL_W = 155;
+    const int COL_X[] = {10, 165, 320, 475, 630, 785};
+    const char *HEADERS[] = {"Datum", "Dauer", "MaxAlt", "Climb", "Spur", "Strecke"};
+    for (int i = 0; i < 6; i++)
+        drawHCenter(&ArialBold16, HEADERS[i], COL_X[i], COL_W, 120, fb);
+    uiHLine(20, 133, 920, fb);
 
-    // Fluege (neueste zuerst, max 5 auf Screen)
-    int y = 110;
+    int y = 155;
     int shown = 0;
-    for (int i = fb_data.count - 1; i >= 0 && shown < 5; i--, shown++) {
-        const FlightRecord &f = fb_data.flights[i];
+    for (int i = data.count-1; i >= 0 && shown < 6; i--, shown++) {
+        const FlightRecord &f = data.flights[i];
         if (!f.valid) continue;
 
-        // Datum
-        snprintf(buf, 64, "%02d.%02d.%04d", f.day, f.month, f.year);
-        _ft(&ArialBold16, buf, 30, y, fb);
+        snprintf(buf, 64, "%02d.%02d.%02d", f.day, f.month, f.year%100);
+        drawHCenter(&ArialBold16, buf, COL_X[0], COL_W, y, fb);
 
-        // Alle Daten in gleicher Groesse wie Datum (ArialBold16)
-        int dur_min = f.duration_sec / 60;
-        snprintf(buf, 64, "%dh%02dm", dur_min/60, dur_min%60);
-        _ft(&ArialBold16, buf, 200, y, fb);
+        int dm = f.duration_sec/60;
+        snprintf(buf, 64, "%dh%02d", dm/60, dm%60);
+        drawHCenter(&ArialBold16, buf, COL_X[1], COL_W, y, fb);
 
         snprintf(buf, 64, "%dm", f.max_alt);
-        _ft(&ArialBold16, buf, 340, y, fb);
+        drawHCenter(&ArialBold16, buf, COL_X[2], COL_W, y, fb);
 
-        snprintf(buf, 64, "+%.1f", f.max_climb / 100.0f);
-        _ft(&ArialBold16, buf, 480, y, fb);
+        snprintf(buf, 64, "+%.1f", f.max_climb/100.0f);
+        drawHCenter(&ArialBold16, buf, COL_X[3], COL_W, y, fb);
 
-        snprintf(buf, 64, "%.1fkm", f.track_dist_m / 1000.0f);
-        _ft(&ArialBold16, buf, 610, y, fb);
+        snprintf(buf, 64, "%.1fkm", f.track_dist_m/1000.0f);
+        drawHCenter(&ArialBold16, buf, COL_X[4], COL_W, y, fb);
 
-        snprintf(buf, 64, "%.1fkm", f.straight_dist_m / 1000.0f);
-        _ft(&ArialBold16, buf, 780, y, fb);
+        snprintf(buf, 64, "%.1fkm", f.straight_dist_m/1000.0f);
+        drawHCenter(&ArialBold16, buf, COL_X[5], COL_W, y, fb);
 
         y += 30;
-        _ff(20, y-5, 920, 1, fb);
+        uiHLine(20, y-5, 920, fb, 1);
     }
 
-    if (fb_data.count == 0) {
-        _ft(&ArialBold28, "Keine Fluege aufgezeichnet", 220, 250, fb);
-    }
+    if (data.count == 0)
+        drawHCenter(&ArialBold28, "Keine Fluege", 0, 960, 280, fb);
 
-    // Footer-Buttons
-    _ff(20, 480, 920, 2, fb);
-    // TODO: Upload/Loeschen Buttons
-    _ft(&ArialBold16, "Wischen = zurueck    Upload via App (TODO)", 200, 520, fb);
+    uiHLine(20, 480, 920, fb);
+    drawHCenter(&ArialBold16, "Wischen = zurueck    Upload via App (TODO)", 0, 960, 520, fb);
 
     epd_poweron();
     epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
