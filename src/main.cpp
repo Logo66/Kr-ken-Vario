@@ -15,6 +15,42 @@
 #include "cruise_screen.h"
 #include "thermal_screen.h"
 #include "goal_screen.h"
+
+// Forward-Declarations (definiert weiter unten nach globalen Variablen)
+static void updateGoalData();
+
+// === Wegpunkt-Navigation ===
+struct Waypoint {
+    const char *name;
+    double lat, lon;
+    float alt;  // MSL
+};
+
+// Test-Wegpunkt: Fiesch Fiescheralp (Wallis)
+static Waypoint activeWP = {"FIESCH", 46.4089, 8.1339, 2212.0f};
+static GoalData goalLive = {};
+
+static float haversineDist(double lat1, double lon1, double lat2, double lon2) {
+    double R = 6371000;
+    double dlat = (lat2-lat1)*M_PI/180.0;
+    double dlon = (lon2-lon1)*M_PI/180.0;
+    double a = sin(dlat/2)*sin(dlat/2) +
+               cos(lat1*M_PI/180)*cos(lat2*M_PI/180)*sin(dlon/2)*sin(dlon/2);
+    return (float)(R * 2 * atan2(sqrt(a), sqrt(1-a)));
+}
+
+static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
+    double dlon = (lon2-lon1)*M_PI/180.0;
+    double y = sin(dlon)*cos(lat2*M_PI/180);
+    double x = cos(lat1*M_PI/180)*sin(lat2*M_PI/180) -
+               sin(lat1*M_PI/180)*cos(lat2*M_PI/180)*cos(dlon);
+    float brg = (float)(atan2(y,x)*180.0/M_PI);
+    if (brg < 0) brg += 360;
+    return brg;
+}
+
+// updateGoalData() — definiert nach den globalen Variablen (braucht gps + live)
+
 #include "thermal_manager.h"
 #include "landing_screen.h"
 #include "menu_screen.h"
@@ -50,6 +86,50 @@ static unsigned long lastPrint=0, lastDisplay=0;
 enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH };
 static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
+
+// === updateGoalData (braucht gps + live, daher hier nach den Variablen) ===
+static double lastGoodLat = 0, lastGoodLon = 0;
+
+static void updateGoalData() {
+    // GPS-Position merken wenn gueltig
+    if (gps.location.isValid() && gps.location.lat() != 0) {
+        lastGoodLat = gps.location.lat();
+        lastGoodLon = gps.location.lng();
+    }
+
+    if (lastGoodLat == 0) {
+        goalLive.wp_name = activeWP.name;
+        goalLive.distance_km = 0;
+        goalLive.arrival_m = live.altitude - activeWP.alt;
+        goalLive.gr_needed = 0;
+        goalLive.gr_current = 0;
+        goalLive.bearing_abs = 0;
+        goalLive.bearing_rel = 0;
+    } else {
+        double myLat = lastGoodLat, myLon = lastGoodLon;
+        float dist = haversineDist(myLat, myLon, activeWP.lat, activeWP.lon);
+        float brg = bearingTo(myLat, myLon, activeWP.lat, activeWP.lon);
+        float hover = live.altitude - activeWP.alt;
+        goalLive.wp_name = activeWP.name;
+        goalLive.distance_km = dist / 1000.0f;
+        goalLive.arrival_m = hover;
+        goalLive.bearing_abs = brg;
+        goalLive.bearing_rel = brg - live.heading;
+        while (goalLive.bearing_rel > 180) goalLive.bearing_rel -= 360;
+        while (goalLive.bearing_rel < -180) goalLive.bearing_rel += 360;
+        goalLive.gr_needed = (hover > 10) ? dist / hover : 999;
+        if (live.speed > 5 && live.vario < -0.3f)
+            goalLive.gr_current = (live.speed/3.6f) / fabsf(live.vario);
+        else goalLive.gr_current = 0;
+    }
+    goalLive.rtc_hour = live.rtc_hour;
+    goalLive.rtc_min = live.rtc_min;
+    goalLive.sats = live.sats;
+    goalLive.bat_pct = live.bat_pct;
+    goalLive.fanet_peers = 0;
+    goalLive.buddy_connected = false;
+    goalLive.buddy_hint = NULL;
+}
 static float qnh_ref_alt = 489.0f;  // Referenzhoehe fuer QNH (kalibrierbar)
 static unsigned long rtc_boot_millis=0;
 static int rtc_boot_seconds=0;
@@ -205,30 +285,10 @@ void setup() {
         live.dewpoint = live.temp - (100.0f-h.relative_humidity)/5.0f;
     }
 
-    // GPS: erst 9600 (L76K), dann 38400 (u-blox) probieren
-    Serial2.begin(9600, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
-    delay(500);
-    int gps_bytes = 0;
-    unsigned long gps_test = millis();
-    while (millis() - gps_test < 2000) {
-        if (Serial2.available()) { Serial2.read(); gps_bytes++; }
-    }
-    if (gps_bytes > 10) {
-        Serial.printf("[GPS] L76K erkannt (9600 Baud, %d Bytes)\n", gps_bytes);
-    } else {
-        Serial2.updateBaudRate(38400);
-        delay(500);
-        gps_bytes = 0;
-        gps_test = millis();
-        while (millis() - gps_test < 2000) {
-            if (Serial2.available()) { Serial2.read(); gps_bytes++; }
-        }
-        if (gps_bytes > 10) {
-            Serial.printf("[GPS] u-blox M10Q erkannt (38400 Baud, %d Bytes)\n", gps_bytes);
-        } else {
-            Serial.printf("[GPS] KEIN GPS-Signal (%d Bytes bei 9600+38400)\n", gps_bytes);
-        }
-    }
+    // GPS: 38400 Baud (bewiesene Baudrate — hatte vorher Fix mit 7+ Sats)
+    // Die 9600-Erkennung war ein False-Positive (UART-Rauschen)
+    Serial2.begin(38400, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
+    Serial.println("[GPS] UART2 38400 Baud gestartet");
 
     // Wire freigeben → epdiy
     Wire.end();
@@ -453,7 +513,7 @@ void loop() {
                 if (!thermal.active) thermal.start(live.altitude);
                 showThermalScreen(&hl, thermal.data);
             } else if (currentScreen==SCR_GOAL) {
-                showDemoGoalScreen(&hl);
+                { updateGoalData(); showGoalScreen(&hl, goalLive); };
             }
             lastDisplay = millis();
         } else if (g == GEST_TAP) {
@@ -476,7 +536,7 @@ void loop() {
         else currentScreen = SCR_CRUISE;
         if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_DU);
         else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl, thermal.data); }
-        else if (currentScreen==SCR_GOAL) showDemoGoalScreen(&hl);
+        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive); };
         lastDisplay = millis();
         delay(300);
     }
@@ -513,6 +573,6 @@ void loop() {
         else if (currentScreen == SCR_THERMAL)
             showThermalScreen(&hl, thermal.data, MODE_DU);
         else if (currentScreen == SCR_GOAL)
-            showDemoGoalScreen(&hl);  // TODO: live GoalData
+            { updateGoalData(); showGoalScreen(&hl, goalLive); };  // TODO: live GoalData
     }
 }
