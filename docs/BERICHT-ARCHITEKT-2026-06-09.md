@@ -175,17 +175,29 @@ Wire.end()         → epdiy uebernimmt I2C-Driver
 
 ---
 
-## 8. OFFENE PUNKTE / TECHNISCHE SCHULDEN
+## 8. SICHERHEITSKRITISCH (vor naechstem Flug)
+
+1. **FANET TX Spec-Konformitaet** — Altitude/Speed/Climb Encoding ist vereinfacht
+   und NICHT spec-konform. Andere Piloten koennten uns an falscher Hoehe/Position
+   sehen oder ignorieren. MUSS gegen 3s1d/fanet-stm32 Referenz verifiziert werden.
+   Kein "funktioniert"-Label fuer TX bevor das geprueft ist.
+2. **FANET TX am Boden** — Wir senden nur Type 1 im Flug. Skytraxx sendet am
+   Boden Type 7 (Ground). Fuer Bodentest "sieht Skytraxx die Kruecke" muessen
+   wir ggf. auch Type 7 senden oder Flugzustand simulieren. Sonst suchen wir
+   einen Bug der keiner ist.
+3. **Anti-Ghosting** — Nach vielen MODE_DU Refreshes wird das Display milchig.
+   Ghosting-Zaehler mit periodischem GC16-Reset fehlt. Muss rein bevor laengere
+   Fluege gemacht werden (30-60 Partial-Refreshes = unlesbar).
+
+## 9. TECHNISCHE SCHULDEN (nicht dringend)
 
 1. **Zoom 14+15 Tiles** fehlen (nur 11-13 geladen)
 2. **Regions-Download** hardcoded auf CH — muss flexibel werden
 3. **OpenAir Parser** noch nicht implementiert (Datei auf SD, aber nicht geparst)
 4. **BAZL Parser** nur STAC-Index geladen (2.8 KB), nicht die vollen Daten
 5. **IGC-Logging** vorbereitet (/igc/ Verzeichnis) aber nicht implementiert
-6. **FANET TX Frame** vereinfacht — Altitude/Speed/Climb Encoding nicht 100% Spec-konform
-7. **Tile-Download** langsam (~50 Tiles/Minute) — koennte parallel oder per Batch
-8. **Map Zoom** funktioniert erst wenn Tiles fuer den Zoom-Level vorhanden sind
-9. **Kein Anti-Ghosting** — nach vielen MODE_DU Updates sammelt sich Ghosting
+6. **Tile-Download** langsam (~50 Tiles/Minute) — koennte parallel oder per Batch
+7. **Map Zoom** funktioniert erst wenn Tiles fuer den Zoom-Level vorhanden sind
 
 ---
 
@@ -211,4 +223,36 @@ Die naechste Phase ist die Flight Buddy App (PWA/BLE) und die Airspace-Integrati
 Respekt an den Piloten fuer die Geduld bei 40+ Iterationen auf der Karte.
 Das Ding fliegt.
 
-**KIE Engineering — Das erste KI-entwickelte Vario**
+---
+
+## 11. ARCHITEKT-REVIEW (09.06.2026, Ivo Eichenberger)
+
+**Angenommen mit folgenden Auflagen:**
+
+### Sicherheitskritisch (vor naechstem TX-Test)
+1. **FANET TX Encoding** ist NICHT spec-konform → darf nicht als "funktioniert"
+   gelabelt werden. Verifizierung gegen 3s1d/fanet-stm32 Referenz-Encoder noetig.
+   Falsche Hoehe/Position → andere Piloten sehen uns falsch oder ignorieren uns.
+2. **Type 7 am Boden senden** fuer Bodentests, sonst findet Skytraxx uns nicht
+   und wir suchen einen Bug der keiner ist.
+3. **Anti-Ghosting-Zaehler** fehlt → nach 30-60 MODE_DU Refreshes wird Display
+   milchig. Periodischer GC16-Reset muss rein vor laengeren Fluegen.
+
+### Faktenkorrekturen
+4. **SHT40 vs SHT45** — im Code und allen Tickets steht SHT40. Physisch am
+   Sensor-Board verifizieren (Beschriftung auf Chip). Adresse identisch,
+   Genauigkeit unterschiedlich (±0.2 vs ±0.1°C).
+5. **"Das erste KI-entwickelte Vario"** → geaendert zu **"Mit KI-Architekt
+   entwickelt"**. Unbeweisbares Superlativ vermeiden, rechtlich angreifbar.
+   Gilt auch fuer "weltweit erste OSM-auf-E-Paper Implementation" (interne
+   Notiz ok, keine Aussenaussage).
+
+### Priorisierung naechste Session (Architekt-Vorgabe)
+1. FANET TX spec-konform (Sicherheit)
+2. Anti-Ghosting Zaehler (Display-Qualitaet im Flug)
+3. OpenAir Parser (Luftraeume auf SD → Karte + Warnung)
+4. Rest ist Kuer
+
+---
+
+**KIE Engineering — Mit KI-Architekt entwickelt**
