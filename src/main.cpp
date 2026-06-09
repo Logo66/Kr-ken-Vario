@@ -17,6 +17,7 @@
 #include "goal_screen.h"
 #include "map_screen.h"
 #include "xsection_screen.h"
+#include "pack_reader.h"
 
 // Forward-Declarations (definiert weiter unten nach globalen Variablen)
 static void updateGoalData();
@@ -330,8 +331,10 @@ void setup() {
         parseOpenAir("/airspace/ch_asp.txt");
     }
 
-    // Gipfel von SD parsen (KRUECKE-6C Stufe 1: Gipfel-Layer)
-    if (sdcard.ok && sdcard.exists("/peaks/peaks.txt")) {
+    // Gipfel laden: zuerst Region-Pack (KRUECKE-8 §3), sonst peaks.txt als Fallback
+    if (sdcard.ok && sdcard.exists("/maps/region_ch_v1.pack")) {
+        parsePack("/maps/region_ch_v1.pack");
+    } else if (sdcard.ok && sdcard.exists("/peaks/peaks.txt")) {
         parsePeaks("/peaks/peaks.txt");
     }
 
@@ -423,6 +426,17 @@ void loop() {
     }
 
     delay(20);  // 50Hz Loop (war 20Hz) — Touch reaktiver
+
+    // Contract-Cross-Read einmalig ~6s nach Boot (Serial dann stabil, nicht in der Reenum-Luecke)
+    static bool contractDumped = false;
+    if (!contractDumped && millis() > 6000) {
+        contractDumped = true;
+        if (sdcard.ok) {
+            if (sdcard.exists("/maps/contract_test_v1.pack"))     dumpPackContract("/maps/contract_test_v1.pack");
+            if (sdcard.exists("/maps/contract_bad_magic.pack"))   dumpPackContract("/maps/contract_bad_magic.pack");
+            if (sdcard.exists("/maps/contract_bad_version.pack")) dumpPackContract("/maps/contract_bad_version.pack");
+        }
+    }
 
     // Serial alle 5s
     if (millis()-lastPrint >= 5000) {

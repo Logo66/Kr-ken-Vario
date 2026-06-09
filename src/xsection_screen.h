@@ -162,7 +162,7 @@ static void showXSectionScreen(EpdiyHighlevelState *hl, const XSectionData &d,
         snprintf(buf,48,"FREI -%d m",(int)(ah.floor_m-glideAtBorder));
         drawBoxCenter(&ArialBold28, buf, 624,442,300,66, fb, 0);
     } else {
-        drawBoxCenter(&ArialBold28, "KEIN LUFTRAUM", 624,442,300,66, fb, 0);   // OHNE Kasten, nur Text
+        drawBoxCenter(&ArialBold16, "KEIN LUFTRAUM", 624,442,300,66, fb, 0);   // klein, zentriert, ohne Kasten
     }
 
     // === GND-Platzhalter (Terrain = Stufe 2) ===
