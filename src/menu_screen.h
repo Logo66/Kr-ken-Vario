@@ -27,7 +27,8 @@ static void drawMBtn(int c, int r, const char *label, const char *label2,
     }
 }
 
-static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc) {
+static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc,
+                           enum EpdDrawMode mode = MODE_DU) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
     char buf[32];
@@ -45,7 +46,7 @@ static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc) 
     drawHCenter(&ArialBold16, "Antippen | Wischen = zurueck", 0, 960, 530, fb);
 
     epd_poweron();
-    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
+    epd_hl_update_screen(hl, mode, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 

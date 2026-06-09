@@ -224,14 +224,20 @@ private:
     void doConnect(EpdiyHighlevelState *hl) {
         Serial.printf("[WIFI] Connecting '%s'...\n", ssid);
         WiFi.begin(ssid, pass);
-        int timeout = 20;
+        int timeout = 30;   // 15 s
         while (WiFi.status() != WL_CONNECTED && timeout > 0) { delay(500); timeout--; }
-        if (WiFi.status() == WL_CONNECTED) {
+        int st = WiFi.status();
+        if (st == WL_CONNECTED) {
             Serial.printf("[WIFI] OK IP=%s\n", WiFi.localIP().toString().c_str());
             saveCredentials();
             state = WIFI_CONNECTED;
         } else {
-            snprintf(status_msg, 64, "Verbindung fehlgeschlagen");
+            const char* reason = (st==WL_NO_SSID_AVAIL) ? "Netz nicht gefunden" :
+                                 (st==WL_CONNECT_FAILED) ? "Passwort falsch?" :
+                                 (st==WL_CONNECTION_LOST) ? "Verbindung verloren" :
+                                 (st==WL_DISCONNECTED)   ? "Getrennt / kein DHCP" : "Timeout";
+            snprintf(status_msg, 64, "%s (Code %d)", reason, st);
+            Serial.printf("[WIFI] FAIL status=%d\n", st);
             state = WIFI_ERROR;
         }
         draw(hl);

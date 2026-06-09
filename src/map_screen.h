@@ -8,6 +8,8 @@
 #include <math.h>
 #include <SD.h>
 #include <pngle.h>
+#include "openair_parser.h"
+#include "peaks.h"
 
 // === Dreieck-Formel aus Ticket §2 (identisch zu goal_screen) ===
 static void mapTri(int cx, int cy, float ang, int L, int Wd, uint8_t *fb) {
@@ -39,8 +41,8 @@ static const int MAP_BTN_X=850, MAP_BTN_W=100, MAP_BTN_H=140;
 static const int MAP_BTN_PLUS_Y=66, MAP_BTN_MINUS_Y=220, MAP_BTN_CENTER_Y=374;
 
 // Zoom-Stufen (Index 0..4 → Kartenbreite in Metern)
-static const float ZOOM_M[] = {500, 1000, 2000, 5000, 10000};
-static const char* ZOOM_LABEL[] = {"0.5 km", "1 km", "2 km", "5 km", "10 km"};
+static const float ZOOM_M[] = {500, 1000, 2000, 5000, 10000, 20000, 50000};
+static const char* ZOOM_LABEL[] = {"0.5 km", "1 km", "2 km", "5 km", "10 km", "20 km", "50 km"};
 static int mapZoomIdx = 2;  // Start: 2 km
 
 enum MapAction { MAP_NONE, MAP_ZOOM_IN, MAP_ZOOM_OUT, MAP_RECENTER };
@@ -247,6 +249,107 @@ static void drawTrack(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
     }
 }
 
+// === LUFTRAUM-ZEICHNUNG (Vektor, dicke Linien) ===
+// Dicke Linie zwischen zwei Punkten (Bresenham mit Strichstaerke)
+static void drawThickLine(int x0, int y0, int x1, int y1, int thick, uint8_t *fb) {
+    int dx = abs(x1-x0), dy = abs(y1-y0);
+    int steps = max(dx, dy);
+    if (steps == 0 || steps > 2000) return;
+    int ht = thick / 2;
+    for (int s = 0; s <= steps; s++) {
+        int x = x0 + (x1-x0) * s / steps;
+        int y = y0 + (y1-y0) * s / steps;
+        if (x-ht >= MAP_CLIP_X && x+ht < MAP_CLIP_X+MAP_CLIP_W &&
+            y-ht >= MAP_CLIP_Y && y+ht < MAP_CLIP_Y+MAP_CLIP_H) {
+            uiFill(x-ht, y-ht, thick, thick, fb);
+        }
+    }
+}
+
+static void drawAirspaces(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
+    for (int a = 0; a < airspace_count; a++) {
+        Airspace &asp = airspaces[a];
+        if (!asp.active || asp.num_pts < 3) continue;
+
+        // Linienstärke nach Klasse
+        int thick = 4;
+        if (asp.cls == ASP_CTR || asp.cls == ASP_R || asp.cls == ASP_Q || asp.cls == ASP_P)
+            thick = 5;  // Restricted/Prohibited extra dick
+
+        // Polygon zeichnen (geschlossen)
+        int first_sx = 0, first_sy = 0;
+        int prev_sx = 0, prev_sy = 0;
+        bool any_visible = false;
+
+        for (int i = 0; i <= asp.num_pts; i++) {
+            int idx = (i < asp.num_pts) ? i : 0;  // Letzter Punkt → zurueck zum ersten
+            int sx, sy;
+            projectToScreen(myLat, myLon, asp.pts[idx].lat, asp.pts[idx].lon, zoomIdx, &sx, &sy);
+
+            if (i == 0) {
+                first_sx = sx; first_sy = sy;
+                prev_sx = sx; prev_sy = sy;
+                continue;
+            }
+
+            // Linie nur wenn mindestens ein Endpunkt sichtbar
+            bool p_vis = inClip(prev_sx, prev_sy);
+            bool c_vis = inClip(sx, sy);
+            if (p_vis || c_vis) {
+                drawThickLine(prev_sx, prev_sy, sx, sy, thick, fb);
+                any_visible = true;
+            }
+            prev_sx = sx;
+            prev_sy = sy;
+        }
+
+        // Beschriftung: Klasse + Untergrenze am ersten sichtbaren Punkt
+        if (any_visible) {
+            int lx, ly;
+            // Mitte des Polygons (Schwerpunkt der sichtbaren Punkte)
+            float cx_sum = 0, cy_sum = 0;
+            int vis_count = 0;
+            for (int i = 0; i < asp.num_pts; i++) {
+                int sx, sy;
+                projectToScreen(myLat, myLon, asp.pts[i].lat, asp.pts[i].lon, zoomIdx, &sx, &sy);
+                if (inClip(sx, sy)) {
+                    cx_sum += sx; cy_sum += sy; vis_count++;
+                }
+            }
+            if (vis_count > 0 && zoomIdx <= 4) {  // Labels nur bis 10 km (sonst Clutter)
+                lx = (int)(cx_sum / vis_count);
+                ly = (int)(cy_sum / vis_count);
+                // Label: "CTR D · GND-2500"
+                char label[48];
+                snprintf(label, 48, "%s %s-%s", airspaceClassStr(asp.cls), asp.lower, asp.upper);
+                // Weisser Hintergrund fuer Lesbarkeit
+                int tw, th;
+                measureText(&ArialBold16, label, &tw, &th);
+                // Label nicht in Status-/Infoleiste schieben
+                if (ly < MAP_CLIP_Y + th + 4) ly = MAP_CLIP_Y + th + 4;
+                if (ly > MAP_CLIP_Y + MAP_CLIP_H - 28) ly = MAP_CLIP_Y + MAP_CLIP_H - 28;
+                uiFill(lx - tw/2 - 2, ly - th - 2, tw + 4, th + 4, fb, 0xFF);
+                drawHCenter(&ArialBold16, label, lx - tw/2, tw, ly, fb);
+            }
+        }
+    }
+}
+
+// Luftraeume auch in der Naehe pruefen (Warnung)
+static float nearestAirspaceDist(double myLat, double myLon) {
+    float min_dist = 999999.0f;
+    for (int a = 0; a < airspace_count; a++) {
+        if (!airspaces[a].active || airspaces[a].num_pts < 3) continue;
+        for (int i = 0; i < airspaces[a].num_pts; i++) {
+            float dlat = (airspaces[a].pts[i].lat - myLat) * 111320.0f;
+            float dlon = (airspaces[a].pts[i].lon - myLon) * 111320.0f * cosf(myLat * M_PI / 180.0f);
+            float dist = sqrtf(dlat*dlat + dlon*dlon);
+            if (dist < min_dist) min_dist = dist;
+        }
+    }
+    return min_dist;
+}
+
 struct MapData {
     float heading;
     double lat, lon;
@@ -256,12 +359,37 @@ struct MapData {
     bool gps_fix;
 };
 
+// === GIPFEL-LAYER (Marker + Name + Hoehe) — Daten aus peaks.h ===
+static void peakTriUp(int cx, int cy, int s, uint8_t *fb) {
+    // gefuelltes Dreieck nach oben: Spitze (cx, cy-s), Basis bei cy
+    for (int dy = 0; dy <= s; dy++) {
+        int half = (dy * (s / 2)) / s;
+        uiFill(cx - half, cy - s + dy, 2 * half + 1, 1, fb);
+    }
+}
+
+static void drawPeaks(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
+    for (int i = 0; i < peak_count; i++) {
+        int sx, sy;
+        projectToScreen(myLat, myLon, peaks_arr[i].lat, peaks_arr[i].lon, zoomIdx, &sx, &sy);
+        if (!inClip(sx, sy)) continue;
+        peakTriUp(sx, sy, 9, fb);   // Mountain-Symbol
+        char lbl[40];
+        snprintf(lbl, sizeof(lbl), "%s %d", peaks_arr[i].name, peaks_arr[i].ele);
+        int tw, th; measureText(&ArialBold16, lbl, &tw, &th);
+        int lx = sx + 9;
+        int ly = sy + 4;
+        if (lx + tw > MAP_CLIP_X + MAP_CLIP_W - 4) lx = sx - 9 - tw;  // sonst links vom Gipfel
+        uiFill(lx - 2, ly - th - 1, tw + 4, th + 4, fb, 0xFF);        // weisser Kasten dahinter
+        drawText(&ArialBold16, lbl, lx, ly, fb);
+    }
+}
+
 static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
-    // KRITISCH: back_fb auch weiss setzen → sauberer Diff fuer Tile-Rendering
-    int fb_size = epd_width() / 2 * epd_height();
-    memset(hl->back_fb, 0xFF, fb_size);
+    // KEIN back_fb-memset: Vektor-Karte ist duenn; weisse Flaechen muessen den
+    // vorherigen Screen ueberschreiben, sonst Ghosting. (memset war nur fuer Raster-Tiles.)
     char buf[32];
 
     // === STATUSBAR (Akku bei x700, nicht x866 — Ticket §3 Karte) ===
@@ -286,21 +414,20 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
 
     // Karte edge-to-edge, kein Rahmen noetig
 
-    // OSM Zoom aus mapZoomIdx, mit Fallback auf vorhandene Tiles
-    static const int OSM_ZOOM[] = {15, 14, 13, 12, 11};
-    int tileZoom = OSM_ZOOM[mapZoomIdx];
-    // Fallback: wenn Tiles fuer gewuenschten Zoom fehlen, Zoom 11 nutzen
-    bool tiles_drawn = false;
-    if (d.lat != 0 && d.lon != 0) {
+    // === Raster-Tiles: Default AUS (KRUECKE-6B: Vektor statt Raster) ===
+    // Tile-Code bleibt erhalten, aber nur aktiv wenn showRasterTiles=true
+    static bool showRasterTiles = false;  // Default AUS
+    if (showRasterTiles && d.lat != 0 && d.lon != 0) {
+        static const int OSM_ZOOM[] = {15, 14, 13, 12, 11};
+        int tileZoom = OSM_ZOOM[mapZoomIdx];
         char tp[48];
         snprintf(tp, 48, "/tiles/%d_%d_%d.png", tileZoom, lon2tile(d.lon,tileZoom), lat2tile(d.lat,tileZoom));
-        if (!SD.exists(tp)) tileZoom = 11;  // Fallback
+        if (!SD.exists(tp)) tileZoom = 11;
         drawTiles(d.lat, d.lon, tileZoom, fb);
-        tiles_drawn = true;  // Wir haben Tiles geladen (Fallback auf Z11)
     }
 
-    // === KOORDINATEN-GITTER (wenn keine Tiles) ===
-    if (!tiles_drawn && d.lat != 0 && d.lon != 0) {
+    // === KOORDINATEN-GITTER (dezent, als Orientierung) ===
+    if (d.lat != 0 && d.lon != 0) {
         float m_per_px = ZOOM_M[mapZoomIdx] / (float)MAP_CLIP_W;
         // Horizontale + vertikale Linien alle 500m / 1km je nach Zoom
         float grid_m = (ZOOM_M[mapZoomIdx] <= 2000) ? 500.0f : 1000.0f;
@@ -324,6 +451,16 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
                 }
             }
         }
+    }
+
+    // === LUFTRAEUME (Vektor-Polygone, dicke Linien) ===
+    if (d.lat != 0 && d.lon != 0 && airspace_count > 0) {
+        drawAirspaces(d.lat, d.lon, mapZoomIdx, fb);
+    }
+
+    // === GIPFEL (Marker + Name + Hoehe, KRUECKE-6C Stufe 1) ===
+    if (d.lat != 0 && d.lon != 0 && peak_count > 0) {
+        drawPeaks(d.lat, d.lon, mapZoomIdx, fb);
     }
 
     // === TRACK-SPUR (dicke Linie, stroke 3.5) ===
@@ -353,6 +490,9 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uiVLine(20, bar_y-5, 10, fb, 2);
     uiVLine(98, bar_y-5, 10, fb, 2);
     drawText(&ArialBold16, ZOOM_LABEL[mapZoomIdx], 104, bar_y+5, fb);
+    // Diagnose (temporaer): geladene Gipfel (G) / Luftraeume (L)
+    snprintf(buf, 32, "G%d L%d", peak_count, airspace_count);
+    drawText(&ArialBold16, buf, 690, bar_y+5, fb);
     // Koordinaten + Hoehe rechts
     if (d.lat != 0) {
         snprintf(buf,32,"%.3fN %.3fE  %.0fm", d.lat, d.lon, d.altitude);
@@ -416,6 +556,10 @@ static void updateMapOverlay(EpdiyHighlevelState *hl, const MapData &d) {
     uiHLine(14, 54, 932, fb);
 
     // Kein Rahmen — Karte edge-to-edge
+
+    // Luftraeume
+    if (d.lat != 0 && d.lon != 0 && airspace_count > 0)
+        drawAirspaces(d.lat, d.lon, mapZoomIdx, fb);
 
     // Track
     if (d.lat != 0 && d.lon != 0)

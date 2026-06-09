@@ -16,6 +16,7 @@
 #include "thermal_screen.h"
 #include "goal_screen.h"
 #include "map_screen.h"
+#include "xsection_screen.h"
 
 // Forward-Declarations (definiert weiter unten nach globalen Variablen)
 static void updateGoalData();
@@ -97,7 +98,7 @@ static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
-enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY, SCR_BLE };
+enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_XSECTION, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY, SCR_BLE };
 static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
 
@@ -323,6 +324,16 @@ void setup() {
 
     // SD-Karte (geteilter SPI mit LoRa, CS=12)
     sdcard.init();
+
+    // Luftraeume von SD parsen (wenn vorhanden)
+    if (sdcard.ok && sdcard.exists("/airspace/ch_asp.txt")) {
+        parseOpenAir("/airspace/ch_asp.txt");
+    }
+
+    // Gipfel von SD parsen (KRUECKE-6C Stufe 1: Gipfel-Layer)
+    if (sdcard.ok && sdcard.exists("/peaks/peaks.txt")) {
+        parsePeaks("/peaks/peaks.txt");
+    }
 
     // QNH kalibrieren mit raw I2C (zuverlaessig, 96719 Pa bewiesen)
     delay(200);
@@ -620,23 +631,31 @@ void loop() {
         // Cruise/Thermik: Swipe = wechseln, Long-Tap = Menu
         if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             // Karussell: Cruise → Thermal → Goal → Map → Cruise
+            Screen prevScr = currentScreen;
             if (currentScreen==SCR_CRUISE) currentScreen = SCR_THERMAL;
             else if (currentScreen==SCR_THERMAL) currentScreen = SCR_GOAL;
             else if (currentScreen==SCR_GOAL) currentScreen = SCR_MAP;
+            else if (currentScreen==SCR_MAP) currentScreen = SCR_XSECTION;
             else currentScreen = SCR_CRUISE;
             Serial.printf("[SWIPE] → %d\n", currentScreen);
+            bool fromMap = (prevScr == SCR_MAP || prevScr == SCR_XSECTION);  // schweren Screen verlassen -> GC16
             if (currentScreen==SCR_CRUISE) {
-                showCruiseScreen(&hl, live, MODE_DU);
+                showCruiseScreen(&hl, live, fromMap ? MODE_GC16 : MODE_DU);
             } else if (currentScreen==SCR_THERMAL) {
                 if (!thermal.active) thermal.start(live.altitude);
-                showThermalScreen(&hl, thermal.data, MODE_DU);
+                showThermalScreen(&hl, thermal.data, fromMap ? MODE_GC16 : MODE_DU);
             } else if (currentScreen==SCR_GOAL) {
-                updateGoalData(); showGoalScreen(&hl, goalLive, MODE_DU);
+                updateGoalData(); showGoalScreen(&hl, goalLive, fromMap ? MODE_GC16 : MODE_DU);
             } else if (currentScreen==SCR_MAP) {
                 MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
                             live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
                             fanet.pilot_count,false,live.gps_fix};
                 showMapScreen(&hl, md);
+            } else if (currentScreen==SCR_XSECTION) {
+                XSectionData xd={lastGoodLat,lastGoodLon,live.altitude,live.heading,live.speed,
+                                 goalLive.gr_current,live.rtc_hour,live.rtc_min,live.sats,
+                                 live.bat_pct,fanet.pilot_count,live.gps_fix};
+                showXSectionScreen(&hl, xd);
             }
             lastDisplay = millis();
         } else if (g == GEST_TAP) {
@@ -649,7 +668,7 @@ void loop() {
                                 live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
                                 fanet.pilot_count,false,live.gps_fix};
                     showMapScreen(&hl, md);
-                } else if (ma==MAP_ZOOM_OUT && mapZoomIdx<4) {
+                } else if (ma==MAP_ZOOM_OUT && mapZoomIdx<6) {
                     mapZoomIdx++;
                     MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
                                 live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
@@ -665,9 +684,10 @@ void loop() {
             Serial.printf("[TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
         } else if (g == GEST_LONG_TAP) {
             Serial.printf("[LONG TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
+            bool fromMapM = (currentScreen == SCR_MAP);  // aus Karte -> GC16 gegen Ghosting
             currentScreen = SCR_MENU;
             Serial.println("[MENU] Geoeffnet");
-            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count, fromMapM ? MODE_GC16 : MODE_DU);
             lastDisplay = millis();
         }
     }
@@ -676,14 +696,18 @@ void loop() {
     static bool btn_last = true;
     bool btn_now = digitalRead(0);
     if (!btn_now && btn_last && currentScreen != SCR_MENU && currentScreen != SCR_LANDING) {
+        Screen prevScrB = currentScreen;
         if (currentScreen==SCR_CRUISE) currentScreen=SCR_THERMAL;
         else if (currentScreen==SCR_THERMAL) currentScreen=SCR_GOAL;
         else if (currentScreen==SCR_GOAL) currentScreen=SCR_MAP;
+        else if (currentScreen==SCR_MAP) currentScreen=SCR_XSECTION;
         else currentScreen=SCR_CRUISE;
-        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl,live,MODE_DU);
-        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl,thermal.data,MODE_DU); }
-        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl,goalLive,MODE_DU); }
+        bool fromMapB = (prevScrB==SCR_MAP || prevScrB==SCR_XSECTION);
+        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl,live,fromMapB?MODE_GC16:MODE_DU);
+        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl,thermal.data,fromMapB?MODE_GC16:MODE_DU); }
+        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl,goalLive,fromMapB?MODE_GC16:MODE_DU); }
         else if (currentScreen==SCR_MAP) { MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,false,live.gps_fix}; showMapScreen(&hl,md); }
+        else if (currentScreen==SCR_XSECTION) { XSectionData xd={lastGoodLat,lastGoodLon,live.altitude,live.heading,live.speed,goalLive.gr_current,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,live.gps_fix}; showXSectionScreen(&hl,xd); }
         lastDisplay = millis();
         delay(300);
     }
@@ -711,19 +735,15 @@ void loop() {
         }
     } else { climb_since = 0; }
 
-    // 1 Hz Display Refresh (alle Flug-Screens inkl. Map)
+    // 1 Hz Display Refresh (Flug-Screens — KARTE NICHT, sonst Ghosting durch DU-Overlay)
     if ((currentScreen==SCR_CRUISE || currentScreen==SCR_THERMAL ||
-         currentScreen==SCR_GOAL || currentScreen==SCR_MAP)
+         currentScreen==SCR_GOAL)
         && millis()-lastDisplay >= 1000) {
         lastDisplay = millis();
         if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_DU);
         else if (currentScreen==SCR_THERMAL) showThermalScreen(&hl, thermal.data, MODE_DU);
         else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive, MODE_DU); }
-        else if (currentScreen==SCR_MAP) {
-            MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
-                        live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
-                        fanet.pilot_count,false,live.gps_fix};
-            updateMapOverlay(&hl, md);  // Schnell: nur Pilot+Track, keine Tiles
-        }
     }
+    // === KARTE: KEIN 1-Hz-Overlay (Ticket §5: kein Partial-Geschiebe -> kein Ghosting). ===
+    // Karte wird sauber per GC16 nur bei Eintritt / Zoom / Re-Center gezeichnet (Touch-Handler oben).
 }
