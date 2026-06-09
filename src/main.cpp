@@ -435,6 +435,7 @@ void loop() {
             if (sdcard.exists("/maps/contract_test_v1.pack"))     dumpPackContract("/maps/contract_test_v1.pack");
             if (sdcard.exists("/maps/contract_bad_magic.pack"))   dumpPackContract("/maps/contract_bad_magic.pack");
             if (sdcard.exists("/maps/contract_bad_version.pack")) dumpPackContract("/maps/contract_bad_version.pack");
+            if (sdcard.exists("/maps/contract_bad_truncated.pack")) dumpPackContract("/maps/contract_bad_truncated.pack");
         }
     }
 

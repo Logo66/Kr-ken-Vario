@@ -79,6 +79,10 @@ static int parsePack(const char *path) {
             bp += nlen;
             peak_count++;
         }
+        // v1: n_airspace + n_obstacles (Zaehler) lesen — beide 0. Format-vollstaendig.
+        // Stufe 4: bei n>0 hier die folgenden Bloecke dekodieren (Block-Format noch TBD).
+        // parsePack navigiert per Tile-Index -> hier kein Skip noetig.
+        if (bp + 4 <= sz) { lePackU16(buf, bp); lePackU16(buf, bp); }
         yield();
     }
     heap_caps_free(buf);
@@ -142,6 +146,15 @@ static void dumpPackContract(const char *path) {
             if (bp+nlen > sz) { Serial.println("[CONTRACT] REJECT: Peak-Name truncated"); ok=false; break; }
             char nm[40]={0}; int rd=(nlen>39)?39:nlen; memcpy(nm,buf+bp,rd); bp+=nlen;
             Serial.printf("  PEAK %.5f,%.5f ele=%d rank=%d name=%s\n", dlat0+da/1e5, dlon0+dn/1e5, ele, rank, nm);
+        }
+        if (ok) {
+            if (bp + 4 > sz) { Serial.println("[CONTRACT] REJECT: n_airspace/n_obstacles truncated"); ok=false; }
+            else {
+                uint16_t n_air = lePackU16(buf, bp);
+                uint16_t n_obs = lePackU16(buf, bp);
+                Serial.printf("  n_airspace=%d  n_obstacles=%d\n", n_air, n_obs);
+                // Stufe 4: bei n_air/n_obs > 0 hier die Bloecke dekodieren (Block-Format TBD).
+            }
         }
     }
     if (ok) Serial.println("===== CONTRACT OK (Cross-Read komplett) =====");
