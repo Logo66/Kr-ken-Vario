@@ -7,3 +7,9 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+
+# burnair-Analyse: grosse Artefakte / Rohdaten nicht committen
+*.apk
+*.xapk
+*.obb
+burnair_analyse_out/
