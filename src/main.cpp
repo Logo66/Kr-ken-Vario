@@ -116,7 +116,10 @@ static void updateGoalData() {
     if (gps.location.isValid() && gps.location.lat() != 0) {
         lastGoodLat = gps.location.lat();
         lastGoodLon = gps.location.lng();
+        static unsigned long lastPosSave = 0;           // K2: alle 30s in NVS sichern
+        if (millis() - lastPosSave > 30000) { lastPosSave = millis(); deviceSaveLastPos(lastGoodLat, lastGoodLon); }
     }
+    parseCenterLat = lastGoodLat; parseCenterLon = lastGoodLon;   // Tile-Fenster folgt der Position
 
     // Track-Punkt sammeln (alle 2s bei GPS-Fix)
     static unsigned long lastTrack = 0;
@@ -355,16 +358,24 @@ void setup() {
     // Ticket C: Geraete-Identitaet (MAC + NVS-Token) laden. Registrierung spaeter im Loop bei WLAN.
     deviceInit();
 
+    // K2: letzte bekannte Position aus NVS -> Karten-Fallback ohne GPS-Fix (statt 0,0/Default).
+    { double la, lo; if (deviceLoadLastPos(&la, &lo)) { lastGoodLat = la; lastGoodLon = lo;
+        Serial.printf("[MAP] letzte Position aus NVS: %.5f,%.5f\n", la, lo); } }
+
     // Luftraeume von SD parsen (wenn vorhanden)
     if (sdcard.ok && sdcard.exists("/airspace/ch_asp.txt")) {
         parseOpenAir("/airspace/ch_asp.txt");
     }
 
-    // Gipfel laden: zuerst Region-Pack (KRUECKE-8 §3), sonst peaks.txt als Fallback
-    if (sdcard.ok && sdcard.exists("/maps/region_ch_v1.pack")) {
-        parsePack("/maps/region_ch_v1.pack");
-    } else if (sdcard.ok && sdcard.exists("/peaks/peaks.txt")) {
-        parsePeaks("/peaks/peaks.txt");
+    // Karten-Pack: zuletzt heruntergeladenes (active.txt) laden — ECHTES Server-Pack, kein Demo.
+    parseCenterLat = lastGoodLat; parseCenterLon = lastGoodLon;   // Fenster um letzte/Test-Position
+    if (sdcard.ok) {
+        char activePath[64] = {0};
+        File af = SD.open("/maps/active.txt", FILE_READ);
+        if (af) { String s = af.readStringUntil('\n'); s.trim();
+                  strncpy(activePath, s.c_str(), sizeof(activePath)-1); af.close(); }
+        if (activePath[0] && SD.exists(activePath))  parsePack(activePath);
+        else if (sdcard.exists("/peaks/peaks.txt"))   parsePeaks("/peaks/peaks.txt");
     }
 
     // QNH kalibrieren mit raw I2C (zuverlaessig, 96719 Pa bewiesen)
@@ -470,6 +481,20 @@ void loop() {
     // Contract-Cross-Read einmalig ~6s nach Boot (Serial dann stabil, nicht in der Reenum-Luecke)
     deviceLoop();      // Ticket C: bei WLAN einmalig registrieren falls kein NVS-Token
 
+    // K5: Tile-Fenster nachladen, wenn Position > 7 km vom geladenen Zentrum (Karte folgt Bewegung)
+    static unsigned long lastReloadChk = 0;
+    if (mapLoadedPack[0] && millis() - lastReloadChk > 3000) {
+        lastReloadChk = millis();
+        double dkmLat = (lastGoodLat - mapParsedLat)*111.0;
+        double dkmLon = (lastGoodLon - mapParsedLon)*111.0*cos(lastGoodLat*M_PI/180.0);
+        if (dkmLat*dkmLat + dkmLon*dkmLon > 7.0*7.0) {
+            parseCenterLat = lastGoodLat; parseCenterLon = lastGoodLon;
+            digitalWrite(BOARD_LORA_CS, HIGH);
+            parsePack(mapLoadedPack);
+            Serial.println("[MAP] Tile-Fenster nachgeladen (Bewegung)");
+        }
+    }
+
     static bool contractDumped = false;
     if (!contractDumped && millis() > 6000) {
         contractDumped = true;
@@ -477,6 +502,10 @@ void loop() {
         Serial.printf("[DEV] (boot) MAC=%s token=%s status=%s\n",
                       deviceMac, deviceHasToken() ? "JA(NVS)" : "KEINER",
                       deviceStatus[0] ? deviceStatus : "-");
+        Serial.printf("[DIAG] ch_v1=%d hoernli_v2=%d  peaks=%d contours=%d  center=%.4f,%.4f\n",
+                      (int)SD.exists("/maps/region_ch_v1.pack"),
+                      (int)SD.exists("/maps/region_hoernli_v2.pack"),
+                      peak_count, contour_count, packCenterLat, packCenterLon);
         if (sdcard.ok) {
             if (sdcard.exists("/maps/contract_test_v1.pack"))     dumpPackContract("/maps/contract_test_v1.pack");
             if (sdcard.exists("/maps/contract_bad_magic.pack"))   dumpPackContract("/maps/contract_bad_magic.pack");

@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <SD.h>
 #include "peaks.h"
+#include "contours.h"
 
 // Little-Endian Leser auf einem Speicherpuffer
 static inline uint16_t lePackU16(const uint8_t *b, size_t &p){ uint16_t v=(uint16_t)b[p]|((uint16_t)b[p+1]<<8); p+=2; return v; }
@@ -12,81 +13,136 @@ static inline int16_t  lePackI16(const uint8_t *b, size_t &p){ return (int16_t)l
 static inline uint32_t lePackU32(const uint8_t *b, size_t &p){ uint32_t v=(uint32_t)b[p]|((uint32_t)b[p+1]<<8)|((uint32_t)b[p+2]<<16)|((uint32_t)b[p+3]<<24); p+=4; return v; }
 static inline int32_t  lePackI32(const uint8_t *b, size_t &p){ return (int32_t)lePackU32(b,p); }
 
+// Standort-Fenster fuer den Loader (main.cpp setzt = lastGood). Nur Kacheln im Umkreis laden.
+static double parseCenterLat = 47.5973, parseCenterLon = 8.7848;
+static double parseRadiusKm  = 15.0;
+static char   mapLoadedPack[80] = {0};              // zuletzt geladenes Pack (Reload bei Bewegung)
+static double mapParsedLat = 0, mapParsedLon = 0;   // Zentrum, um das geladen wurde
+struct TileRef { uint32_t off, len; double lat0, lon0; float distSq; };
+
+// parsePack — seek-per-Tile (KEIN Full-Load -> auch 14.7 MB CH-Pack passt). Laedt nur die
+// Kacheln im Umkreis von (parseCenterLat,parseCenterLon), distanz-sortiert, gecappt auf
+// CONT_MAX/CONT_POOL/PEAK_MAX. Byte-Format identisch zum Vertrag (dumpPackContract unveraendert).
 static int parsePack(const char *path) {
     File f = SD.open(path, FILE_READ);
     if (!f) { Serial.printf("[PACK] nicht gefunden: %s\n", path); return 0; }
     size_t sz = f.size();
     if (sz < 25) { Serial.println("[PACK] Datei zu klein"); f.close(); return 0; }
 
-    uint8_t *buf = (uint8_t*)heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
-    if (!buf) { Serial.println("[PACK] PSRAM-Puffer FAIL"); f.close(); return 0; }
-    size_t got = f.read(buf, sz);
-    f.close();
-    if (got != sz) { Serial.println("[PACK] Lesefehler"); heap_caps_free(buf); return 0; }
-
-    // HEADER
-    if (memcmp(buf, "AURA", 4) != 0) { Serial.println("[PACK] kein AURA-Header!"); heap_caps_free(buf); return 0; }
-    size_t p = 4;
-    uint8_t version = buf[p++];
-    if (version != 1) { Serial.printf("[PACK] REJECT: Version %d (erwartet 1)\n", version); heap_caps_free(buf); return 0; }
-    char region[17] = {0}; memcpy(region, buf+p, 16); p += 16;
-    uint16_t tile_size  = lePackU16(buf, p);   (void)tile_size;
-    uint16_t tile_count = lePackU16(buf, p);
-    Serial.printf("[PACK] AURA v%d region=%s tiles=%d (%d bytes)\n", version, region, tile_count, (int)sz);
+    // HEADER (25 Byte)
+    uint8_t hdr[25];
+    if (f.read(hdr, 25) != 25) { f.close(); return 0; }
+    if (memcmp(hdr, "AURA", 4) != 0) { Serial.println("[PACK] kein AURA-Header!"); f.close(); return 0; }
+    size_t hp = 4;
+    uint8_t version = hdr[hp++];
+    if (version != 1) { Serial.printf("[PACK] REJECT: Version %d (erwartet 1)\n", version); f.close(); return 0; }
+    char region[17] = {0}; memcpy(region, hdr+hp, 16); hp += 16;
+    uint16_t tile_size  = lePackU16(hdr, hp);   (void)tile_size;
+    uint16_t tile_count = lePackU16(hdr, hp);
+    Serial.printf("[PACK] AURA v%d region=%s tiles=%d (%d KB) @ %.4f,%.4f r=%.0fkm\n",
+                  version, region, tile_count, (int)(sz/1024), parseCenterLat, parseCenterLon, parseRadiusKm);
 
     if (!peaks_arr) {
         peaks_arr = (Peak*)heap_caps_malloc((size_t)PEAK_MAX*sizeof(Peak), MALLOC_CAP_SPIRAM);
-        if (!peaks_arr) { Serial.println("[PACK] peaks PSRAM FAIL"); heap_caps_free(buf); return 0; }
+        if (!peaks_arr) { Serial.println("[PACK] peaks PSRAM FAIL"); f.close(); return 0; }
     }
     peak_count = 0;
+    if (!contInit()) { f.close(); return 0; }
 
-    const size_t INDEX_BASE = 25;
-    for (int t = 0; t < tile_count && peak_count < PEAK_MAX; t++) {
-        size_t ip = INDEX_BASE + (size_t)t*16;
-        if (ip + 16 > sz) break;
-        size_t pp = ip;
-        int32_t lat0 = lePackI32(buf, pp);
-        int32_t lon0 = lePackI32(buf, pp);
-        uint32_t offset = lePackU32(buf, pp);
-        uint32_t length = lePackU32(buf, pp);  (void)length;
+    // INDEX lesen (tile_count*16) -> PSRAM
+    size_t idxBytes = (size_t)tile_count * 16;
+    if (25 + idxBytes > sz) { Serial.println("[PACK] Index truncated"); f.close(); return 0; }
+    uint8_t *idx = (uint8_t*)heap_caps_malloc(idxBytes, MALLOC_CAP_SPIRAM);
+    if (!idx) { Serial.println("[PACK] Index PSRAM FAIL"); f.close(); return 0; }
+    f.seek(25);
+    if (f.read(idx, idxBytes) != idxBytes) { heap_caps_free(idx); f.close(); return 0; }
+
+    // Kacheln im Umkreis sammeln + nach Distanz sortieren (naechste zuerst)
+    static const int MAXWIN = 400;
+    TileRef *win = (TileRef*)heap_caps_malloc(sizeof(TileRef)*MAXWIN, MALLOC_CAP_SPIRAM);
+    if (!win) { heap_caps_free(idx); f.close(); return 0; }
+    int nwin = 0;
+    double coslat = cos(parseCenterLat * M_PI/180.0);
+    double rSq = parseRadiusKm * parseRadiusKm;
+    for (int t = 0; t < tile_count && nwin < MAXWIN; t++) {
+        size_t pp = (size_t)t*16;
+        int32_t lat0 = lePackI32(idx, pp), lon0 = lePackI32(idx, pp);
+        uint32_t off = lePackU32(idx, pp), len = lePackU32(idx, pp);
         double dlat0 = lat0/1e7, dlon0 = lon0/1e7;
-        if (offset >= sz) continue;
+        double dkmLat = (dlat0 - parseCenterLat)*111.0;
+        double dkmLon = (dlon0 - parseCenterLon)*111.0*coslat;
+        float dsq = (float)(dkmLat*dkmLat + dkmLon*dkmLon);
+        if (dsq > rSq) continue;
+        if (off >= sz || len == 0 || (size_t)off+len > sz) continue;
+        win[nwin].off=off; win[nwin].len=len; win[nwin].lat0=dlat0; win[nwin].lon0=dlon0; win[nwin].distSq=dsq;
+        nwin++;
+    }
+    for (int i = 1; i < nwin; i++) { TileRef k = win[i]; int j = i-1;
+        while (j >= 0 && win[j].distSq > k.distSq) { win[j+1] = win[j]; j--; } win[j+1] = k; }
+    heap_caps_free(idx);
 
-        size_t bp = offset;
-        uint16_t n_contours = lePackU16(buf, bp);
-        for (int c = 0; c < n_contours && bp < sz; c++) {   // Konturen ueberspringen (Stufe 1)
-            bp += 2;                                          // height_m (int16)
-            bp += 1;                                          // flag (uint8)
-            uint16_t np = lePackU16(buf, bp);
-            bp += (size_t)np * 4;                             // n_points * (int16 dlat,dlon)
+    // Tile-Puffer (ein Block; CH ~7 KB avg)
+    const size_t TILEBUF = 128*1024;
+    uint8_t *tbuf = (uint8_t*)heap_caps_malloc(TILEBUF, MALLOC_CAP_SPIRAM);
+    if (!tbuf) { heap_caps_free(win); f.close(); return 0; }
+
+    int loaded = 0;
+    for (int w = 0; w < nwin; w++) {
+        if (contour_count >= CONT_MAX || contPoolUsed >= CONT_POOL - 200) break;   // voll
+        TileRef &tr = win[w];
+        if (tr.len > TILEBUF) continue;
+        f.seek(tr.off);
+        if (f.read(tbuf, tr.len) != tr.len) continue;
+        size_t bp = 0;
+        uint16_t n_contours = lePackU16(tbuf, bp);
+        for (int c = 0; c < n_contours && bp < tr.len; c++) {
+            if (bp + 5 > tr.len) break;
+            int16_t ch = lePackI16(tbuf, bp);
+            uint8_t cf = tbuf[bp++];
+            uint16_t np = lePackU16(tbuf, bp);
+            if (bp + (size_t)np * 4 > tr.len) break;
+            if (contour_count >= CONT_MAX || contPoolUsed + (int)np > CONT_POOL) { bp += (size_t)np*4; continue; }
+            contBegin(ch, cf);
+            for (int i = 0; i < np; i++) {
+                int16_t cdlat = lePackI16(tbuf, bp);
+                int16_t cdlon = lePackI16(tbuf, bp);
+                contAddPt((float)(tr.lat0 + (double)cdlat/1e5), (float)(tr.lon0 + (double)cdlon/1e5));
+            }
+            contEnd();
         }
-        if (bp + 2 > sz) continue;
-        uint16_t n_peaks = lePackU16(buf, bp);
+        if (bp + 2 > tr.len) { loaded++; continue; }
+        uint16_t n_peaks = lePackU16(tbuf, bp);
         for (int k = 0; k < n_peaks && peak_count < PEAK_MAX; k++) {
-            if (bp + 8 > sz) break;
-            int16_t pdlat = lePackI16(buf, bp);
-            int16_t pdlon = lePackI16(buf, bp);
-            int16_t ele   = lePackI16(buf, bp);
-            uint8_t rank  = buf[bp++];  (void)rank;
-            uint8_t nlen  = buf[bp++];
-            if (bp + nlen > sz) break;
+            if (bp + 8 > tr.len) break;
+            int16_t pdlat = lePackI16(tbuf, bp);
+            int16_t pdlon = lePackI16(tbuf, bp);
+            int16_t ele   = lePackI16(tbuf, bp);
+            uint8_t rank  = tbuf[bp++];  (void)rank;
+            uint8_t nlen  = tbuf[bp++];
+            if (bp + nlen > tr.len) break;
             Peak &pk = peaks_arr[peak_count];
-            pk.lat = (float)(dlat0 + (double)pdlat/1e5);
-            pk.lon = (float)(dlon0 + (double)pdlon/1e5);
+            pk.lat = (float)(tr.lat0 + (double)pdlat/1e5);
+            pk.lon = (float)(tr.lon0 + (double)pdlon/1e5);
             pk.ele = ele;
             int rd = (nlen > 25) ? 25 : nlen;
-            memcpy(pk.name, buf+bp, rd); pk.name[rd] = 0;
+            memcpy(pk.name, tbuf+bp, rd); pk.name[rd] = 0;
             bp += nlen;
             peak_count++;
         }
-        // v1: n_airspace + n_obstacles (Zaehler) lesen — beide 0. Format-vollstaendig.
-        // Stufe 4: bei n>0 hier die folgenden Bloecke dekodieren (Block-Format noch TBD).
-        // parsePack navigiert per Tile-Index -> hier kein Skip noetig.
-        if (bp + 4 <= sz) { lePackU16(buf, bp); lePackU16(buf, bp); }
+        // n_airspace + n_obstacles folgen (v1 = 0) — kein Skip noetig (naechste Kachel per seek)
+        loaded++;
         yield();
     }
-    heap_caps_free(buf);
-    Serial.printf("[PACK] %d Gipfel geladen\n", peak_count);
+    heap_caps_free(tbuf);
+    heap_caps_free(win);
+    f.close();
+
+    if (contour_count > 0 || peak_count > 0) {
+        packCenterLat = parseCenterLat; packCenterLon = parseCenterLon;
+        mapParsedLat  = parseCenterLat; mapParsedLon  = parseCenterLon;
+        strncpy(mapLoadedPack, path, sizeof(mapLoadedPack)-1); mapLoadedPack[sizeof(mapLoadedPack)-1] = 0;
+    }
+    Serial.printf("[PACK] %d/%d Kacheln im Umkreis -> %d Gipfel + %d Konturen\n", loaded, nwin, peak_count, contour_count);
     return peak_count;
 }
 

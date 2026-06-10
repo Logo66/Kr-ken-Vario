@@ -63,6 +63,23 @@ static void deviceSaveNvs() {
     devicePrefs.end();
 }
 
+// Letzte bekannte GPS-Position in NVS — Karten-Fallback ohne Fix (ueberlebt Neustart, K2).
+static void deviceSaveLastPos(double lat, double lon) {
+    if (lat == 0 && lon == 0) return;
+    devicePrefs.begin("buddy", false);
+    devicePrefs.putDouble("lastlat", lat);
+    devicePrefs.putDouble("lastlon", lon);
+    devicePrefs.end();
+}
+static bool deviceLoadLastPos(double *lat, double *lon) {
+    devicePrefs.begin("buddy", true);
+    double la = devicePrefs.getDouble("lastlat", 0);
+    double lo = devicePrefs.getDouble("lastlon", 0);
+    devicePrefs.end();
+    if (la != 0 || lo != 0) { *lat = la; *lon = lo; return true; }
+    return false;
+}
+
 // POST /devices/register {mac, factory_secret, firmware_ver} -> {token, pairing_code, status}
 // return: 200 ok (Token in NVS), sonst HTTP-Code (>0) / Fehler (<0). errbuf: Klartext.
 static int deviceRegister(char *errbuf, size_t errlen) {

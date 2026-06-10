@@ -5,6 +5,8 @@
 #include <HTTPClient.h>
 #include "ui_utils.h"
 #include "sd_manager.h"
+#include "map_pack.h"
+#include "pack_reader.h"   // parsePack: geladenes Pack einlesen + rendern (Stufe 3)
 
 // Schweiz: Luftraeume von openAIP, Hindernisse vom BAZL (amtlich, tagesaktuell)
 #define URL_AIRSPACE_CH   "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/ch_asp.txt"
@@ -19,7 +21,8 @@ enum OverlayState {
     OVL_MENU,
     OVL_DOWNLOADING,
     OVL_DONE,
-    OVL_ERROR
+    OVL_ERROR,
+    OVL_PACK_LIST      // Stufe 1: Regionen-Index vom Server anzeigen
 };
 
 class OverlayScreen {
@@ -74,7 +77,7 @@ public:
             drawBoxCenter(&ArialBold16, lb, bx, by0+2*(bh+bgap), bw, bh, fb);
 
             uiBox(bx, by0+3*(bh+bgap), bw, bh, fb);
-            drawBoxCenter(&ArialBold16, "Karten Download", bx, by0+3*(bh+bgap), bw, bh, fb);
+            drawBoxCenter(&ArialBold16, "Region-Pack laden (WLAN)", bx, by0+3*(bh+bgap), bw, bh, fb);
 
             if (!sd || !sd->ok) {
                 drawHCenter(&ArialBold16, "KEINE SD-KARTE!", 0, 960, 440, fb);
@@ -110,6 +113,29 @@ public:
             uiBox(350, 380, 260, 52, fb);
             drawBoxCenter(&ArialBold24, "OK", 350, 380, 260, 52, fb);
             break;
+
+        case OVL_PACK_LIST: {
+            drawHCenter(&ArialBold24, "REGIONEN (Server)", 0, 960, 88, fb);
+            if (mapRegionCount == 0) {
+                drawHCenter(&ArialBold16, "Keine Region gemeldet", 0, 960, 200, fb);
+            } else {
+                int y = 120;
+                char row[88];
+                for (int i = 0; i < mapRegionCount; i++) {
+                    MapRegion &m = mapRegions[i];
+                    uiBox(80, y, 800, 54, fb);
+                    snprintf(row, 88, "%s   v%d   %u B   %s", m.id, m.latest,
+                             (unsigned)m.bytes, m.sha8);
+                    drawBoxCenter(&ArialBold16, row, 80, y, 800, 54, fb);
+                    y += 64;
+                }
+                drawHCenter(&ArialBold16, "Region antippen zum Laden (WLAN)",
+                            0, 960, y + 12, fb);
+            }
+            uiBox(350, 460, 260, 52, fb);
+            drawBoxCenter(&ArialBold24, "ZURUECK", 350, 460, 260, 52, fb);
+            break;
+        }
         }
 
         epd_poweron();
@@ -136,11 +162,22 @@ public:
                 } else if (ty >= 266 && ty < 331) {
                     downloadFile(hl, URL_HOTSPOTS_CH, "/obstacles/ch_hot.cup", "Hotspots CH");
                 } else if (ty >= 349 && ty < 414) {
-                    downloadTiles(hl);
+                    fetchRegionIndex(hl);
                 }
             }
             // Zurueck
             if (ty >= 460 && ty < 512 && tx >= 350 && tx < 610) return true;
+            break;
+
+        case OVL_PACK_LIST:
+            if (ty >= 450) return true;          // ZURUECK / untere Zone → Screen verlassen
+            for (int i = 0; i < mapRegionCount; i++) {   // Region-Zeile antippen -> laden
+                int ry = 120 + i * 64;
+                if (ty >= ry && ty < ry + 54 && tx >= 80 && tx < 880) {
+                    downloadRegion(hl, i);
+                    return false;
+                }
+            }
             break;
 
         case OVL_DONE:
@@ -155,6 +192,55 @@ public:
     }
 
 private:
+    // Stufe 1: /maps/index vom Server holen + Regionen-Liste zeigen (W1)
+    void fetchRegionIndex(EpdiyHighlevelState *hl) {
+        state = OVL_DOWNLOADING;
+        snprintf(status_msg, 64, "Index laden...");
+        download_pct = 0;
+        draw(hl);
+
+        char err[48];
+        int code = mapPackFetchIndex(err, sizeof(err));
+        if (code == 200) {
+            state = OVL_PACK_LIST;
+        } else {
+            snprintf(status_msg, 64, "Index: %s", err);
+            state = OVL_ERROR;
+        }
+        draw(hl);
+    }
+
+    static OverlayScreen *s_self;
+    static EpdiyHighlevelState *s_hl;
+    static void s_dlProgress(int pct) {           // Download-Fortschritt (14.7 MB dauern)
+        if (!s_self || !s_hl) return;
+        s_self->download_pct = pct;
+        if (pct % 10 == 0) s_self->draw(s_hl);    // alle 10% neu zeichnen
+    }
+
+    // Stufe 3: Region-Pack laden (Bearer) -> SHA-256-Verify -> Standort-Fenster einlesen -> rendern.
+    void downloadRegion(EpdiyHighlevelState *hl, int idx) {
+        if (idx < 0 || idx >= mapRegionCount) return;
+        MapRegion &reg = mapRegions[idx];
+        state = OVL_DOWNLOADING;
+        snprintf(status_msg, 64, "Lade %s  %.1f MB ...", reg.id, reg.bytes / 1048576.0);
+        download_pct = 0;
+        draw(hl);
+
+        s_self = this; s_hl = hl;
+        char err[64];
+        int code = mapPackDownload(reg, err, sizeof(err), s_dlProgress);
+        if (code == 200) {
+            parsePack(mapPackFile);   // SHA ok -> Fenster um Standort einlesen -> Karte rendert
+            snprintf(status_msg, 64, "%s: %d Gipfel, %d Konturen", reg.id, peak_count, contour_count);
+            state = OVL_DONE;
+        } else {
+            snprintf(status_msg, 64, "%s", err);   // REJECT/Fehler — klar, kein Crash
+            state = OVL_ERROR;
+        }
+        draw(hl);
+    }
+
     void downloadFile(EpdiyHighlevelState *hl, const char *url,
                       const char *path, const char *label) {
         if (!sd || !sd->ok) {
@@ -302,3 +388,6 @@ private:
         draw(hl);
     }
 };
+
+OverlayScreen*       OverlayScreen::s_self = nullptr;
+EpdiyHighlevelState* OverlayScreen::s_hl   = nullptr;

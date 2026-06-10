@@ -10,6 +10,7 @@
 #include <pngle.h>
 #include "openair_parser.h"
 #include "peaks.h"
+#include "contours.h"
 
 // === Dreieck-Formel aus Ticket §2 (identisch zu goal_screen) ===
 static void mapTri(int cx, int cy, float ang, int L, int Wd, uint8_t *fb) {
@@ -359,6 +360,27 @@ struct MapData {
     bool gps_fix;
 };
 
+// === HOEHENLINIEN (Konturen als Polylinien) — Daten aus contours.h ===
+static void drawContours(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
+    if (!contPool) return;
+    for (int c = 0; c < contour_count; c++) {
+        const Contour &ct = contours[c];
+        if (ct.num_pts < 2) continue;
+        // Lesbarkeit (Ticket §5): bei hohem Zoom nur Index-Konturen
+        if (ZOOM_M[zoomIdx] >= 5000 && ct.flag == 0) continue;
+        int thick = (ct.flag == 1) ? 2 : 1;          // Index dicker, normal duenn
+        const ContourPt *pts = contPoints(ct);
+        int prev_sx = 0, prev_sy = 0;
+        for (int i = 0; i < ct.num_pts; i++) {
+            int sx, sy;
+            projectToScreen(myLat, myLon, pts[i].lat, pts[i].lon, zoomIdx, &sx, &sy);
+            if (i > 0 && (inClip(prev_sx, prev_sy) || inClip(sx, sy)))
+                drawThickLine(prev_sx, prev_sy, sx, sy, thick, fb);
+            prev_sx = sx; prev_sy = sy;
+        }
+    }
+}
+
 // === GIPFEL-LAYER (Marker + Name + Hoehe) — Daten aus peaks.h ===
 static void peakTriUp(int cx, int cy, int s, uint8_t *fb) {
     // gefuelltes Dreieck nach oben: Spitze (cx, cy-s), Basis bei cy
@@ -414,6 +436,10 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
 
     // Karte edge-to-edge, kein Rahmen noetig
 
+    // === ZENTRUM: GPS-Fix; ohne Fix setzt main.cpp die letzte/Test-Position (nie 0,0) ===
+    double cLat = d.lat, cLon = d.lon;
+    bool haveCenter = (cLat != 0 && cLon != 0);
+
     // === Raster-Tiles: Default AUS (KRUECKE-6B: Vektor statt Raster) ===
     // Tile-Code bleibt erhalten, aber nur aktiv wenn showRasterTiles=true
     static bool showRasterTiles = false;  // Default AUS
@@ -427,7 +453,7 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     }
 
     // === KOORDINATEN-GITTER (dezent, als Orientierung) ===
-    if (d.lat != 0 && d.lon != 0) {
+    if (haveCenter) {
         float m_per_px = ZOOM_M[mapZoomIdx] / (float)MAP_CLIP_W;
         // Horizontale + vertikale Linien alle 500m / 1km je nach Zoom
         float grid_m = (ZOOM_M[mapZoomIdx] <= 2000) ? 500.0f : 1000.0f;
@@ -453,14 +479,24 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
         }
     }
 
+    // === HOEHENLINIEN (Konturen — unter Luftraum/Gipfel) ===
+    if (haveCenter && contour_count > 0) {
+        drawContours(cLat, cLon, mapZoomIdx, fb);
+    }
+
     // === LUFTRAEUME (Vektor-Polygone, dicke Linien) ===
-    if (d.lat != 0 && d.lon != 0 && airspace_count > 0) {
-        drawAirspaces(d.lat, d.lon, mapZoomIdx, fb);
+    if (haveCenter && airspace_count > 0) {
+        drawAirspaces(cLat, cLon, mapZoomIdx, fb);
     }
 
     // === GIPFEL (Marker + Name + Hoehe, KRUECKE-6C Stufe 1) ===
-    if (d.lat != 0 && d.lon != 0 && peak_count > 0) {
-        drawPeaks(d.lat, d.lon, mapZoomIdx, fb);
+    if (haveCenter && peak_count > 0) {
+        drawPeaks(cLat, cLon, mapZoomIdx, fb);
+    }
+
+    // Ohne GPS-Fix: klarer Status (Karte zeigt letzte/Test-Position, nicht die Live-Position)
+    if (!d.gps_fix) {
+        drawText(&ArialBold16, "kein GPS-Fix - letzte/Test-Position", 280, 80, fb);
     }
 
     // === TRACK-SPUR (dicke Linie, stroke 3.5) ===
