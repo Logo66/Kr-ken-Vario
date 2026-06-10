@@ -483,7 +483,7 @@ void loop() {
 
     // K5: Tile-Fenster nachladen, wenn Position > 7 km vom geladenen Zentrum (Karte folgt Bewegung)
     static unsigned long lastReloadChk = 0;
-    if (mapLoadedPack[0] && millis() - lastReloadChk > 3000) {
+    if (!panActive && mapLoadedPack[0] && millis() - lastReloadChk > 3000) {
         lastReloadChk = millis();
         double dkmLat = (lastGoodLat - mapParsedLat)*111.0;
         double dkmLon = (lastGoodLon - mapParsedLon)*111.0*cos(lastGoodLat*M_PI/180.0);
@@ -794,7 +794,32 @@ void loop() {
                                 live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
                                 fanet.pilot_count,false,live.gps_fix};
                     showMapScreen(&hl, md);
+                } else if (ma==MAP_PAN) {
+                    // Tap-Position -> lat/lon (Umkehrung der Projektion) -> Karte dorthin verschieben
+                    double clat = panActive ? panLat : lastGoodLat;
+                    double clon = panActive ? panLon : lastGoodLon;
+                    float mpp = ZOOM_M[mapZoomIdx] / (float)MAP_CLIP_W;
+                    float dx_m = (touch.lastX() - MAP_PILOT_X) * mpp;
+                    float dy_m = (MAP_PILOT_Y - touch.lastY()) * mpp;
+                    panLon = clon + dx_m / (111320.0f * cosf((float)clat * M_PI/180.0f));
+                    panLat = clat + dy_m / 111320.0f;
+                    panActive = true;
+                    double dkLat=(panLat-mapParsedLat)*111.0, dkLon=(panLon-mapParsedLon)*111.0*cos(panLat*M_PI/180.0);
+                    if (mapLoadedPack[0] && dkLat*dkLat+dkLon*dkLon > 5.0*5.0) {  // weit -> Tiles nachladen
+                        parseCenterLat=panLat; parseCenterLon=panLon;
+                        digitalWrite(BOARD_LORA_CS, HIGH); parsePack(mapLoadedPack);
+                    }
+                    MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
+                                live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
+                                fanet.pilot_count,false,live.gps_fix};
+                    showMapScreen(&hl, md);
                 } else if (ma==MAP_RECENTER) {
+                    panActive = false;   // zurueck auf GPS/letzte Position
+                    double dkLat=(lastGoodLat-mapParsedLat)*111.0, dkLon=(lastGoodLon-mapParsedLon)*111.0*cos(lastGoodLat*M_PI/180.0);
+                    if (mapLoadedPack[0] && dkLat*dkLat+dkLon*dkLon > 5.0*5.0) {
+                        parseCenterLat=lastGoodLat; parseCenterLon=lastGoodLon;
+                        digitalWrite(BOARD_LORA_CS, HIGH); parsePack(mapLoadedPack);
+                    }
                     MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
                                 live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
                                 fanet.pilot_count,false,live.gps_fix};

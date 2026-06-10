@@ -45,8 +45,10 @@ static const int MAP_BTN_PLUS_Y=66, MAP_BTN_MINUS_Y=220, MAP_BTN_CENTER_Y=374;
 static const float ZOOM_M[] = {500, 1000, 2000, 5000, 10000, 20000, 50000};
 static const char* ZOOM_LABEL[] = {"0.5 km", "1 km", "2 km", "5 km", "10 km", "20 km", "50 km"};
 static int mapZoomIdx = 2;  // Start: 2 km
+static bool   panActive = false;       // Karte verschoben (Pan) statt GPS-zentriert
+static double panLat = 0, panLon = 0;  // Pan-Blickpunkt
 
-enum MapAction { MAP_NONE, MAP_ZOOM_IN, MAP_ZOOM_OUT, MAP_RECENTER };
+enum MapAction { MAP_NONE, MAP_ZOOM_IN, MAP_ZOOM_OUT, MAP_RECENTER, MAP_PAN };
 
 // === Projektion §5: Welt → Bildschirm (North-Up) ===
 // Eigene Position fix in (400, 288). m_per_px = zoom_m / 778
@@ -436,8 +438,9 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
 
     // Karte edge-to-edge, kein Rahmen noetig
 
-    // === ZENTRUM: GPS-Fix; ohne Fix setzt main.cpp die letzte/Test-Position (nie 0,0) ===
-    double cLat = d.lat, cLon = d.lon;
+    // === ZENTRUM: Pan-Blickpunkt (falls verschoben), sonst GPS/letzte Position (nie 0,0) ===
+    double cLat = panActive ? panLat : d.lat;
+    double cLon = panActive ? panLon : d.lon;
     bool haveCenter = (cLat != 0 && cLon != 0);
 
     // === Raster-Tiles: Default AUS (KRUECKE-6B: Vektor statt Raster) ===
@@ -495,7 +498,9 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     }
 
     // Ohne GPS-Fix: klarer Status (Karte zeigt letzte/Test-Position, nicht die Live-Position)
-    if (!d.gps_fix) {
+    if (panActive) {
+        drawText(&ArialBold16, "VERSCHOBEN - Fadenkreuz = zurueck zu mir", 230, 80, fb);
+    } else if (!d.gps_fix) {
         drawText(&ArialBold16, "kein GPS-Fix - letzte/Test-Position", 280, 80, fb);
     }
 
@@ -505,12 +510,25 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     }
 
     // === PILOT-MARKER: weisser Kreis + grosses schwarzes Dreieck ===
-    // Weisser Halo damit Marker auf jeder Karte sichtbar ist
-    for (int r = 38; r >= 30; r--)
-        drawCircle(MAP_PILOT_X, MAP_PILOT_Y, r, fb);  // Dicke weisse Umrandung
-    uiFill(MAP_PILOT_X-30, MAP_PILOT_Y-30, 60, 60, fb, 0xFF);  // Weiss fuellen
-    drawCircle(MAP_PILOT_X, MAP_PILOT_Y, 30, fb);  // Schwarzer Kreis-Rand
-    mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 52, 38, fb);  // Grosses Dreieck
+    if (panActive) {
+        // Verschoben: Pilot an seiner ECHTEN projizierten Position; Kreuz in der Mitte = Blickpunkt
+        int psx, psy;
+        projectToScreen(cLat, cLon, d.lat, d.lon, mapZoomIdx, &psx, &psy);
+        if (inClip(psx, psy)) {
+            for (int r = 24; r >= 18; r--) drawCircle(psx, psy, r, fb);
+            uiFill(psx-18, psy-18, 36, 36, fb, 0xFF);
+            drawCircle(psx, psy, 18, fb);
+            mapTri(psx, psy, d.heading, 32, 24, fb);
+        }
+        uiHLine(MAP_PILOT_X-12, MAP_PILOT_Y, 24, fb, 2);   // Fadenkreuz = Pan-Blickpunkt
+        uiVLine(MAP_PILOT_X, MAP_PILOT_Y-12, 24, fb, 2);
+    } else {
+        for (int r = 38; r >= 30; r--)
+            drawCircle(MAP_PILOT_X, MAP_PILOT_Y, r, fb);  // Dicke weisse Umrandung
+        uiFill(MAP_PILOT_X-30, MAP_PILOT_Y-30, 60, 60, fb, 0xFF);  // Weiss fuellen
+        drawCircle(MAP_PILOT_X, MAP_PILOT_Y, 30, fb);  // Schwarzer Kreis-Rand
+        mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 52, 38, fb);  // Grosses Dreieck
+    }
 
     // === NORDPFEIL (Linie 56,118→56,78 + Dreieck) ===
     uiVLine(56, 78, 40, fb, 3);  // Linie stroke 3
@@ -629,6 +647,10 @@ static MapAction checkMapTap(int tx, int ty) {
         if (ty>=MAP_BTN_PLUS_Y && ty<MAP_BTN_PLUS_Y+MAP_BTN_H) return MAP_ZOOM_IN;
         if (ty>=MAP_BTN_MINUS_Y && ty<MAP_BTN_MINUS_Y+MAP_BTN_H) return MAP_ZOOM_OUT;
         if (ty>=MAP_BTN_CENTER_Y && ty<MAP_BTN_CENTER_Y+MAP_BTN_H) return MAP_RECENTER;
+        return MAP_NONE;
     }
+    // Karten-Flaeche (links der Buttons) antippen -> dorthin verschieben (Pan)
+    if (tx >= MAP_CLIP_X && tx < MAP_BTN_X && ty >= MAP_CLIP_Y+30 && ty < MAP_CLIP_Y+MAP_CLIP_H-30)
+        return MAP_PAN;
     return MAP_NONE;
 }
