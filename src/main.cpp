@@ -467,6 +467,7 @@ void loop() {
     static bool contractDumped = false;
     if (!contractDumped && millis() > 6000) {
         contractDumped = true;
+        fanet.selfTestTx();   // Ticket D: TX-Encoder byte-genau (kein Funk). Live-TX bleibt gated.
         if (sdcard.ok) {
             if (sdcard.exists("/maps/contract_test_v1.pack"))     dumpPackContract("/maps/contract_test_v1.pack");
             if (sdcard.exists("/maps/contract_bad_magic.pack"))   dumpPackContract("/maps/contract_bad_magic.pack");
@@ -579,7 +580,26 @@ void loop() {
                 bleScreen.draw(&hl);
                 Serial.println("[FUNK] → BLE Screen");
             } else if (fi == FUNK_FANET) {
-                Serial.println("[FUNK] FANET Einstellungen (TODO)");
+                // Ticket D: sicherer Boden-TX-Test — EIN Frame pro Druck, aktuelle Position.
+                // Sicherung: nur am Boden + mit Fix; live geht nur bei FANET_TX_ENABLED==1 raus.
+                char msg[56];
+                if (flight.state == FLIGHT_FLYING) {
+                    snprintf(msg, sizeof(msg), "TX-Test nur am Boden (im Flug: Auto-TX)");
+                } else if (!live.gps_fix || lastGoodLat == 0) {
+                    snprintf(msg, sizeof(msg), "FANET TX-Test: kein GPS-Fix");
+                } else {
+                    fanet.sendTracking(lastGoodLat, lastGoodLon, live.altitude, live.vario,
+                                       live.speed, live.heading, 1);
+#if FANET_TX_ENABLED
+                    snprintf(msg, sizeof(msg), "FANET TX gesendet: %.4f %.4f %.0fm",
+                             lastGoodLat, lastGoodLon, live.altitude);
+#else
+                    snprintf(msg, sizeof(msg), "FANET TX GESPERRT (Flag=0) - Frame im Log");
+#endif
+                }
+                Serial.printf("[FUNK] %s\n", msg);
+                showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
+                               fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0, msg);
             } else if (fi == FUNK_BACK) {
                 currentScreen = SCR_MENU;
                 showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);

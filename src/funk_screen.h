@@ -5,7 +5,8 @@
 enum FunkItem { FUNK_NONE, FUNK_WLAN, FUNK_BLE, FUNK_FANET, FUNK_BACK };
 
 static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
-                           bool fanet_on, int fanet_peers, uint32_t ble_pin = 0) {
+                           bool fanet_on, int fanet_peers, uint32_t ble_pin = 0,
+                           const char *msg = nullptr) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
     char buf[48];
@@ -42,12 +43,16 @@ static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
     } else {
         snprintf(buf, 48, "%s", fanet_on ? "AN" : "AUS");
     }
-    drawHCenter(&ArialBold16, buf, bx + bw/2, bw/2, y2 + 55, fb);
+    drawHCenter(&ArialBold16, buf, bx + bw/2, bw/2, y2 + 48, fb);
+    drawHCenter(&ArialBold16, "tippen = TX-Test", bx + bw/2, bw/2, y2 + 72, fb);
 
     // ZURUECK
     int y3 = y2 + bh + gap + 20;
     uiBox(350, y3, 260, 60, fb);
     drawBoxCenter(&ArialBold24, "ZURUECK", 350, y3, 260, 60, fb);
+
+    // Status-Meldung (z.B. FANET TX-Test) unten
+    if (msg) drawHCenter(&ArialBold16, msg, 0, 960, y3 + 78, fb);
 
     epd_poweron();
     epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
