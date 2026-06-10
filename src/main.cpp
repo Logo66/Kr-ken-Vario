@@ -62,6 +62,7 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "flugbuch.h"
 #include "igc_logger.h"
 #include "fanet.h"
+#include "device_registry.h"   // Ticket C: Self-Registration + NVS-Device-Token (Bearer)
 #include "sd_manager.h"
 #include "funk_screen.h"
 #include "wifi_screen.h"
@@ -351,6 +352,9 @@ void setup() {
     // SD-Karte (geteilter SPI mit LoRa, CS=12)
     sdcard.init();
 
+    // Ticket C: Geraete-Identitaet (MAC + NVS-Token) laden. Registrierung spaeter im Loop bei WLAN.
+    deviceInit();
+
     // Luftraeume von SD parsen (wenn vorhanden)
     if (sdcard.ok && sdcard.exists("/airspace/ch_asp.txt")) {
         parseOpenAir("/airspace/ch_asp.txt");
@@ -464,10 +468,15 @@ void loop() {
     delay(20);  // 50Hz Loop (war 20Hz) — Touch reaktiver
 
     // Contract-Cross-Read einmalig ~6s nach Boot (Serial dann stabil, nicht in der Reenum-Luecke)
+    deviceLoop();      // Ticket C: bei WLAN einmalig registrieren falls kein NVS-Token
+
     static bool contractDumped = false;
     if (!contractDumped && millis() > 6000) {
         contractDumped = true;
         fanet.selfTestTx();   // Ticket D: TX-Encoder byte-genau (kein Funk). Live-TX bleibt gated.
+        Serial.printf("[DEV] (boot) MAC=%s token=%s status=%s\n",
+                      deviceMac, deviceHasToken() ? "JA(NVS)" : "KEINER",
+                      deviceStatus[0] ? deviceStatus : "-");
         if (sdcard.ok) {
             if (sdcard.exists("/maps/contract_test_v1.pack"))     dumpPackContract("/maps/contract_test_v1.pack");
             if (sdcard.exists("/maps/contract_bad_magic.pack"))   dumpPackContract("/maps/contract_bad_magic.pack");

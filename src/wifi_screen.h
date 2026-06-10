@@ -5,6 +5,7 @@
 #include "ui_utils.h"
 #include "keyboard.h"
 #include "sd_manager.h"
+#include "device_registry.h"   // Ticket C: bei Verbindung registrieren + Pairing-Code zeigen
 
 enum WiFiState {
     WIFI_SCANNING,
@@ -111,6 +112,10 @@ public:
             drawHCenter(&ArialBold40, "VERBUNDEN", 0, 960, 200, fb);
             drawHCenter(&ArialBold24, ssid, 0, 960, 250, fb);
             drawHCenter(&ArialBold16, WiFi.localIP().toString().c_str(), 0, 960, 280, fb);
+            {   // Ticket C: Geraete-Status / Pairing-Code (zum Koppeln in der Buddy-App)
+                const char *dev = deviceFunkStatus();
+                if (dev[0]) drawHCenter(&ArialBold16, dev, 0, 960, 312, fb);
+            }
             uiBox(100, 340, 340, 60, fb);
             drawBoxCenter(&ArialBold16, "TRENNEN", 100, 340, 340, 60, fb);
             uiBox(520, 340, 340, 60, fb);
@@ -230,6 +235,7 @@ private:
         if (st == WL_CONNECTED) {
             Serial.printf("[WIFI] OK IP=%s\n", WiFi.localIP().toString().c_str());
             saveCredentials();
+            deviceLoop();   // Ticket C: jetzt registrieren (falls kein NVS-Token) -> Pairing-Code bereit
             state = WIFI_CONNECTED;
         } else {
             const char* reason = (st==WL_NO_SSID_AVAIL) ? "Netz nicht gefunden" :
