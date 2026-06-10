@@ -1,5 +1,6 @@
 #pragma once
 #include "ui_utils.h"
+#include "sd_manager.h"
 
 static const int MAX_FLIGHTS = 20;
 
@@ -20,11 +21,31 @@ public:
         if (count < MAX_FLIGHTS) flights[count++] = f;
         else { for(int i=0;i<MAX_FLIGHTS-1;i++) flights[i]=flights[i+1]; flights[MAX_FLIGHTS-1]=f; }
     }
-    void addDemoFlights() {
-        FlightRecord f1={2026,6,7,14,23,4320,2847,489,340,280,12400,8200,true};
-        FlightRecord f2={2026,6,6,11,45,2280,1650,520,280,220,5800,3100,true};
-        FlightRecord f3={2026,6,5,15,2,7500,3120,470,420,350,28500,15600,true};
-        addFlight(f1); addFlight(f2); addFlight(f3);
+    // Persistenz auf SD (/igc/flugbuch.dat) — ganze Liste binaer
+    void save(SDManager *sd) {
+        if (!sd || !sd->ok) return;
+        File f = sd->openWrite("/igc/flugbuch.dat");   // FILE_WRITE -> neu schreiben
+        if (!f) { Serial.println("[FLUGBUCH] save FAIL"); return; }
+        f.write((const uint8_t*)&count, sizeof(count));
+        if (count > 0) f.write((const uint8_t*)flights, sizeof(FlightRecord) * count);
+        f.close();
+        Serial.printf("[FLUGBUCH] gespeichert: %d Fluege\n", count);
+    }
+    void load(SDManager *sd) {
+        count = 0;
+        if (!sd || !sd->ok || !sd->exists("/igc/flugbuch.dat")) {
+            Serial.println("[FLUGBUCH] keine Datei -> leer");
+            return;
+        }
+        File f = sd->openRead("/igc/flugbuch.dat");
+        if (!f) return;
+        int c = 0;
+        if (f.read((uint8_t*)&c, sizeof(c)) == (int)sizeof(c) && c >= 0 && c <= MAX_FLIGHTS) {
+            count = c;
+            if (count > 0) f.read((uint8_t*)flights, sizeof(FlightRecord) * count);
+        }
+        f.close();
+        Serial.printf("[FLUGBUCH] geladen: %d Fluege\n", count);
     }
 };
 

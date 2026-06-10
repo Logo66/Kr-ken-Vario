@@ -50,11 +50,18 @@ public:
         return true;
     }
 
-    // Datei streamen (fuer grosse Downloads)
+    // Datei streamen (fuer grosse Downloads) — FILE_WRITE = neu/ueberschreiben
     File openWrite(const char *path) {
         if (!ok) return File();
         digitalWrite(BOARD_LORA_CS, HIGH);
         return SD.open(path, FILE_WRITE);
+    }
+
+    // Anhaengen (fuer IGC-B-Records) — FILE_APPEND, kuerzt NICHT
+    File openAppend(const char *path) {
+        if (!ok) return File();
+        digitalWrite(BOARD_LORA_CS, HIGH);
+        return SD.open(path, FILE_APPEND);
     }
 
     // Datei lesen

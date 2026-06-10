@@ -60,6 +60,7 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "qnh_screen.h"
 #include "flight_detect.h"
 #include "flugbuch.h"
+#include "igc_logger.h"
 #include "fanet.h"
 #include "sd_manager.h"
 #include "funk_screen.h"
@@ -72,6 +73,7 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 static TouchManager touch;
 static FlightDetector flight;
 static Flugbuch flugbuch;
+static IgcLogger igc;
 static ThermalManager thermal;
 static FanetRadio fanet;
 static SDManager sdcard;
@@ -95,6 +97,7 @@ static KalmanVario kf;
 
 // --- Zustand ---
 static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=false;
+static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im Flug
 static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
 
@@ -188,6 +191,28 @@ static bool rawSHT45(float *temp, float *rh) {
     *rh = -6.0f + 125.0f * (float)h_raw / 65535.0f;
     if (*rh > 100) *rh = 100; if (*rh < 0) *rh = 0;
     return true;
+}
+
+// === LSM6DSO32 Beschleunigung (raw I2C, 0x6A) ===
+static bool lsm6Init() {
+    uint8_t who = 0;
+    if (!rawI2C(ADDR_LSM6DSO32, 0x0F, &who, 1)) { Serial.println("[LSM6] keine Antwort"); return false; }
+    if (who != 0x6C) { Serial.printf("[LSM6] WHO_AM_I=0x%02X (erwartet 0x6C)\n", who); return false; }
+    uint8_t cfg[2] = { 0x10, 0x4C };   // CTRL1_XL: ODR 104 Hz, FS +-16 g
+    if (i2c_master_write_to_device(I2C_NUM_0, ADDR_LSM6DSO32, cfg, 2, pdMS_TO_TICKS(50)) != ESP_OK) {
+        Serial.println("[LSM6] config FAIL"); return false;
+    }
+    Serial.println("[LSM6] init OK (104 Hz, +-16 g)");
+    return true;
+}
+// Gesamt-Beschleunigung (Betrag) in g
+static float lsm6ReadG() {
+    uint8_t d[6];
+    if (!rawI2C(ADDR_LSM6DSO32, 0x28, d, 6)) return -1.0f;   // OUTX_L_A..OUTZ_H_A (auto-increment)
+    int16_t ax=(int16_t)(d[0]|(d[1]<<8)), ay=(int16_t)(d[2]|(d[3]<<8)), az=(int16_t)(d[4]|(d[5]<<8));
+    const float S = 0.488f/1000.0f;   // +-16 g: 0.488 mg/LSB -> g
+    float gx=ax*S, gy=ay*S, gz=az*S;
+    return sqrtf(gx*gx + gy*gy + gz*gz);
 }
 
 // === RTC (vor Wire.end) ===
@@ -352,12 +377,14 @@ void setup() {
         Serial.printf("[QNH] raw P=%.0f — unplausibel, skip\n", p_cal);
     }
 
+    // LSM6DSO32 Beschleunigung in Betrieb nehmen (raw I2C, nach Wire.end)
+    lsm_ok = lsm6Init();
+
     // Touch init (GT911 ueber raw I2C)
     touch.init();
 
-    // Flugbuch Demo-Daten
-    flugbuch.addDemoFlights();
-    Serial.printf("[FLUGBUCH] %d Demo-Fluege geladen\n", flugbuch.count);
+    // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
+    flugbuch.load(&sdcard);
 
     // Kalman init
     kf.init(live.altitude);
@@ -414,6 +441,15 @@ void loop() {
         }
     }
 
+    // LSM6 Beschleunigung (G) — aktuell + Spitze im Flug
+    if (lsm_ok) {
+        float g = lsm6ReadG();
+        if (g >= 0) {
+            g_now = g;
+            if (flight.state == FLIGHT_FLYING && g > g_max_flight) g_max_flight = g;
+        }
+    }
+
     // SHT45 raw read (alle 5s)
     static unsigned long lastSHT=0;
     if (millis()-lastSHT > 5000) {
@@ -442,10 +478,10 @@ void loop() {
     // Serial alle 5s
     if (millis()-lastPrint >= 5000) {
         lastPrint = millis();
-        Serial.printf("[%02d:%02d] V=%+.1f Alt=%.0f GPS:%s s=%d ok=%lu fail=%lu bytes=%lu\n",
+        Serial.printf("[%02d:%02d] V=%+.1f Alt=%.0f GPS:%s s=%d G=%.2f ok=%lu fail=%lu bytes=%lu\n",
                        live.rtc_hour, live.rtc_min,
                        live.vario, live.altitude,
-                       live.gps_fix?"FIX":"---", live.sats,
+                       live.gps_fix?"FIX":"---", live.sats, g_now,
                        gps.passedChecksum(), gps.failedChecksum(),
                        gps_total_bytes);
     }
@@ -453,8 +489,14 @@ void loop() {
     // === FLUG-ERKENNUNG ===
     flight.update(live.speed, live.vario, live.altitude, live.gps_fix, live.sats);
 
-    // Start erkannt → Meldung auf Display (zentriert, berechnet)
+    // Im Flug: IGC-Punkt loggen (intern auf ~2s gedrosselt)
+    if (flight.state == FLIGHT_FLYING)
+        igc.logPoint(&sdcard, gps, live.altitude, live.vario);
+
+    // Start erkannt → IGC-Datei oeffnen + Meldung auf Display
     if (flight.justStarted()) {
+        igc.start(&sdcard, gps, live.altitude, "Ivo Eichenberger", "Paraglider");
+        g_max_flight = 0;   // G-Spitze fuer diesen Flug zuruecksetzen
         uint8_t *fb = epd_hl_get_framebuffer(&hl);
         epd_hl_set_all_white(&hl);
         // "START" oben gross, "ERKANNT" darunter, alles zentriert
@@ -473,20 +515,25 @@ void loop() {
 
     // Landung erkannt → Flug speichern + Lande-Screen
     if (flight.state == FLIGHT_LANDED && currentScreen != SCR_LANDING) {
-        // Flug-Record erstellen
+        igc.end();   // IGC-Datei abschliessen, Statistik steht bereit
+
+        // Flug-Record aus ECHTEN Werten (GPS-Datum, IGC-Statistik)
         FlightRecord rec = {};
-        rec.year = 2026; rec.month = 6; rec.day = 8; // TODO: aus RTC
+        if (gps.date.isValid()) { rec.year = gps.date.year(); rec.month = gps.date.month(); rec.day = gps.date.day(); }
+        else { rec.year = 2026; rec.month = 1; rec.day = 1; }
         rec.hour = live.rtc_hour; rec.minute = live.rtc_min;
-        rec.duration_sec = flight.flightDurationSec();
-        rec.max_alt = (int16_t)flight.max_altitude;
-        rec.start_alt = (int16_t)flight.start_altitude;
-        rec.max_climb = 0; // TODO: max_climb tracken
-        rec.track_dist_m = 0; // TODO: GPS-Spur berechnen
-        rec.straight_dist_m = 0; // TODO: Luftlinie berechnen
+        rec.duration_sec   = flight.flightDurationSec();
+        rec.max_alt        = (int16_t)igc.max_alt;
+        rec.start_alt      = (int16_t)igc.start_alt;
+        rec.max_climb      = (int16_t)(igc.max_climb * 100.0f);   // m/s ×100
+        rec.max_g          = (int16_t)(g_max_flight * 100.0f);   // LSM6 ×100 (z.B. 320 = 3.2g)
+        rec.track_dist_m   = (uint32_t)igc.track_dist_m;
+        rec.straight_dist_m= (uint32_t)igc.straight_dist_m;
         rec.valid = true;
         flugbuch.addFlight(rec);
-        Serial.printf("[FLUG] Gespeichert: %dmin, max %dm\n",
-                       rec.duration_sec/60, rec.max_alt);
+        flugbuch.save(&sdcard);                                   // FEST auf SD persistieren
+        Serial.printf("[FLUG] Gespeichert: %dmin, max %dm, Spur %.1fkm\n",
+                       rec.duration_sec/60, rec.max_alt, igc.track_dist_m/1000.0);
 
         currentScreen = SCR_LANDING;
         showLandingScreen(&hl, live.altitude, live.rtc_hour, live.rtc_min);
