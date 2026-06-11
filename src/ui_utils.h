@@ -69,3 +69,42 @@ static void uiBox(int x, int y, int w, int h, uint8_t *fb) {
     uiFill(x, y, 4, h, fb);           // links
     uiFill(x + w - 4, y, 4, h, fb);   // rechts
 }
+
+// === EINHEITLICHE STATUSLEISTE (alle Flug-Screens) ===========================
+// Reihenfolge: Uhr | Sat | FANET | Buddy | Batterie
+// "Buddy" = Verbindung zum Buddy-Server (eine Verbindung, ein Kreis).
+// Eigener Dot-Helfer (sbDot) -> kein Konflikt mit den per-Screen fillCircle/drawCircle.
+static void sbDot(int cx, int cy, int r, bool filled, uint8_t *fb) {
+    for (int y=-r; y<=r; y++)
+        for (int x=-r; x<=r; x++) {
+            int dd = x*x + y*y;
+            if (filled ? (dd <= r*r) : (dd <= r*r && dd >= (r-2)*(r-2)))
+                uiFill(cx+x, cy+y, 1, 1, fb);
+        }
+}
+
+// Gemeinsamer Status-Zustand — main.cpp fuellt ihn 1x pro Loop, jeder Screen liest ihn.
+// "server" = Verbindung zum Buddy-Server (treibt den Buddy-Kreis).
+struct StatusBarState { int hh=0, mm=0, sats=0, fanet=0, bat=0; bool server=false; };
+static StatusBarState g_status;
+
+static void statusBarSet(int hh, int mm, int sats, int fanet, bool server, int bat) {
+    g_status.hh=hh; g_status.mm=mm; g_status.sats=sats; g_status.fanet=fanet;
+    g_status.server=server; g_status.bat=bat;
+}
+
+// Zeichnet die EINHEITLICHE Statusleiste oben — auf JEDEM Screen identisch.
+static void drawStatusBar(uint8_t *fb) {
+    char b[24];
+    snprintf(b, 24, "%02d:%02d", g_status.hh, g_status.mm);
+    drawText(&ArialBold16, b, 22, 38, fb);                                  // Uhr (links)
+    snprintf(b, 24, "Sat %d", g_status.sats);
+    drawText(&ArialBold16, b, 150, 38, fb);                                 // Sat (Zahl, keine Punkte-Reihe)
+    snprintf(b, 24, "FANET %d", g_status.fanet);
+    drawText(&ArialBold16, b, 332, 38, fb);                                 // FANET
+    // Buddy-Server-Verbindung = EINE Verbindung -> nur "Buddy" + ein Kreis
+    sbDot(494, 29, 8, g_status.server, fb); drawText(&ArialBold16, "BUDDY", 510, 38, fb);
+    uiBox(866,16,58,26,fb); uiFill(924,22,7,14,fb);
+    uiFill(870,20,(int)(42.0f*g_status.bat/100.0f),18,fb);                  // Batterie (rechts)
+    uiHLine(14, 48, 932, fb);                                               // Trennlinie (kompakt: Platz fuer Cruise/Thermik)
+}

@@ -17,6 +17,8 @@
 #include "goal_screen.h"
 #include "map_screen.h"
 #include "xsection_screen.h"
+#include "sound_settings.h"
+#include "sound_screen.h"
 #include "pack_reader.h"
 
 // Forward-Declarations (definiert weiter unten nach globalen Variablen)
@@ -61,6 +63,7 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "flight_detect.h"
 #include "flugbuch.h"
 #include "igc_logger.h"
+#include "igc_server.h"
 #include "fanet.h"
 #include "device_registry.h"   // Ticket C: Self-Registration + NVS-Device-Token (Bearer)
 #include "sd_manager.h"
@@ -103,7 +106,7 @@ static CruiseData live = {};
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
-enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_XSECTION, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY, SCR_BLE };
+enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_XSECTION, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY, SCR_BLE, SCR_SOUND };
 static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
 
@@ -161,6 +164,18 @@ static void updateGoalData() {
     goalLive.buddy_connected = false;
     goalLive.buddy_hint = NULL;
 }
+
+// === Ton-Menue: Zustand + Helfer zum Neuzeichnen des Flug-Screens =============
+static Screen        soundReturnScreen = SCR_CRUISE;   // wohin nach dem Schliessen
+static unsigned long soundLastActivity = 0;            // fuer Auto-Close (5 s)
+static void drawFlightScreen(Screen s, enum EpdDrawMode mode) {
+    if (s==SCR_CRUISE) showCruiseScreen(&hl, live, mode);
+    else if (s==SCR_THERMAL) { if(!thermal.active) thermal.start(live.altitude); showThermalScreen(&hl, thermal.data, mode); }
+    else if (s==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive, mode); }
+    else if (s==SCR_MAP) { MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,false,live.gps_fix}; showMapScreen(&hl, md); }
+    else if (s==SCR_XSECTION) { XSectionData xd={lastGoodLat,lastGoodLon,live.altitude,live.heading,live.speed,goalLive.gr_current,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,live.gps_fix}; showXSectionScreen(&hl, xd); }
+}
+
 static float qnh_ref_alt = 489.0f;  // Referenzhoehe fuer QNH (kalibrierbar)
 static unsigned long rtc_boot_millis=0;
 static int rtc_boot_seconds=0;
@@ -397,6 +412,7 @@ void setup() {
 
     // Touch init (GT911 ueber raw I2C)
     touch.init();
+    soundSettingsLoad();   // Ton-Einstellungen (Lautstaerke/Stumm) aus NVS
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
@@ -479,7 +495,13 @@ void loop() {
     delay(20);  // 50Hz Loop (war 20Hz) — Touch reaktiver
 
     // Contract-Cross-Read einmalig ~6s nach Boot (Serial dann stabil, nicht in der Reenum-Luecke)
+    igcServerLoop();   // WLAN-Webserver fuer IGC-Download (laeuft nur wenn WLAN verbunden)
     deviceLoop();      // Ticket C: bei WLAN einmalig registrieren falls kein NVS-Token
+
+    // Einheitliche Statusleiste 1x pro Loop fuellen (alle Screens lesen denselben Zustand):
+    // Uhr | Sat | FANET | Buddy | Batterie  (Buddy-Kreis = Verbindung zum Buddy-Server)
+    statusBarSet(live.rtc_hour, live.rtc_min, live.sats, fanet.pilot_count,
+                 /*Buddy-Server-Verbindung*/ deviceServerOk, live.bat_pct);
 
     // K5: Tile-Fenster nachladen, wenn Position > 7 km vom geladenen Zentrum (Karte folgt Bewegung)
     static unsigned long lastReloadChk = 0;
@@ -506,6 +528,14 @@ void loop() {
                       (int)SD.exists("/maps/region_ch_v1.pack"),
                       (int)SD.exists("/maps/region_hoernli_v2.pack"),
                       peak_count, contour_count, packCenterLat, packCenterLon);
+        // T1-Selbsttest (Ticket Terrain-Schnitt): Geländehöhe an Zentrum + 2/5 km Nord plausibel?
+        {
+            float te0 = terrainElevAt(parseCenterLat, parseCenterLon);
+            float te2 = terrainElevAt(parseCenterLat + 2.0/111.0, parseCenterLon);
+            float te5 = terrainElevAt(parseCenterLat + 5.0/111.0, parseCenterLon);
+            Serial.printf("[XSEC] Terrain @0/+2/+5km = %.0f / %.0f / %.0f m (Niederneunforn-Gegend ~400-700)\n",
+                          te0, te2, te5);
+        }
         if (sdcard.ok) {
             if (sdcard.exists("/maps/contract_test_v1.pack"))     dumpPackContract("/maps/contract_test_v1.pack");
             if (sdcard.exists("/maps/contract_bad_magic.pack"))   dumpPackContract("/maps/contract_bad_magic.pack");
@@ -747,6 +777,25 @@ void loop() {
                 Serial.println("[LAND] HILFE → FANET Notruf (TODO)");
             }
         }
+    } else if (currentScreen == SCR_SOUND) {
+        // Flug-Ton-Menue: Tipp = Lautstaerke weiter, Lang = OK/schliessen, Auto-Close nach 5 s
+        if (g == GEST_TAP) {
+            g_sound.volume = (uint8_t)((g_sound.volume + 1) % (SND_VOL_MAX + 1));  // 0..5 Umlauf
+            soundLastActivity = millis();
+            showSoundScreen(&hl, MODE_DU);                 // sofortiges sichtbares Feedback
+        } else if (g == GEST_LONG_TAP || g == GEST_HOME || g == GEST_HOME_LONG) {  // Home-Knopf schliesst auch
+            soundSettingsSave();
+            currentScreen = soundReturnScreen;
+            drawFlightScreen(currentScreen, MODE_GC16);
+            lastDisplay = millis();
+            Serial.println("[SOUND] geschlossen (OK)");
+        } else if (millis() - soundLastActivity > 5000) {  // Auto-Close
+            soundSettingsSave();
+            currentScreen = soundReturnScreen;
+            drawFlightScreen(currentScreen, MODE_GC16);
+            lastDisplay = millis();
+            Serial.println("[SOUND] Auto-Close");
+        }
     } else {
         // Cruise/Thermik: Swipe = wechseln, Long-Tap = Menu
         if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
@@ -833,6 +882,20 @@ void loop() {
             currentScreen = SCR_MENU;
             Serial.println("[MENU] Geoeffnet");
             showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count, fromMapM ? MODE_GC16 : MODE_DU);
+            lastDisplay = millis();
+        } else if (g == GEST_HOME) {
+            // Autonomer kapazitiver Knopf UNTER dem Screen: KURZ -> Ton-Menue
+            soundReturnScreen = currentScreen;
+            currentScreen = SCR_SOUND;
+            soundLastActivity = millis();
+            showSoundScreen(&hl, MODE_GC16);
+            Serial.println("[SOUND] Ton-Menue geoeffnet (Home-Knopf kurz)");
+        } else if (g == GEST_HOME_LONG) {
+            // ... und LANG -> Hauptmenue (alle Menues an einem Ort, Ivo)
+            bool fromMapL = (currentScreen == SCR_MAP);
+            currentScreen = SCR_MENU;
+            Serial.println("[MENU] Geoeffnet (Home-Knopf lang)");
+            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count, fromMapL ? MODE_GC16 : MODE_DU);
             lastDisplay = millis();
         }
     }

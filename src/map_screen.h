@@ -363,14 +363,16 @@ struct MapData {
 };
 
 // === HOEHENLINIEN (Konturen als Polylinien) — Daten aus contours.h ===
+// Nur flag 0 (normal) + 1 (Index). flag>=2 (Wasser/Strassen) haben eigene Layer.
 static void drawContours(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
     if (!contPool) return;
     for (int c = 0; c < contour_count; c++) {
         const Contour &ct = contours[c];
         if (ct.num_pts < 2) continue;
+        if (ct.flag >= 2) continue;                  // Wasser(2)/Strassen(3) -> eigene Layer
         // Lesbarkeit (Ticket §5): bei hohem Zoom nur Index-Konturen
         if (ZOOM_M[zoomIdx] >= 5000 && ct.flag == 0) continue;
-        int thick = (ct.flag == 1) ? 2 : 1;          // Index dicker, normal duenn
+        int thick = (ct.flag == 1) ? 2 : 1;          // Index dicker, normal duenn (1.5 px)
         const ContourPt *pts = contPoints(ct);
         int prev_sx = 0, prev_sy = 0;
         for (int i = 0; i < ct.num_pts; i++) {
@@ -378,6 +380,25 @@ static void drawContours(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
             projectToScreen(myLat, myLon, pts[i].lat, pts[i].lon, zoomIdx, &sx, &sy);
             if (i > 0 && (inClip(prev_sx, prev_sy) || inClip(sx, sy)))
                 drawThickLine(prev_sx, prev_sy, sx, sy, thick, fb);
+            prev_sx = sx; prev_sy = sy;
+        }
+    }
+}
+
+// === WASSER-LAYER (flag=2) — Anker-Ticket R1: dicke 1-bit-Uferlinie, klar > Hoehenlinien ===
+// KEINE Farbe, KEINE Flaechen-Schraffur (Stufe 1). Unterscheidung allein ueber Strichbreite.
+static void drawWater(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
+    if (!contPool) return;
+    for (int c = 0; c < contour_count; c++) {
+        const Contour &ct = contours[c];
+        if (ct.flag != 2 || ct.num_pts < 2) continue;
+        const ContourPt *pts = contPoints(ct);
+        int prev_sx = 0, prev_sy = 0;
+        for (int i = 0; i < ct.num_pts; i++) {
+            int sx, sy;
+            projectToScreen(myLat, myLon, pts[i].lat, pts[i].lon, zoomIdx, &sx, &sy);
+            if (i > 0 && (inClip(prev_sx, prev_sy) || inClip(sx, sy)))
+                drawThickLine(prev_sx, prev_sy, sx, sy, 3, fb);   // dicke Uferlinie
             prev_sx = sx; prev_sy = sy;
         }
     }
@@ -416,25 +437,8 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     // vorherigen Screen ueberschreiben, sonst Ghosting. (memset war nur fuer Raster-Tiles.)
     char buf[32];
 
-    // === STATUSBAR (Akku bei x700, nicht x866 — Ticket §3 Karte) ===
-    snprintf(buf,32,"%02d:%02d",d.rtc_hour,d.rtc_min);
-    drawText(&ArialBold16, buf, 22, 38, fb);
-    for(int i=0;i<11;i++){
-        int cx=150+i*15;
-        if(i<d.sats) fillCircle(cx,29,5,fb);
-        else drawCircle(cx,29,5,fb);
-    }
-    snprintf(buf,32,"FANET %d",d.fanet_peers);
-    drawText(&ArialBold16, buf, 332, 38, fb);
-
-    // Akku rechts (volle Breite jetzt verfuegbar)
-    uiBox(866,16,58,26,fb);
-    uiFill(924,22,7,14,fb);
-    uiFill(870,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
-    snprintf(buf,32,"%d%%",d.bat_pct);
-    drawText(&ArialBold16, buf, 770, 38, fb);
-
-    uiHLine(14, 54, 932, fb);
+    // === EINHEITLICHE STATUSLEISTE (Uhr | Sat | FANET | Buddy | Server | Batterie) ===
+    drawStatusBar(fb);
 
     // Karte edge-to-edge, kein Rahmen noetig
 
@@ -482,9 +486,10 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
         }
     }
 
-    // === HOEHENLINIEN (Konturen — unter Luftraum/Gipfel) ===
+    // === HOEHENLINIEN (Konturen — unter Wasser/Luftraum/Gipfel) ===
     if (haveCenter && contour_count > 0) {
         drawContours(cLat, cLon, mapZoomIdx, fb);
+        drawWater(cLat, cLon, mapZoomIdx, fb);   // Wasser ueber Hoehenlinien (Anker R1, dick)
     }
 
     // === LUFTRAEUME (Vektor-Polygone, dicke Linien) ===
@@ -595,19 +600,8 @@ static void updateMapOverlay(EpdiyHighlevelState *hl, const MapData &d) {
     }
     char buf[32];
 
-    // Statusbar
-    snprintf(buf,32,"%02d:%02d",d.rtc_hour,d.rtc_min);
-    drawText(&ArialBold16, buf, 22, 38, fb);
-    for(int i=0;i<11;i++){
-        int cx=150+i*15;
-        if(i<d.sats) fillCircle(cx,29,5,fb);
-        else drawCircle(cx,29,5,fb);
-    }
-    snprintf(buf,32,"FANET %d",d.fanet_peers);
-    drawText(&ArialBold16, buf, 332, 38, fb);
-    uiBox(866,16,58,26,fb); uiFill(924,22,7,14,fb);
-    uiFill(870,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
-    uiHLine(14, 54, 932, fb);
+    // === EINHEITLICHE STATUSLEISTE (Uhr | Sat | FANET | Buddy | Server | Batterie) ===
+    drawStatusBar(fb);
 
     // Kein Rahmen — Karte edge-to-edge
 

@@ -13,7 +13,7 @@
 
 // Gesten
 enum Gesture { GEST_NONE, GEST_TAP, GEST_SWIPE_LEFT, GEST_SWIPE_RIGHT,
-               GEST_SWIPE_UP, GEST_SWIPE_DOWN, GEST_LONG_TAP };
+               GEST_SWIPE_UP, GEST_SWIPE_DOWN, GEST_LONG_TAP, GEST_HOME, GEST_HOME_LONG };
 
 class TouchManager {
 public:
@@ -33,11 +33,39 @@ public:
     // Im Loop aufrufen — erkennt Gesten
     Gesture poll() {
         if (!_ready) return GEST_NONE;
+        if (_homeWas && millis() - _homeT0 > 5000) _homeWas = false;  // Home-Key Auto-Release (Sicherung)
 
         // Status lesen
         uint8_t status = 0;
         if (!gt911Read(GT911_STATUS_REG, &status, 1)) return GEST_NONE;
         if (!(status & 0x80)) return GEST_NONE;  // Kein neuer Touch
+
+        // === HOME-KEY: autonomer kapazitiver Knopf UNTER dem Screen (nicht der x/y-Touchbereich) ===
+        // GT911 meldet ihn im SELBEN Status-Register 0x814E, Bit 4 (0x10) = HAVE_KEY.
+        // KURZER Druck -> GEST_HOME (Ton-Menue) · LANGER Druck (>=1.5s) -> GEST_HOME_LONG (Hauptmenue).
+        bool homeNow = (status & 0x10);
+        if (homeNow && !_homeWas) {                 // Druck: Timer starten (noch nicht ausloesen)
+            _homeWas = true; _homeFired = false; _homeT0 = millis();
+            Serial.println("[HOMEKEY] DOWN");
+            gt911Clear();
+            return GEST_NONE;
+        }
+        if (homeNow && _homeWas && !_homeFired && millis() - _homeT0 >= 1500) {
+            _homeFired = true;                       // weiter gehalten -> Hauptmenue (sofort)
+            Serial.println("[HOMEKEY] LANG -> GEST_HOME_LONG");
+            gt911Clear();
+            return GEST_HOME_LONG;
+        }
+        if (!homeNow && _homeWas) {                  // Loslassen
+            _homeWas = false;
+            unsigned long hdt = millis() - _homeT0;
+            gt911Clear();
+            if (!_homeFired) {                       // kurzer Druck -> Ton-Menue
+                Serial.printf("[HOMEKEY] KURZ %lums -> GEST_HOME\n", hdt);
+                return GEST_HOME;
+            }
+            return GEST_NONE;                        // langer Druck schon ausgeloest
+        }
 
         int touches = status & 0x0F;
 
@@ -53,6 +81,7 @@ public:
             // Touch-Up → Geste auswerten
             _touching = false;
             unsigned long dt = millis() - _t0;
+            _lastDt = dt;                          // Haltedauer der letzten Geste (fuer Ton-Menue-Schwelle)
 
             // Display-Koordinaten (transformiert)
             int dx = _ylast - _y0;         // GT911 Y-Diff → Display X-Diff
@@ -91,6 +120,7 @@ public:
     }
 
     bool ready() { return _ready; }
+    unsigned long lastDt() { return _lastDt; }   // Haltedauer der zuletzt erkannten Geste (ms)
 
     // GT911 meldet Portrait (540x960), Display ist Landscape (960x540)
     // Transform: display_x = gt911_y, display_y = 540 - gt911_x
@@ -102,6 +132,10 @@ private:
     bool _touching = false;
     int _x0=0, _y0=0, _xlast=0, _ylast=0;
     unsigned long _t0=0;
+    unsigned long _lastDt=0;
+    bool _homeWas=false;            // Home-Key Druck-Zustand (Flankenerkennung)
+    bool _homeFired=false;          // langer Druck bereits ausgeloest?
+    unsigned long _homeT0=0;
 
     bool gt911Read(uint16_t reg, uint8_t *buf, size_t len) {
         uint8_t regbuf[2] = {(uint8_t)(reg>>8), (uint8_t)(reg&0xFF)};

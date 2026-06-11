@@ -1,9 +1,60 @@
 #pragma once
-// xsection_screen.h — AURA-KRUECKE-7: Luftraum-Schnitt (Seitenansicht), Stufe 1
-// Layout: Y-Achse mit Rand (nicht abgeschnitten), Chart schmaler, Daten-Spalte rechts ohne Kollision.
+// xsection_screen.h — AURA-KRUECKE-7: Luftraum-Schnitt (Seitenansicht)
+// Stufe 1: Hoehe/Distanz/Luftraum/Gleitpfad/Konflikt. Stufe 2: Terrain-Profil (Silhouette).
 #include "ui_utils.h"
 #include "openair_parser.h"
+#include "contours.h"     // Stufe 2: Geländehöhe aus Höhenlinien (Lookup)
 #include <math.h>
+
+// === TERRAIN-LOOKUP (Stufe 2) — Geländehöhe aus den geladenen Höhenlinien ===
+// Pack hat kein Höhenraster -> Weg (b): naechste Terrain-Kontur (flag 0/1) liefert die Höhe.
+// "Hilfe, keine Gewähr" (Daten ab 25 m, nicht vollstaendig). Gilt nur im geladenen Tile-Fenster.
+static float terrainElevAt(double plat, double plon) {
+    if (!contPool || contour_count == 0) return -9999.0f;
+    // Die zwei naechsten Kontur-Punkte UNTERSCHIEDLICHER Hoehe -> dazwischen interpolieren.
+    float d1 = 1e18f, d2 = 1e18f;
+    int16_t h1 = -32000, h2 = -32000;
+    for (int c = 0; c < contour_count; c++) {
+        const Contour &ct = contours[c];
+        if (ct.flag >= 2) continue;                 // nur Terrain (kein Wasser/Strasse)
+        int16_t h = ct.height_m;
+        const ContourPt *pts = contPoints(ct);
+        for (int i = 0; i < ct.num_pts; i++) {
+            float dlat = (float)(pts[i].lat - plat);
+            float dlon = (float)(pts[i].lon - plon);
+            float dsq = dlat*dlat + dlon*dlon;
+            if (dsq < d1) {
+                if (h != h1) { d2 = d1; h2 = h1; }   // alter Bester -> Zweiter (andere Hoehe)
+                d1 = dsq; h1 = h;
+            } else if (dsq < d2 && h != h1) {
+                d2 = dsq; h2 = h;
+            }
+        }
+    }
+    if (h1 == -32000 || d1 > 1.6e-4f) return -9999.0f;    // >~1.3 km weg -> keine Daten
+    if (h2 == -32000) return (float)h1;                   // nur eine Hoehe gefunden
+    float dd1 = sqrtf(d1), dd2 = sqrtf(d2);
+    return (float)h1 + ((float)h2 - (float)h1) * (dd1 / (dd1 + dd2));  // interpolieren
+}
+
+// Profil entlang des Heading-Strahls (0..10 km), gecacht (nur bei Bewegung/Drehung neu).
+static const int TP_N = 50;
+static int16_t terrainProfile[TP_N];
+static double  tpLat = 0, tpLon = 0; static float tpHdg = -999.0f;
+static void terrainProfileCompute(double lat, double lon, float heading) {
+    double dlat=(lat-tpLat)*111000.0, dlon=(lon-tpLon)*111000.0*cos(lat*M_PI/180.0);
+    if (tpHdg>-900.0f && dlat*dlat+dlon*dlon < 300.0*300.0 && fabsf(heading-tpHdg)<12.0f) return; // Cache
+    tpLat=lat; tpLon=lon; tpHdg=heading;
+    float hrad = heading * (float)M_PI/180.0f;
+    double clat = cos(lat*M_PI/180.0);
+    for (int s = 0; s < TP_N; s++) {
+        float distKm = (s + 0.5f) * (10.0f / TP_N);
+        double plat = lat + (distKm * cosf(hrad)) / 111.0;
+        double plon = lon + (distKm * sinf(hrad)) / (111.0 * clat);
+        float e = terrainElevAt(plat, plon);
+        terrainProfile[s] = (e > -9999.0f) ? (int16_t)e : -9999;
+    }
+}
 
 struct XSectionData {
     double lat, lon;
@@ -66,23 +117,15 @@ static void showXSectionScreen(EpdiyHighlevelState *hl, const XSectionData &d,
     epd_hl_set_all_white(hl);
     char buf[48];
 
-    // === STATUSBAR ===
-    snprintf(buf,48,"%02d:%02d", d.rtc_hour, d.rtc_min);
-    drawText(&ArialBold16, buf, 22, 38, fb);
-    for (int i=0;i<11;i++){ int cx=150+i*15; if(i<d.sats) xsCircFill(cx,29,5,fb); else xsCircRing(cx,29,5,fb); }
-    snprintf(buf,48,"FANET %d", d.fanet_peers);
-    drawText(&ArialBold16, buf, 332, 38, fb);
-    uiBox(866,16,58,26,fb); uiFill(924,22,7,14,fb);
-    uiFill(870,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
-    uiHLine(14, 54, 932, fb);
+    // === EINHEITLICHE STATUSLEISTE (Uhr | Sat | FANET | Buddy | Server | Batterie) ===
+    drawStatusBar(fb);
 
     // === TITEL ===
-    xsTriRight(46, 92, 14, fb);
     snprintf(buf,48,"LUFTRAUM VORAUS  %d", (int)d.heading);
-    drawText(&ArialBold28, buf, 54, 100, fb);
+    drawText(&ArialBold28, buf, 40, 100, fb);                        // Dreieck geloescht, Titel etwas nach links
 
     // === CHART-RAHMEN + ACHSEN ===
-    uiBox(20, 112, 580, 415, fb);
+    uiBox(14, 112, 610, 415, fb);                                    // rechts bis zur Daten-Trennlinie -> "10" frei, keine Doppellinie
     const int yv[]={3000,2000,1000,0};
     const char* yl[]={"3000","2000","1000","GND"};
     for(int k=0;k<4;k++){
@@ -99,6 +142,18 @@ static void showXSectionScreen(EpdiyHighlevelState *hl, const XSectionData &d,
     }
     drawText(&ArialBold16, "km", 330, 522, fb);                      // einmal, mittig unter den Zahlen
 
+    // === TERRAIN-PROFIL (Stufe 2) — FETTE RELIEF-LINIE (kein Fuellen -> schlank, kein Brei) ===
+    terrainProfileCompute(d.lat, d.lon, d.heading);
+    int tpx = -1, tpy = 0;
+    for (int s = 0; s < TP_N; s++) {
+        if (terrainProfile[s] <= -9999) continue;                    // Luecke -> ueberbruecken (Linie durch)
+        float distKm = (s + 0.5f) * (10.0f / TP_N);
+        int sx = xsX(distKm);
+        int sy = xsY((float)terrainProfile[s]); if (sy<118) sy=118; if (sy>492) sy=492;
+        if (tpx >= 0) xsLine(tpx, tpy, sx, sy, 4, false, fb);         // fette, durchgezogene Relief-Linie
+        tpx = sx; tpy = sy;
+    }
+
     // === LUFTRAUM VORAUS ===
     AheadResult ah; ah.found=false; ah.idx=-1; ah.dist_km=0; ah.floor_m=0; ah.ceil_m=0;
     if (d.lat != 0) ah = airspaceAhead(d.lat, d.lon, d.heading);
@@ -114,7 +169,7 @@ static void showXSectionScreen(EpdiyHighlevelState *hl, const XSectionData &d,
         for(int hx=bx0; hx<582; hx+=12)
             for(int s=0;s<9;s++){ int px=hx+s, py=yfloor+3+s; if(px<586 && py<492) uiFill(px,py,1,1,fb); }
         int lblx=bx0+10; if(lblx>430)lblx=430;
-        drawText(&ArialBold28, airspaceClassStr(airspaces[ah.idx].cls), lblx, yceil+34, fb);
+        drawText(&ArialBold28, airspaceClassStr(airspaces[ah.idx].cls), lblx, yceil+54, fb);  // tiefer rein, weg von der oberen Linie
         snprintf(buf,48,"Floor %d", (int)ah.floor_m);
         drawText(&ArialBold16, buf, lblx, yfloor-8, fb);
     }
@@ -146,21 +201,20 @@ static void showXSectionScreen(EpdiyHighlevelState *hl, const XSectionData &d,
     uiVLine(624,120,405,fb,2);
     drawText(&ArialBold16,"GRENZE IN",638,152,fb);
     if(ah.found) snprintf(buf,48,"%.1f km",ah.dist_km); else snprintf(buf,48,"--");
-    drawText(&ArialBold28,buf,636,190,fb);
+    drawText(&ArialBold28,buf,636,200,fb);
     drawText(&ArialBold16,"FLOOR",638,240,fb);
     if(ah.found) snprintf(buf,48,"%d m",(int)ah.floor_m); else snprintf(buf,48,"--");
-    drawText(&ArialBold28,buf,636,278,fb);
+    drawText(&ArialBold28,buf,636,288,fb);
     drawText(&ArialBold16,"@ GRENZE",638,328,fb);
     if(ah.found) snprintf(buf,48,"%d m",(int)glideAtBorder); else snprintf(buf,48,"--");
-    drawText(&ArialBold28,buf,636,366,fb);
+    drawText(&ArialBold28,buf,636,376,fb);
     if(ah.found && conflict){
-        uiFill(624,442,300,66,fb);                                    // schwarzer Alarm-Kasten
+        uiFill(624,442,300,66,fb);                                    // schwarzer Alarm-Kasten (bleibt: Warnung)
         snprintf(buf,48,"KONFLIKT +%d m",(int)(glideAtBorder-ah.floor_m));
-        drawBoxCenter(&ArialBold28, buf, 624,442,300,66, fb, 255);
+        drawBoxCenter(&ArialBold24, buf, 624,442,300,66, fb, 255);
     } else if (ah.found){
-        uiBox(624,442,300,66,fb);
         snprintf(buf,48,"FREI -%d m",(int)(ah.floor_m-glideAtBorder));
-        drawBoxCenter(&ArialBold28, buf, 624,442,300,66, fb, 0);
+        drawBoxCenter(&ArialBold24, buf, 624,442,300,66, fb, 0);      // kleiner, KEIN Kasten
     } else {
         drawBoxCenter(&ArialBold16, "KEIN LUFTRAUM", 624,442,300,66, fb, 0);   // klein, zentriert, ohne Kasten
     }

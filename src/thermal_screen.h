@@ -69,58 +69,33 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     char buf[48];
     int tw, th;
 
-    // === STATUS BAR (Felder berechnet) ===
-    snprintf(buf,48,"%02d:%02d", d.rtc_hour, d.rtc_min);
-    drawText(&ArialBold16, buf, 20, 30, fb);  // Links, fix
+    // === EINHEITLICHE STATUSLEISTE (Uhr | Sat | FANET | Buddy | Server | Batterie) ===
+    drawStatusBar(fb);
 
+    // Thermik-Kontext: Dauer + Hoehengewinn (linke Spalte, unter der Statusleiste)
     unsigned long ts = d.thermal_start_ms ? (millis()-d.thermal_start_ms)/1000 : 0;
-    snprintf(buf,48,"THERMIK %d:%02d",(int)(ts/60),(int)(ts%60));
-    drawHCenter(&ArialBold16, buf, 120, 260, 30, fb);  // Feld 120-380
+    snprintf(buf,48,"THERMIK %d:%02d    +%.0f m",(int)(ts/60),(int)(ts%60), d.gained);
+    drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 82, fb);
+    uiHLine(10, 92, TH_LEFT_W-10, fb);
 
-    snprintf(buf,48,"+%.0f m", d.gained);
-    drawText(&ArialBold16, buf, 400, 30, fb);  // Nach Thermik-Text
-
-    snprintf(buf,48,"%d%%", d.bat_pct);
-    measureText(&ArialBold16, buf, &tw, &th);
-    drawText(&ArialBold16, buf, 940-tw, 30, fb);  // Rechtsbündig
-
-    uiHLine(10, 48, 940, fb);
-
-    // === LINKE SPALTE: VARIO (Feld x=0, w=350, y=55-215) ===
-    drawHCenter(&ArialBold16, "AVG CLIMB 20s", 0, TH_LEFT_W, 78, fb);
-
-    snprintf(buf,48,"%+.1f", d.vario_avg);
-    measureText(&ArialBold40, buf, &tw, &th);
-    if (tw > TH_LEFT_W - 20) {
-        drawHCenter(&ArialBold28, buf, 0, TH_LEFT_W, 140, fb);  // Fallback
-    } else {
-        drawHCenter(&ArialBold40, buf, 0, TH_LEFT_W, 145, fb);
+    // === LINKE SPALTE: 3 GLEICH GROSSE FELDER (Label oben + Wert mittig, ausgemittet) ===
+    const int LCOL_W = TH_LEFT_W;                  // 350
+    const int F_TOP = 98, F_H = 126;               // unter Statusleiste+Thermik-Zeile: 3 Felder 98-224-350-476
+    struct { const char *lbl; char val[24]; } fld[3];
+    snprintf(fld[0].val, 24, "%+.1f m/s", d.vario_avg); fld[0].lbl = "AVG CLIMB 20s";
+    snprintf(fld[1].val, 24, "%.0f m",    d.altitude);  fld[1].lbl = "HOEHE";
+    snprintf(fld[2].val, 24, "%.0f m",    d.base_est);  fld[2].lbl = "BASE EST";
+    for (int i = 0; i < 3; i++) {
+        int fy = F_TOP + i*F_H;
+        drawHCenter(&ArialBold16, fld[i].lbl, 0, LCOL_W, fy+32, fb);          // Label oben, zentriert
+        measureText(&ArialBold40, fld[i].val, &tw, &th);                      // alle Werte gleich gross
+        if (tw <= LCOL_W - 24) drawHCenter(&ArialBold40, fld[i].val, 0, LCOL_W, fy+92, fb);
+        else                   drawHCenter(&ArialBold28, fld[i].val, 0, LCOL_W, fy+88, fb);
+        if (i < 2) uiHLine(10, fy + F_H, LCOL_W - 10, fb);                    // Trennlinie zwischen Feldern
     }
-    drawHCenter(&ArialBold16, "m/s", 0, TH_LEFT_W, 170, fb);
 
-    snprintf(buf,48,"jetzt %+.1f", d.vario);
-    drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 200, fb);
-
-    uiHLine(10, 218, TH_LEFT_W-10, fb);
-
-    // === HOEHE + BASE EST: 2 exakt gleich grosse Felder ===
-    // Feld 1: y=220-308 (88px), Feld 2: y=312-400 (88px)
-    const int F1_Y=220, F2_Y=312, FH=88;
-
-    // HOEHE
-    drawHCenter(&ArialBold16, "HOEHE", 0, TH_LEFT_W, F1_Y+22, fb);
-    snprintf(buf,48,"%.0f m", d.altitude);
-    drawBoxCenter(&ArialBold16, buf, 0, F1_Y+30, TH_LEFT_W, FH-30, fb);
-
-    uiHLine(10, F2_Y-2, TH_LEFT_W-10, fb);
-
-    // BASE EST
-    drawHCenter(&ArialBold16, "BASE EST", 0, TH_LEFT_W, F2_Y+22, fb);
-    snprintf(buf,48,"%.0f m", d.base_est);
-    drawBoxCenter(&ArialBold16, buf, 0, F2_Y+30, TH_LEFT_W, FH-30, fb);
-
-    // === DIVIDER ===
-    uiVLine(TH_LEFT_W+5, 50, 430, fb);
+    // === DIVIDER (startet unter der Statusleisten-Linie y54) ===
+    uiVLine(TH_LEFT_W+5, 58, 422, fb);
 
     // === KOMPASS-ROSE (zentriert in rechter Spalte) ===
     int rose_cx = TH_RIGHT_X + 295;  // 655

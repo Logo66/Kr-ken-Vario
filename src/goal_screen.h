@@ -56,76 +56,54 @@ static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
     char buf[48];
     int tw, th;
 
-    // === STATUSBAR (Ticket §3, alle Positionen aus Spec) ===
-    snprintf(buf,48,"%02d:%02d",d.rtc_hour,d.rtc_min);
-    drawText(&ArialBold16, buf, 22, 38, fb);
-
-    for(int i=0;i<11;i++){
-        int cx=150+i*15;
-        if(i<d.sats) fillCircle(cx,29,5,fb);
-        else drawCircle(cx,29,5,fb);
-    }
-
-    snprintf(buf,48,"FANET %d",d.fanet_peers);
-    drawText(&ArialBold16, buf, 332, 38, fb);
-
-    if(d.buddy_connected) fillCircle(494,29,8,fb);
-    else drawCircle(494,29,8,fb);
-    drawText(&ArialBold16, "BUDDY", 510, 38, fb);
-
-    uiBox(866,16,58,26,fb);
-    uiFill(924,22,7,14,fb);
-    uiFill(870,20,(int)(42.0f*d.bat_pct/100.0f),18,fb);
-
-    uiHLine(14, 54, 932, fb);
+    // === EINHEITLICHE STATUSLEISTE (Uhr | Sat | FANET | Buddy | Server | Batterie) ===
+    drawStatusBar(fb);
 
     // === LINKE SPALTE ===
 
-    // Ziel-Pfeil + Name
-    drawTri(50, 82, 90, 30, 22, fb);
+    // Ziel-Name (Dreieck entfernt — war nicht mittig)
     snprintf(buf,48,"ZIEL: %s", d.wp_name);
-    // Prüfen ob Name passt (max GL_LEFT_W - 76 = 480px)
     measureText(&ArialBold24, buf, &tw, &th);
-    if (tw > GL_LEFT_W - 76) {
-        drawText(&ArialBold16, buf, 76, 92, fb);  // Fallback kleiner
+    if (tw > GL_LEFT_W - 40) {
+        drawText(&ArialBold16, buf, 40, 100, fb);  // Fallback kleiner
     } else {
-        drawText(&ArialBold24, buf, 76, 92, fb);
+        drawText(&ArialBold24, buf, 40, 100, fb);
     }
 
     // Label
-    drawText(&ArialBold16, "ANKUNFT UEBER ZIEL", GL_LABEL_X, 142, fb);
+    drawText(&ArialBold16, "ANKUNFT UEBER ZIEL", GL_LABEL_X, 150, fb);
 
     // Vorzeichen-Dreieck
-    drawTri(68, 210, (d.arrival_m>=0)?0:180, 56, 46, fb);
+    drawTri(68, 218, (d.arrival_m>=0)?0:180, 56, 46, fb);
 
     // Ankunftswert — ArialBold40 (statt 72, passt sicher)
     snprintf(buf,48,"%+.0f", d.arrival_m);
     measureText(&ArialBold40, buf, &tw, &th);
-    drawText(&ArialBold40, buf, 108, 220, fb);
-    drawText(&ArialBold24, "m", 108+tw+8, 220, fb);
+    drawText(&ArialBold40, buf, 108, 228, fb);
+    drawText(&ArialBold24, "m", 108+tw+8, 228, fb);
 
     uiHLine(GL_LABEL_X, 258, GL_LEFT_W-GL_LABEL_X, fb);
 
     // === DISTANZ (Feld: x=34, y=262, w=522, h=90) ===
-    drawHCenter(&ArialBold16, "DISTANZ", GL_VALUE_X, GL_VALUE_W, 282, fb);
+    drawHCenter(&ArialBold16, "DISTANZ", GL_VALUE_X, GL_VALUE_W, 290, fb);
     snprintf(buf,48,"%.1f km", d.distance_km);
-    drawBoxCenter(&ArialBold28, buf, GL_VALUE_X, 290, GL_VALUE_W, 55, fb);
+    drawBoxCenter(&ArialBold28, buf, GL_VALUE_X, 298, GL_VALUE_W, 55, fb);
 
     uiHLine(GL_LABEL_X, 358, GL_LEFT_W-GL_LABEL_X, fb);
 
     // === GLEITZAHL (2 Felder: y=362-452, je 261px breit) ===
     int gr_half = GL_VALUE_W / 2;
-    drawHCenter(&ArialBold16, "GR NOETIG", GL_VALUE_X, gr_half, 385, fb);
-    drawHCenter(&ArialBold16, "GR IST", GL_VALUE_X+gr_half, gr_half, 385, fb);
+    drawHCenter(&ArialBold16, "GR NOETIG", GL_VALUE_X, gr_half, 393, fb);
+    drawHCenter(&ArialBold16, "GR IST", GL_VALUE_X+gr_half, gr_half, 393, fb);
 
     snprintf(buf,48,"%.1f", d.gr_needed);
-    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X, 395, gr_half, 50, fb);
+    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X, 403, gr_half, 50, fb);
 
     if (d.gr_current > 0 && d.gr_current < 900)
         snprintf(buf,48,"%.1f", d.gr_current);
     else
         snprintf(buf,48,"---");
-    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X+gr_half, 395, gr_half, 50, fb);
+    drawBoxCenter(&ArialBold24, buf, GL_VALUE_X+gr_half, 403, gr_half, 50, fb);
 
     uiVLine(GL_VALUE_X+gr_half, 362, 88, fb);
 
@@ -139,7 +117,7 @@ static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
 
     // Peilung — BERECHNET zentriert
     snprintf(buf,48,"%.0f > %.0f", d.bearing_abs, d.bearing_rel);
-    drawHCenter(&ArialBold24, buf, GL_RIGHT_X, GL_RIGHT_W, 392, fb);
+    drawHCenter(&ArialBold24, buf, GL_RIGHT_X, GL_RIGHT_W, 400, fb);
 
     // === BUDDY-BAND (nur wenn connected) ===
     if (d.buddy_connected && d.buddy_hint) {
@@ -149,7 +127,7 @@ static void showGoalScreen(EpdiyHighlevelState *hl, const GoalData &d,
         // Hinweis — prüfe Breite (max 932-132-14 = 786px)
         measureText(&ArialBold16, d.buddy_hint, &tw, &th);
         if (tw < 786) {
-            drawText(&ArialBold16, d.buddy_hint, 132, 505, fb);
+            drawText(&ArialBold16, d.buddy_hint, 132, 513, fb);
         } else {
             drawText(&ArialBold16, "...", 132, 505, fb);  // Truncate
         }

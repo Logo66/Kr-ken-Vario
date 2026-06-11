@@ -16,8 +16,10 @@
 #include <stdio.h>
 #include <math.h>
 #include "arialbold40.h"
+#include "arialbold32.h"
 #include "arialbold28.h"
 #include "arialbold16.h"
+#include "ui_utils.h"          // gemeinsame Statusleiste (drawStatusBar)
 
 struct CruiseData {
     float altitude, vario, vario_avg, speed, heading, glide;
@@ -130,6 +132,26 @@ static void drawCompass(float hdg, int sx, int sy, int sw, uint8_t *fb) {
     }
 }
 
+// Windrichtungs-Pfeil (gefuelltes Dreieck), zeigt in dirDeg (0=N oben, 90=O rechts)
+static void windArrow(int cx, int cy, float dirDeg, int L, uint8_t *fb) {
+    float a=dirDeg*M_PI/180.0f, sa=sinf(a), ca=cosf(a);
+    float tx=cx+L*sa,                 ty=cy-L*ca;                   // Spitze
+    float blx=cx-0.5f*L*sa+0.5f*L*ca, bly=cy+0.5f*L*ca+0.5f*L*sa;  // hinten links
+    float brx=cx-0.5f*L*sa-0.5f*L*ca, bry=cy+0.5f*L*ca-0.5f*L*sa;  // hinten rechts
+    int miny=(int)fminf(ty,fminf(bly,bry)), maxy=(int)fmaxf(ty,fmaxf(bly,bry));
+    for(int y=miny;y<=maxy;y++){
+        int xl=9999,xr=-9999;
+        float e[][4]={{tx,ty,blx,bly},{tx,ty,brx,bry},{blx,bly,brx,bry}};
+        for(int i=0;i<3;i++){
+            float dy=e[i][3]-e[i][1]; if(fabsf(dy)<0.5f)continue;
+            float t=(y-e[i][1])/dy; if(t<0||t>1)continue;
+            int x=(int)(e[i][0]+t*(e[i][2]-e[i][0]));
+            if(x<xl)xl=x; if(x>xr)xr=x;
+        }
+        if(xl<=xr) FB(xl,y,xr-xl+1,1,fb);
+    }
+}
+
 static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
                              enum EpdDrawMode mode = MODE_GC16) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
@@ -146,16 +168,8 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     const int DX=308;                       // Vertikaler Haupt-Divider
     const int CT=410;                       // Kompass Top
 
-    // === STATUS BAR (y: 0-48) ===
-    snprintf(buf,48,"%02d:%02d",d.rtc_hour,d.rtc_min);
-    T(&ArialBold16,buf,20,30,fb);
-    for(int i=0;i<d.sats&&i<12;i++) FB(160+i*12,22,6,6,fb);
-    snprintf(buf,48,"%d sat",d.sats); T(&ArialBold16,buf,320,30,fb);
-    snprintf(buf,48,"FANET %d",d.fanet_peers); T(&ArialBold16,buf,440,30,fb);
-    B(720,18,36,18,fb); FB(756,23,4,8,fb);
-    FB(723,21,(int)(30.0f*d.bat_pct/100.0f),12,fb);
-    snprintf(buf,48,"%d%% %.0fh",d.bat_pct,d.bat_hours); T(&ArialBold16,buf,768,30,fb);
-    H(10,48,940,fb);
+    // === EINHEITLICHE STATUSLEISTE (Uhr | Sat | FANET | Buddy | Server | Batterie) ===
+    drawStatusBar(fb);
 
     // === VARIO LADDER (x: 18, y: 55-395, h=340) ===
     drawLadder(d.vario, d.vario_avg, 18, 55, 50, 340, fb);
@@ -178,37 +192,44 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     // === HAUPT-DIVIDER ===
     V(DX,50,R3B-50,fb);
 
-    // === REIHE 1: HOEHE (x: 310-950, y: 50-168) ===
-    T(&ArialBold16,"HOEHE MSL",530,72,fb);
+    // === REIHE 1: HOEHE (volle Breite x310-950, alles zentriert) ===
+    drawHCenter(&ArialBold16,"HOEHE MSL",RX,RW,72,fb);
     snprintf(buf,48,"%.0f",d.altitude);
-    T(&ArialBold40,buf,480,130,fb);
-    T(&ArialBold28,"m",680,130,fb);
+    { int wv,hv,wm,hm; measureText(&ArialBold32,buf,&wv,&hv); measureText(&ArialBold28,"m",&wm,&hm);
+      int gap=10, tot=wv+gap+wm, sx=RX+(RW-tot)/2;            // "489 m" als Block mittig
+      T(&ArialBold32,buf,sx,130,fb); T(&ArialBold28,"m",sx+wv+gap,130,fb); }
     snprintf(buf,48,"QNH %.0f  GND +%.0f m",d.qnh,d.delta_gnd);
-    T(&ArialBold16,buf,430,158,fb);
+    drawHCenter(&ArialBold16,buf,RX,RW,158,fb);
     H(RX,R1B,RW,fb);
 
-    // === REIHE 2: SPEED | GLIDE (y: 170-284) ===
-    // Speed: Feld x310-628 (318px breit)
-    // Zentriert: Label bei x+100, Wert bei x+120
-    T(&ArialBold16,"SPEED",410,195,fb);
+    // === REIHE 2: SPEED | GLIDE (y: 170-284, Werte zentriert + eine Stufe kleiner) ===
+    drawHCenter(&ArialBold16,"SPEED",RX,RHW,195,fb);
     snprintf(buf,48,"%.0f",d.speed);
-    T(&ArialBold40,buf,420,250,fb);
-    T(&ArialBold16,"km/h",420,274,fb);
+    { int ws,hs; measureText(&ArialBold32,buf,&ws,&hs); T(&ArialBold32,buf,RX+(RHW-ws)/2,250,fb); }
+    drawHCenter(&ArialBold16,"km/h",RX,RHW,274,fb);
     // Divider
     V(RX+RHW,R2T,R2B-R2T,fb);
-    // Glide: Feld x632-950 (318px breit)
-    T(&ArialBold16,"GLIDE",730,195,fb);
+    // Glide: Feld x632-950
+    drawHCenter(&ArialBold16,"GLIDE",RMX,RHW,195,fb);
     if(d.vario<-0.1f&&d.speed>5.0f) snprintf(buf,48,"%.1f",d.glide);
     else if(d.vario>0.1f) snprintf(buf,48,"+++");
     else snprintf(buf,48,"---");
-    T(&ArialBold40,buf,720,250,fb);
+    { int wg,hg; measureText(&ArialBold32,buf,&wg,&hg); T(&ArialBold32,buf,RMX+(RHW-wg)/2,250,fb); }
     H(RX,R2B,RW,fb);
 
     // === REIHE 3: WIND | TEMP (y: 286-400) ===
     // Wind: Feld x310-628
     T(&ArialBold16,"WIND",410,310,fb);
     snprintf(buf,48,"%.0f km/h",d.wind_speed);
-    T(&ArialBold28,buf,390,360,fb);
+    T(&ArialBold28,buf,388,360,fb);
+    // Windrichtung — nur wenn im Flug berechnet (>1 km/h): Pfeil + Himmelsrichtung (deutsch)
+    if (d.wind_speed > 1.0f) {
+        static const char* WC[]={"N","NO","O","SO","S","SW","W","NW"};
+        float wd=d.wind_dir; while(wd<0)wd+=360; while(wd>=360)wd-=360;
+        int wc=((int)((wd+22.5f)/45.0f))&7;
+        windArrow(575, 335, wd, 18, fb);
+        drawHCenter(&ArialBold28, WC[wc], 522, 106, 392, fb);   // Feld x522-628
+    }
     // Divider
     V(RX+RHW,R3T,R3B-R3T,fb);
     // Temp+Dew: Feld x632-950

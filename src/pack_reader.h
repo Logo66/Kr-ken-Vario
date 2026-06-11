@@ -142,7 +142,9 @@ static int parsePack(const char *path) {
         mapParsedLat  = parseCenterLat; mapParsedLon  = parseCenterLon;
         strncpy(mapLoadedPack, path, sizeof(mapLoadedPack)-1); mapLoadedPack[sizeof(mapLoadedPack)-1] = 0;
     }
-    Serial.printf("[PACK] %d/%d Kacheln im Umkreis -> %d Gipfel + %d Konturen\n", loaded, nwin, peak_count, contour_count);
+    int nWater = 0; for (int c = 0; c < contour_count; c++) if (contours[c].flag == 2) nWater++;
+    Serial.printf("[PACK] %d/%d Kacheln im Umkreis -> %d Gipfel + %d Konturen (%d Wasser)\n",
+                  loaded, nwin, peak_count, contour_count, nWater);
     return peak_count;
 }
 

@@ -34,6 +34,7 @@ static char devicePairingCode[8] = {0};   // 6 + NUL
 static char deviceStatus[16]     = {0};   // unclaimed / active / blocked
 static bool deviceRegTried       = false; // genau 1 Versuch pro Boot (kein Retry-Sturm)
 static unsigned long deviceLastHb = 0;     // Heartbeat-Takt (0 = noch nicht gesendet)
+static bool deviceServerOk       = false;  // Server-Verbindung (letzter Heartbeat 200 + WLAN up) -> Statusleiste
 
 static void deviceReadMac() {
     uint8_t m[6];
@@ -172,7 +173,7 @@ static void deviceInit() {
 
 // Im Loop: sobald WLAN da ist und KEIN Token existiert -> genau 1 Registrierung.
 static void deviceLoop() {
-    if (WiFi.status() != WL_CONNECTED) return;
+    if (WiFi.status() != WL_CONNECTED) { deviceServerOk = false; return; }  // WLAN weg -> Server-Punkt aus
 
     if (!deviceHasToken()) {
         if (deviceRegTried) return;        // genau 1 Register-Versuch pro Boot (kein Retry-Sturm)
@@ -188,6 +189,7 @@ static void deviceLoop() {
         deviceLastHb = millis();
         char err[48];
         int code = deviceHeartbeat(err, sizeof(err));
+        deviceServerOk = (code == 200);    // Server-Verbindung fuer die Statusleiste
         Serial.printf("[DEV] Heartbeat -> %d (%s)\n", code, err);
     }
 }
