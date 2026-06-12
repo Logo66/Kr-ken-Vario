@@ -3,6 +3,8 @@
 // Dienste: Vario-Daten live an Flight Buddy App
 // Name: "Aura Vario" (konfigurierbar), kein Pairing noetig
 #include <NimBLEDevice.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 
 // Custom Service + Characteristics UUIDs
 #define AURA_SERVICE_UUID    "4155524F-0001-0001-0001-000000000001"
@@ -10,6 +12,7 @@
 #define AURA_GPS_UUID        "4155524F-0001-0001-0001-000000000003"
 #define AURA_STATUS_UUID     "4155524F-0001-0001-0001-000000000004"
 #define AURA_ENV_UUID        "4155524F-0001-0001-0001-000000000005"
+#define AURA_CFG_UUID        "4155524F-0001-0001-0001-000000000006"  // M2/M3: Write(verschluesselt)+Notify
 
 // Vario-Daten (20 Bytes, passt in 1 BLE Notification)
 struct __attribute__((packed)) BleVarioData {
@@ -39,6 +42,9 @@ struct __attribute__((packed)) BleEnvData {
     float wind_dir;    // Grad, woher der Wind kommt (0 bis erster Kreis geschaetzt)
 };
 
+// Eine eingehende BLE-Schreibnachricht (ein Write = ein Settings-KV oder ein Task-Chunk).
+struct BleCfgMsg { uint16_t len; uint8_t data[244]; };
+
 class BLEManager {
 public:
     bool ok = false;
@@ -50,10 +56,11 @@ public:
     bool init(const char *name = "Aura Vario") {
         strncpy(device_name, name, 31);
         device_name[31] = 0;
+        if (!_cfgQ) _cfgQ = xQueueCreate(16, sizeof(BleCfgMsg)); else xQueueReset(_cfgQ);
 
         NimBLEDevice::init(device_name);
         NimBLEDevice::setPower(ESP_PWR_LVL_P6);
-        NimBLEDevice::setMTU(64);
+        NimBLEDevice::setMTU(247);   // groesseres MTU fuer Task-Chunks (M3); Lese-Chars unberuehrt
 
         // Sicherheit: PIN-Pairing erforderlich
         NimBLEDevice::setSecurityAuth(true, true, true);  // Bond, MITM, SC
@@ -92,6 +99,13 @@ public:
             AURA_ENV_UUID,
             NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
         );
+
+        // Konfig/Task-Write-Characteristic (M2/M3): WRITE verschluesselt + NOTIFY (Echo/Ack)
+        _cfgChar = svc->createCharacteristic(
+            AURA_CFG_UUID,
+            NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::NOTIFY
+        );
+        _cfgChar->setCallbacks(new CfgCB(this));
 
         svc->start();
 
@@ -146,6 +160,23 @@ public:
         _envChar->notify();
     }
 
+    // === M2/M3: BLE-Schreibweg (Konfig + Task) ===
+    // Eingehende Writes liegen in der Queue; main.cpp leert sie im Loop (kein SD/JSON im BLE-Callback).
+    bool cfgPending() { return _cfgQ && uxQueueMessagesWaiting(_cfgQ) > 0; }
+    int  takeCfgIn(uint8_t *out, size_t max) {        // -1 = nichts da, sonst Laenge
+        if (!_cfgQ) return -1;
+        BleCfgMsg m;
+        if (xQueueReceive(_cfgQ, &m, 0) != pdTRUE) return -1;
+        size_t n = (m.len < max) ? m.len : max;
+        memcpy(out, m.data, n);
+        return (int)n;
+    }
+    void notifyCfg(const char *json) {                // Echo/Ack auf demselben Char …0006
+        if (!_cfgChar) return;
+        _cfgChar->setValue((const uint8_t*)json, strlen(json));
+        _cfgChar->notify();
+    }
+
     void stop() {
         if (!ok) return;
         NimBLEDevice::deinit(true);
@@ -159,6 +190,8 @@ private:
     NimBLECharacteristic *_gpsChar = nullptr;
     NimBLECharacteristic *_statusChar = nullptr;
     NimBLECharacteristic *_envChar = nullptr;
+    NimBLECharacteristic *_cfgChar = nullptr;
+    QueueHandle_t _cfgQ = nullptr;
 
     class ServerCB : public NimBLEServerCallbacks {
     public:
@@ -173,6 +206,21 @@ private:
             mgr->connected = false;
             Serial.println("[BLE] Client getrennt");
             NimBLEDevice::getAdvertising()->start();
+        }
+    };
+
+    // Write-Callback fuer …0006: kopiert jeden Write in die Queue (leichtgewichtig, kein SD/JSON hier).
+    class CfgCB : public NimBLECharacteristicCallbacks {
+    public:
+        BLEManager *mgr;
+        CfgCB(BLEManager *m) : mgr(m) {}
+        void onWrite(NimBLECharacteristic *c) override {
+            NimBLEAttValue v = c->getValue();
+            BleCfgMsg m;
+            m.len = v.length() > 244 ? 244 : v.length();
+            memcpy(m.data, v.data(), m.len);
+            if (mgr->_cfgQ) xQueueSend(mgr->_cfgQ, &m, 0);
+            Serial.printf("[CFG] BLE-Write %u Byte -> Queue\n", (unsigned)m.len);
         }
     };
 };

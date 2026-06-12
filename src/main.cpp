@@ -67,6 +67,7 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "imu_logger.h"   // Roh-IMU mitloggen fuer den Testflug (HEILIG: nur Logging, nicht im Vario)
 #include "wind_estimator.h"   // Windschaetzung aus GPS-Kreisdrift (nur Anzeige/BLE, nicht im Vario)
 #include "buzzer.h"           // Arduino Modulino Buzzer (I2C 0x1E)
+#include <ArduinoJson.h>      // M2/M3: BLE-Konfig/Task-JSON
 #include "vario_sound.h"      // Steigton ueber den Buzzer (vom Vario gesteuert)
 #include "fanet.h"
 #include "device_registry.h"   // Ticket C: Self-Registration + NVS-Device-Token (Bearer)
@@ -455,6 +456,40 @@ static float vario_sum=0;
 static int vario_count=0;
 static unsigned long vario_window=0;
 
+// === M2: ein Settings-Key/Value anwenden (dotted-path wie KONFIG-VERTRAG Teil 2). Fuellt ack. ===
+static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen) {
+    bool ok = true; const char *err = "";
+    if      (!strcmp(k,"sound.volume"))          { int x=v.as<int>(); if(x<0||x>SND_VOL_MAX){ok=false;err="range";} else {g_sound.volume=(uint8_t)x; soundSettingsSave();} }
+    else if (!strcmp(k,"sound.muted"))           { bool mu=v.as<bool>(); g_sound.volume = mu?0:(g_sound.volume?g_sound.volume:3); soundSettingsSave(); }
+    else if (!strcmp(k,"vario.climb_threshold")) { g_sound.climb_threshold=v.as<float>(); soundSettingsSave(); }
+    else if (!strcmp(k,"vario.sink_alarm"))      { g_sound.sink_alarm=v.as<float>(); soundSettingsSave(); }
+    else if (!strcmp(k,"vario.deadband"))        { g_sound.deadband=v.as<float>(); soundSettingsSave(); }
+    else if (!strcmp(k,"vario.tone_curve"))      { g_sound.tone_curve=(uint8_t)v.as<int>(); soundSettingsSave(); }
+    else if (!strcmp(k,"alt.qnh"))               { float q=v.as<float>(); if(q<800.0f||q>1100.0f){ok=false;err="range";} else alt_calc.setQNH(q); }
+    else { ok=false; err="unknown_key"; }
+    if (ok) snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":true}", k);
+    else    snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":false,\"err\":\"%s\"}", k, err);
+    Serial.printf("[CFG] settings %s -> %s\n", k, ok?"ok":err);
+    return ok;
+}
+
+// Eingehende BLE-Schreibnachricht verarbeiten (kind:settings = M2, kind:task = M3 folgt).
+static void processConfigWrite(const uint8_t *data, size_t len) {
+    JsonDocument doc;
+    DeserializationError e = deserializeJson(doc, data, len);
+    if (e) { ble.notifyCfg("{\"ack\":\"error\",\"ok\":false,\"err\":\"json\"}"); Serial.println("[CFG] JSON-Fehler"); return; }
+    const char *kind = doc["kind"] | "";
+    if (!strcmp(kind, "settings")) {
+        char ack[160];
+        applySettingKV(doc["k"] | "", doc["v"], ack, sizeof(ack));
+        ble.notifyCfg(ack);
+    } else if (!strcmp(kind, "task")) {
+        ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"not_implemented\"}");  // M3 folgt
+    } else {
+        ble.notifyCfg("{\"ack\":\"error\",\"ok\":false,\"err\":\"unknown_kind\"}");
+    }
+}
+
 void loop() {
     feedGPS();
     fanet.poll();
@@ -545,6 +580,11 @@ void loop() {
             live.humidity = rh;
             live.dewpoint = live.temp - (100.0f-rh)/5.0f;
         }
+    }
+
+    // M2/M3: eingehende BLE-Konfig/Task-Writes abarbeiten (Queue leeren, alle pro Loop)
+    { uint8_t cbuf[256]; int cn;
+      while ((cn = ble.takeCfgIn(cbuf, sizeof(cbuf))) >= 0) processConfigWrite(cbuf, (size_t)cn);
     }
 
     delay(20);  // 50Hz Loop (war 20Hz) — Touch reaktiver
