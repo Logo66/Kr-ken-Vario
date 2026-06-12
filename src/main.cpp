@@ -473,7 +473,59 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     return ok;
 }
 
-// Eingehende BLE-Schreibnachricht verarbeiten (kind:settings = M2, kind:task = M3 folgt).
+// === M3: Task (Flugplan) per Chunks empfangen, CRC32 pruefen, auf SD /tasks/ ablegen ===
+static uint32_t cfgCrc32(const uint8_t *p, size_t n) {            // Standard IEEE/zlib CRC32
+    uint32_t c = 0xFFFFFFFFu;
+    for (size_t i=0;i<n;i++) { c ^= p[i]; for (int k=0;k<8;k++) c = (c & 1) ? (c>>1) ^ 0xEDB88820u : (c>>1); }
+    return ~c;
+}
+static void cfgSanitize(const char *in, char *out, size_t olen) { // sicherer Dateiname (kein Pfad-Trick)
+    size_t j=0;
+    for (size_t i=0; in[i] && j+1<olen; i++) {
+        char ch=in[i];
+        if ((ch>='A'&&ch<='Z')||(ch>='a'&&ch<='z')||(ch>='0'&&ch<='9')||ch=='-'||ch=='_') out[j++]=ch;
+        else if (ch==' ') out[j++]='_';
+    }
+    if (j==0) { strncpy(out,"task",olen); out[olen-1]=0; return; }
+    out[j]=0;
+}
+static char     _taskBuf[4096];     // Reassembly-Puffer (Vertrag: max 4 KB)
+static size_t   _taskLen = 0;
+static uint32_t _taskCrc = 0;
+static bool     _taskActive = false;
+
+static void handleTaskChunk(JsonDocument &doc) {
+    int i = doc["i"] | -1;
+    int n = doc["n"] | 0;
+    const char *d = doc["d"] | "";
+    if (i < 0 || n <= 0) { ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"proto\"}"); return; }
+    if (i == 0) { _taskLen = 0; _taskCrc = doc["crc"].as<uint32_t>(); _taskActive = true; }  // crc nur in i:0
+    if (!_taskActive) { ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"no_start\"}"); return; }
+    size_t dl = strlen(d);
+    if (_taskLen + dl >= sizeof(_taskBuf)) { _taskActive=false; ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"too_big\"}"); return; }
+    memcpy(_taskBuf + _taskLen, d, dl); _taskLen += dl;
+    if (i != n - 1) return;                                       // noch nicht der letzte Chunk
+
+    _taskActive = false;
+    _taskBuf[_taskLen] = 0;
+    uint32_t crc = cfgCrc32((const uint8_t*)_taskBuf, _taskLen);
+    if (crc != _taskCrc) { Serial.printf("[CFG] task CRC %08X != %08X\n",(unsigned)crc,(unsigned)_taskCrc); ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"crc\"}"); return; }
+    JsonDocument td;
+    if (deserializeJson(td, _taskBuf, _taskLen)) { ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"json\"}"); return; }
+    const char *name = td["name"] | "task";
+    int wp = td["waypoints"].size();                             // 0 falls kein Array
+    char safe[48]; cfgSanitize(name, safe, sizeof(safe));
+    char path[80]; snprintf(path, sizeof(path), "/tasks/%s.json", safe);
+    if (!sdcard.ok) { ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"no_sd\"}"); return; }
+    File f = sdcard.openWrite(path);
+    if (!f) { ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"sd_write\"}"); return; }
+    f.write((const uint8_t*)_taskBuf, _taskLen); f.close();
+    char ack[120]; snprintf(ack, sizeof(ack), "{\"ack\":\"task\",\"name\":\"%s\",\"wp\":%d,\"ok\":true}", safe, wp);
+    Serial.printf("[CFG] task gespeichert: %s (%d WP, %u Byte)\n", path, wp, (unsigned)_taskLen);
+    ble.notifyCfg(ack);
+}
+
+// Eingehende BLE-Schreibnachricht verarbeiten (kind:settings = M2, kind:task = M3).
 static void processConfigWrite(const uint8_t *data, size_t len) {
     JsonDocument doc;
     DeserializationError e = deserializeJson(doc, data, len);
@@ -484,7 +536,7 @@ static void processConfigWrite(const uint8_t *data, size_t len) {
         applySettingKV(doc["k"] | "", doc["v"], ack, sizeof(ack));
         ble.notifyCfg(ack);
     } else if (!strcmp(kind, "task")) {
-        ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"not_implemented\"}");  // M3 folgt
+        handleTaskChunk(doc);
     } else {
         ble.notifyCfg("{\"ack\":\"error\",\"ok\":false,\"err\":\"unknown_kind\"}");
     }

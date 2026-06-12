@@ -30,6 +30,7 @@ public:
         if (!SD.exists("/airspace")) SD.mkdir("/airspace");
         if (!SD.exists("/obstacles")) SD.mkdir("/obstacles");
         if (!SD.exists("/igc")) SD.mkdir("/igc");
+        if (!SD.exists("/tasks")) SD.mkdir("/tasks");   // M3: BLE-empfangene Flugplaene/Tasks
 
         ok = true;
         return true;
