@@ -15,6 +15,7 @@ public:
     SDManager *sd = nullptr;
     char name[32] = "Aura Vario";
     char pin_str[8] = "1234";
+    bool enabled = false;   // Schalter-Zustand, persistent in /ble.cfg -> Auto-Start beim Boot/Aufwachen
 
     void begin(BLEManager *b, SDManager *s) {
         ble = b;
@@ -85,13 +86,15 @@ public:
         case BLE_MAIN:
             if (tx >= bx && tx < bx+bw) {
                 if (ty >= y0 && ty < y0+bh) {
-                    // Toggle AN/AUS
+                    // Toggle AN/AUS — Zustand merken (persistent -> Auto-Start beim naechsten Boot)
                     if (ble->ok) {
                         ble->stop();
                     } else {
+                        ble->pin = atoi(pin_str);   // PIN VOR init setzen
                         ble->init(name);
-                        ble->pin = atoi(pin_str);
                     }
+                    enabled = ble->ok;
+                    saveConfig();
                     draw(hl);
                 } else if (ty >= y0+bh+gap && ty < y0+2*bh+gap) {
                     // Name aendern
@@ -156,8 +159,9 @@ private:
         if (!f) return;
         f.println(name);
         f.println(pin_str);
+        f.println(enabled ? "1" : "0");
         f.close();
-        Serial.printf("[BLE] Config gespeichert: %s / %s\n", name, pin_str);
+        Serial.printf("[BLE] Config gespeichert: %s / %s / %s\n", name, pin_str, enabled?"AN":"AUS");
     }
 
     void loadConfig() {
@@ -166,10 +170,12 @@ private:
         if (!f) return;
         String n = f.readStringUntil('\n');
         String p = f.readStringUntil('\n');
+        String e = f.readStringUntil('\n');
         f.close();
-        n.trim(); p.trim();
+        n.trim(); p.trim(); e.trim();
         if (n.length() > 0) strncpy(name, n.c_str(), 31);
         if (p.length() > 0) strncpy(pin_str, p.c_str(), 7);
-        Serial.printf("[BLE] Config geladen: %s / %s\n", name, pin_str);
+        enabled = (e == "1");
+        Serial.printf("[BLE] Config geladen: %s / %s / %s\n", name, pin_str, enabled?"AN":"AUS");
     }
 };

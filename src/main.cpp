@@ -64,6 +64,8 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "flugbuch.h"
 #include "igc_logger.h"
 #include "igc_server.h"
+#include "imu_logger.h"   // Roh-IMU mitloggen fuer den Testflug (HEILIG: nur Logging, nicht im Vario)
+#include "wind_estimator.h"   // Windschaetzung aus GPS-Kreisdrift (nur Anzeige/BLE, nicht im Vario)
 #include "fanet.h"
 #include "device_registry.h"   // Ticket C: Self-Registration + NVS-Device-Token (Bearer)
 #include "sd_manager.h"
@@ -103,6 +105,7 @@ static KalmanVario kf;
 static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=false;
 static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im Flug
 static CruiseData live = {};
+static WindEstimator windEst;   // Wind aus Kreisdrift -> live.wind_speed/wind_dir + BLE
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
@@ -307,6 +310,10 @@ static void feedGPS() {
         float raw_spd = gps.speed.kmph();
         live.speed = (raw_spd < 3.0f) ? 0 : raw_spd;  // GPS-Rauschen filtern
         live.heading = gps.course.deg();
+        // Wind aus der Kreisdrift schaetzen (NUR Anzeige/BLE, fliesst NICHT ins Vario)
+        windEst.update(gps.course.deg(), raw_spd, live.gps_fix);
+        live.wind_speed = windEst.wind_speed;
+        live.wind_dir   = windEst.wind_dir;
     }
     if(live.speed < 2.0f) live.heading = 0;
 }
@@ -350,6 +357,7 @@ void setup() {
         sensors_event_t h,t;
         sht.getEvent(&h,&t);
         live.temp = t.temperature - 3.8f;
+        live.humidity = h.relative_humidity;
         live.dewpoint = live.temp - (100.0f-h.relative_humidity)/5.0f;
     }
 
@@ -409,10 +417,22 @@ void setup() {
 
     // LSM6DSO32 Beschleunigung in Betrieb nehmen (raw I2C, nach Wire.end)
     lsm_ok = lsm6Init();
+    if (lsm_ok) imuLogConfig();   // Gyro + FIFO @104Hz fuer Roh-IMU-Logging (NICHT im Vario)
 
     // Touch init (GT911 ueber raw I2C)
     touch.init();
     soundSettingsLoad();   // Ton-Einstellungen (Lautstaerke/Stumm) aus NVS
+
+    // BLE-Schalter mit Gedaechtnis: Zustand aus /ble.cfg laden, bei "AN" automatisch starten
+    // (gilt fuer Kaltstart UND Aufwachen aus dem Tiefschlaf — setup() laeuft dabei neu).
+    bleScreen.begin(&ble, &sdcard);
+    if (bleScreen.enabled) {
+        ble.pin = atoi(bleScreen.pin_str);   // PIN VOR init
+        ble.init(bleScreen.name);
+        Serial.println("[BLE] Auto-Start beim Boot (Schalter stand auf AN)");
+    } else {
+        Serial.println("[BLE] aus (Schalter stand auf AUS)");
+    }
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
@@ -437,13 +457,28 @@ void loop() {
     fanet.poll();
     updateClock();
 
-    // BLE Notifications (1x pro Sekunde)
-    static unsigned long lastBle = 0;
-    if (ble.ok && millis() - lastBle > 1000) {
-        lastBle = millis();
-        ble.update(live.altitude, live.vario, live.speed, live.heading,
-                   lastGoodLat, lastGoodLon, live.sats, live.bat_pct,
-                   live.gps_fix, flight.state == FLIGHT_FLYING, fanet.ok);
+    // BLE Notifications — Vario ~10 Hz, GPS 1 Hz, Umwelt 1x/Minute
+    static unsigned long lastBleVario=0, lastBleGps=0, lastBleEnv=0;
+    static bool blePrevConn = false;
+    if (ble.ok) {
+        if (ble.connected && !blePrevConn) { lastBleVario=0; lastBleGps=0; lastBleEnv=0; }  // frisch verbunden -> sofort senden
+        blePrevConn = ble.connected;
+        unsigned long now = millis();
+        if (now - lastBleVario >= 100) {     // Vario/Hoehe ~10 Hz (fluessig fuers App-Vario)
+            lastBleVario = now;
+            ble.update(live.altitude, live.vario, live.speed, live.heading,
+                       live.sats, live.bat_pct, live.gps_fix,
+                       flight.state == FLIGHT_FLYING, fanet.ok);
+        }
+        if (now - lastBleGps >= 1000) {      // GPS 1 Hz (GPS-Takt)
+            lastBleGps = now;
+            ble.updateGps(lastGoodLat, lastGoodLon, live.gps_fix);
+        }
+        if (now - lastBleEnv >= 60000) {     // Umwelt + Wind 1x/Minute
+            lastBleEnv = now;
+            ble.updateEnv(live.temp, live.humidity, live.dewpoint, thermal.data.base_est,
+                          live.wind_speed, live.wind_dir);
+        }
     }
 
     // FANET TX: nur im Flug senden (alle 5s)
@@ -481,6 +516,18 @@ void loop() {
         }
     }
 
+    // === Roh-IMU MITLOGGEN (Testflug-Daten; HEILIG: nur loggen, NICHTS ins Vario) ===
+    if (lsm_ok) {
+        if (!imuOpen && live.gps_fix && gps.date.isValid()) {   // Log startet bei GPS-Fix (am Startplatz)
+            char p[48];
+            snprintf(p, sizeof(p), "/imu/%04d%02d%02d_%02d%02d.csv",
+                     gps.date.year(), gps.date.month(), gps.date.day(),
+                     gps.time.hour(), gps.time.minute());
+            imuLogStart(p);
+        }
+        imuLogTick(live.altitude, live.speed, (flight.state == FLIGHT_FLYING) ? 1 : 0);
+    }
+
     // SHT45 raw read (alle 5s)
     static unsigned long lastSHT=0;
     if (millis()-lastSHT > 5000) {
@@ -488,6 +535,7 @@ void loop() {
         float t,rh;
         if (rawSHT45(&t,&rh)) {
             live.temp = t - 3.8f;
+            live.humidity = rh;
             live.dewpoint = live.temp - (100.0f-rh)/5.0f;
         }
     }
@@ -553,6 +601,9 @@ void loop() {
                        live.gps_fix?"FIX":"---", live.sats, g_now,
                        gps.passedChecksum(), gps.failedChecksum(),
                        gps_total_bytes);
+        // Gyro-Plausibilitaet (Gate): im Stand a_z~9.8, g~0; dreht bei Drehung
+        Serial.printf("[IMU] a=%.2f,%.2f,%.2f m/s2  g=%.1f,%.1f,%.1f dps  log=%s\n",
+                       imuAx, imuAy, imuAz, imuGx, imuGy, imuGz, imuOpen ? "AN" : "aus");
     }
 
     // === FLUG-ERKENNUNG ===

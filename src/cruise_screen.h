@@ -23,7 +23,7 @@
 
 struct CruiseData {
     float altitude, vario, vario_avg, speed, heading, glide;
-    float qnh, delta_gnd, wind_speed, wind_dir, temp, dewpoint;
+    float qnh, delta_gnd, wind_speed, wind_dir, temp, dewpoint, humidity;
     int bat_pct; float bat_hours;
     bool gps_fix; int sats, fanet_peers, avg_seconds;
     int rtc_hour, rtc_min;  // Uhrzeit aus RTC

@@ -9,6 +9,7 @@
 #define AURA_VARIO_UUID      "4155524F-0001-0001-0001-000000000002"
 #define AURA_GPS_UUID        "4155524F-0001-0001-0001-000000000003"
 #define AURA_STATUS_UUID     "4155524F-0001-0001-0001-000000000004"
+#define AURA_ENV_UUID        "4155524F-0001-0001-0001-000000000005"
 
 // Vario-Daten (20 Bytes, passt in 1 BLE Notification)
 struct __attribute__((packed)) BleVarioData {
@@ -26,6 +27,16 @@ struct __attribute__((packed)) BleVarioData {
 struct __attribute__((packed)) BleGpsData {
     double lat;
     double lon;
+};
+
+// Umwelt + Wind (24 Bytes) — alle float32 LE
+struct __attribute__((packed)) BleEnvData {
+    float temp;        // Grad C
+    float humidity;    // % rel. Feuchte
+    float dewpoint;    // Grad C Taupunkt
+    float base_est;    // m Wolkenbasis-Schaetzung (beim Kurbeln)
+    float wind_speed;  // km/h
+    float wind_dir;    // Grad, woher der Wind kommt (0 bis erster Kreis geschaetzt)
 };
 
 class BLEManager {
@@ -76,6 +87,12 @@ public:
         );
         _statusChar->setValue("Aura Vario v0.3");
 
+        // Umwelt + Wind Characteristic (Read + Notify)
+        _envChar = svc->createCharacteristic(
+            AURA_ENV_UUID,
+            NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
+        );
+
         svc->start();
 
         // Advertising
@@ -90,12 +107,10 @@ public:
         return true;
     }
 
-    // Im Loop aufrufen — sendet Notifications wenn Client verbunden
+    // Vario-Char — schnell (~10 Hz): Hoehe/Vario reagieren fluessig in der App.
     void update(float alt, float vario, float speed, float heading,
-                double lat, double lon, int sats, int bat_pct,
-                bool gps_fix, bool flying, bool fanet_ok) {
+                int sats, int bat_pct, bool gps_fix, bool flying, bool fanet_ok) {
         if (!ok || !connected) return;
-
         BleVarioData vd;
         vd.altitude = alt;
         vd.vario = vario;
@@ -107,14 +122,28 @@ public:
         vd.reserved = 0;
         _varioChar->setValue((uint8_t*)&vd, sizeof(vd));
         _varioChar->notify();
+    }
 
-        if (gps_fix && lat != 0) {
-            BleGpsData gd;
-            gd.lat = lat;
-            gd.lon = lon;
-            _gpsChar->setValue((uint8_t*)&gd, sizeof(gd));
-            _gpsChar->notify();
-        }
+    // GPS-Char — 1 Hz (GPS-Modul liefert nur 1 Hz, schneller waere reine Wiederholung).
+    void updateGps(double lat, double lon, bool gps_fix) {
+        if (!ok || !connected) return;
+        if (!gps_fix || lat == 0) return;
+        BleGpsData gd;
+        gd.lat = lat;
+        gd.lon = lon;
+        _gpsChar->setValue((uint8_t*)&gd, sizeof(gd));
+        _gpsChar->notify();
+    }
+
+    // Umwelt + Wind senden (1x pro Sekunde, parallel zu update())
+    void updateEnv(float temp, float humidity, float dewpoint, float base_est,
+                   float wind_speed, float wind_dir) {
+        if (!ok || !connected) return;
+        BleEnvData ed;
+        ed.temp = temp; ed.humidity = humidity; ed.dewpoint = dewpoint;
+        ed.base_est = base_est; ed.wind_speed = wind_speed; ed.wind_dir = wind_dir;
+        _envChar->setValue((uint8_t*)&ed, sizeof(ed));
+        _envChar->notify();
     }
 
     void stop() {
@@ -129,6 +158,7 @@ private:
     NimBLECharacteristic *_varioChar = nullptr;
     NimBLECharacteristic *_gpsChar = nullptr;
     NimBLECharacteristic *_statusChar = nullptr;
+    NimBLECharacteristic *_envChar = nullptr;
 
     class ServerCB : public NimBLEServerCallbacks {
     public:
