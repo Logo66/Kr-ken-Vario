@@ -87,10 +87,10 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     snprintf(fld[2].val, 24, "%.0f m",    d.base_est);  fld[2].lbl = "BASE EST";
     for (int i = 0; i < 3; i++) {
         int fy = F_TOP + i*F_H;
-        drawHCenter(&ArialBold16, fld[i].lbl, 0, LCOL_W, fy+32, fb);          // Label oben, zentriert
+        drawHCenter(&ArialBold16, fld[i].lbl, 0, LCOL_W, fy+22, fb);          // Label hoeher -> mehr Luft zum Wert
         measureText(&ArialBold40, fld[i].val, &tw, &th);                      // alle Werte gleich gross
-        if (tw <= LCOL_W - 24) drawHCenter(&ArialBold40, fld[i].val, 0, LCOL_W, fy+92, fb);
-        else                   drawHCenter(&ArialBold28, fld[i].val, 0, LCOL_W, fy+88, fb);
+        if (tw <= LCOL_W - 24) drawHCenter(&ArialBold40, fld[i].val, 0, LCOL_W, fy+102, fb);
+        else                   drawHCenter(&ArialBold28, fld[i].val, 0, LCOL_W, fy+98, fb);
         if (i < 2) uiHLine(10, fy + F_H, LCOL_W - 10, fb);                    // Trennlinie zwischen Feldern
     }
 
@@ -105,15 +105,13 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     drawCircle(rose_cx, rose_cy, rose_r, fb);
     drawCircle(rose_cx, rose_cy, rose_r/2, fb);
 
-    // N/E/S/W — BERECHNET zentriert an den Achsen
-    drawHCenter(&ArialBold28, "N", rose_cx-40, 80, rose_cy-rose_r-8, fb);
-    drawHCenter(&ArialBold16, "S", rose_cx-30, 60, rose_cy+rose_r+18, fb);
-
-    measureText(&ArialBold16, "E", &tw, &th);
-    drawText(&ArialBold16, "E", rose_cx+rose_r+6, rose_cy+th/2, fb);
-
-    measureText(&ArialBold16, "W", &tw, &th);
-    drawText(&ArialBold16, "W", rose_cx-rose_r-6-tw, rose_cy+th/2, fb);
+    // N/E/S/W — alle vier AUF dem Ring (knapp innen), gleiche Groesse. N nicht mehr ueber dem
+    // Kreis (kollidierte mit der Statusleisten-Linie), sondern an der Nordspitze des Rings.
+    const int LR = rose_r - 16;   // Label-Radius, knapp innerhalb des Aussenrings
+    measureText(&ArialBold28, "N", &tw, &th); drawText(&ArialBold28, "N", rose_cx - tw/2,      rose_cy - LR + th/2, fb);
+    measureText(&ArialBold28, "S", &tw, &th); drawText(&ArialBold28, "S", rose_cx - tw/2,      rose_cy + LR + th/2, fb);
+    measureText(&ArialBold28, "E", &tw, &th); drawText(&ArialBold28, "E", rose_cx + LR - tw/2, rose_cy + th/2, fb);
+    measureText(&ArialBold28, "W", &tw, &th); drawText(&ArialBold28, "W", rose_cx - LR - tw/2, rose_cy + th/2, fb);
 
     // Pilot-Dreieck
     drawPilotTriangle(rose_cx, rose_cy, d.heading, 18, fb);
