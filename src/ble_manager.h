@@ -100,10 +100,12 @@ public:
             NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
         );
 
-        // Konfig/Task-Write-Characteristic (M2/M3): WRITE verschluesselt + NOTIFY (Echo/Ack)
+        // Konfig/Task-Write-Characteristic (M2/M3): OFFEN (WRITE + NOTIFY) — kein Encryption-Gate.
+        // Konsequent mit den Lese-Chars (die auch offen sind). Verschluesselung+Bond = Phase-2-Haertung,
+        // dann konsequent fuer ALLE Chars. Vorher: WRITE_ENC wies den Write ohne Pairing ab ("ausstehend").
         _cfgChar = svc->createCharacteristic(
             AURA_CFG_UUID,
-            NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::NOTIFY
+            NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY
         );
         _cfgChar->setCallbacks(new CfgCB(this));
 
