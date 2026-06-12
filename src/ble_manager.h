@@ -200,12 +200,17 @@ private:
         void onConnect(NimBLEServer *s) override {
             mgr->connected = true;
             Serial.println("[BLE] Client verbunden");
-            NimBLEDevice::getAdvertising()->start();
+            // KEIN Advertising-Neustart hier: stoerte das Pairing-/Bonding-Fenster
+            // ("Advertising already active"). Nach Disconnect laeuft es eh wieder an.
         }
         void onDisconnect(NimBLEServer *s) override {
             mgr->connected = false;
             Serial.println("[BLE] Client getrennt");
             NimBLEDevice::getAdvertising()->start();
+        }
+        void onAuthenticationComplete(ble_gap_conn_desc *desc) override {
+            Serial.printf("[BLE] Auth fertig: bonded=%d enc=%d auth=%d\n",
+                          desc->sec_state.bonded, desc->sec_state.encrypted, desc->sec_state.authenticated);
         }
     };
 

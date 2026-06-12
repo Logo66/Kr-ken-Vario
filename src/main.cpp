@@ -647,7 +647,8 @@ void loop() {
 
     // Contract-Cross-Read einmalig ~6s nach Boot (Serial dann stabil, nicht in der Reenum-Luecke)
     igcServerLoop();   // WLAN-Webserver fuer IGC-Download (laeuft nur wenn WLAN verbunden)
-    deviceLoop();      // Ticket C: bei WLAN einmalig registrieren falls kein NVS-Token
+    if (!ble.connected) deviceLoop();  // Buddy-Heartbeat (blockierendes TLS) NICHT waehrend aktiver BLE-Session
+                                       // -> keine Radio-Koexistenz-Stoerung -> kein BLE-Disconnect/Bond-Abbruch
 
     // Einheitliche Statusleiste 1x pro Loop fuellen (alle Screens lesen denselben Zustand):
     // Uhr | Sat | FANET | Buddy | Batterie  (Buddy-Kreis = Verbindung zum Buddy-Server)
