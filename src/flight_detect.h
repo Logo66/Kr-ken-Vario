@@ -1,7 +1,7 @@
 #pragma once
 // flight_detect.h — Start-/Lande-Erkennung
-// Start: GPS Speed > 15 km/h fuer 5s → "START ERKANNT"
-// Landung: GPS Speed < 5 km/h + kein Steigen fuer 30s → Lande-Screen
+// Start: GPS-Fix + >=4 Sats + Speed > 20 km/h fuer 10s → "START ERKANNT" (FLIGHT_FLYING)
+// Landung: GPS Speed < 5 km/h + kein Steigen fuer 30s → Lande-Screen (FLIGHT_LANDED)
 #include <Arduino.h>
 
 enum FlightState { FLIGHT_GROUND, FLIGHT_FLYING, FLIGHT_LANDED };

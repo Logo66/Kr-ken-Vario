@@ -38,11 +38,11 @@ public:
         // Status lesen
         uint8_t status = 0;
         if (!gt911Read(GT911_STATUS_REG, &status, 1)) return GEST_NONE;
-        if (!(status & 0x80)) return GEST_NONE;  // Kein neuer Touch
 
         // === HOME-KEY: autonomer kapazitiver Knopf UNTER dem Screen (nicht der x/y-Touchbereich) ===
-        // GT911 meldet ihn im SELBEN Status-Register 0x814E, Bit 4 (0x10) = HAVE_KEY.
-        // KURZER Druck -> GEST_HOME (Ton-Menue) · LANGER Druck (>=1.5s) -> GEST_HOME_LONG (Hauptmenue).
+        // GT911 meldet ihn im Status-Register 0x814E, Bit 4 (0x10) = HAVE_KEY. WICHTIG: beim Halten wird das
+        // Register nach dem Clear oft "still" (0x00) -> Lang-Druck ZEITBASIERT auswerten, VOR dem 0x80-Gate.
+        // KURZER Druck (<0.8s) -> GEST_HOME (Ton-Menue) · LANGER Druck (>=0.8s) -> GEST_HOME_LONG (Hauptmenue).
         bool homeNow = (status & 0x10);
         if (homeNow && !_homeWas) {                 // Druck: Timer starten (noch nicht ausloesen)
             _homeWas = true; _homeFired = false; _homeT0 = millis();
@@ -50,13 +50,13 @@ public:
             gt911Clear();
             return GEST_NONE;
         }
-        if (homeNow && _homeWas && !_homeFired && millis() - _homeT0 >= 1500) {
-            _homeFired = true;                       // weiter gehalten -> Hauptmenue (sofort)
+        if (_homeWas && !_homeFired && millis() - _homeT0 >= 800) {  // gehalten >=0.8s (zeitbasiert) -> Hauptmenue
+            _homeFired = true;
             Serial.println("[HOMEKEY] LANG -> GEST_HOME_LONG");
             gt911Clear();
             return GEST_HOME_LONG;
         }
-        if (!homeNow && _homeWas) {                  // Loslassen
+        if (_homeWas && (status & 0x80) && !homeNow) {  // frisches Event ohne Key-Bit = Loslassen
             _homeWas = false;
             unsigned long hdt = millis() - _homeT0;
             gt911Clear();
@@ -67,6 +67,7 @@ public:
             return GEST_NONE;                        // langer Druck schon ausgeloest
         }
 
+        if (!(status & 0x80)) return GEST_NONE;  // ab hier nur Touch-Punkte (Home-Key oben erledigt)
         int touches = status & 0x0F;
 
         if (touches > 0 && !_touching) {

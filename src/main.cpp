@@ -66,6 +66,8 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "igc_server.h"
 #include "imu_logger.h"   // Roh-IMU mitloggen fuer den Testflug (HEILIG: nur Logging, nicht im Vario)
 #include "wind_estimator.h"   // Windschaetzung aus GPS-Kreisdrift (nur Anzeige/BLE, nicht im Vario)
+#include "buzzer.h"           // Arduino Modulino Buzzer (I2C 0x1E)
+#include "vario_sound.h"      // Steigton ueber den Buzzer (vom Vario gesteuert)
 #include "fanet.h"
 #include "device_registry.h"   // Ticket C: Self-Registration + NVS-Device-Token (Bearer)
 #include "sd_manager.h"
@@ -106,6 +108,7 @@ static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=fal
 static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im Flug
 static CruiseData live = {};
 static WindEstimator windEst;   // Wind aus Kreisdrift -> live.wind_speed/wind_dir + BLE
+static VarioSound    varioSound; // Steigton-Zustand fuer den Buzzer
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
@@ -507,6 +510,10 @@ void loop() {
         }
     }
 
+    // === VARIO-STEIGTON (Modulino-Buzzer) — NUR im Flug (erkannter Start), sonst still ===
+    bool flyingNow = (flight.state == FLIGHT_FLYING);
+    varioSound.update(live.vario, soundMuted() || !flyingNow, g_sound.climb_threshold, g_sound.sink_alarm);
+
     // LSM6 Beschleunigung (G) — aktuell + Spitze im Flug
     if (lsm_ok) {
         float g = lsm6ReadG();
@@ -549,7 +556,9 @@ void loop() {
     // Einheitliche Statusleiste 1x pro Loop fuellen (alle Screens lesen denselben Zustand):
     // Uhr | Sat | FANET | Buddy | Batterie  (Buddy-Kreis = Verbindung zum Buddy-Server)
     statusBarSet(live.rtc_hour, live.rtc_min, live.sats, fanet.pilot_count,
-                 /*Buddy-Server-Verbindung*/ deviceServerOk, live.bat_pct);
+                 /*Buddy-Server-Verbindung*/ deviceServerOk, live.bat_pct,
+                 /*BLE-Client verbunden*/ ble.connected,
+                 /*WLAN verbunden*/ WiFi.status() == WL_CONNECTED);
 
     // K5: Tile-Fenster nachladen, wenn Position > 7 km vom geladenen Zentrum (Karte folgt Bewegung)
     static unsigned long lastReloadChk = 0;
@@ -568,6 +577,27 @@ void loop() {
     static bool contractDumped = false;
     if (!contractDumped && millis() > 6000) {
         contractDumped = true;
+
+        // === SENSOR-CHECK (Loetbruecke -> BMP-Adresse 0x46/0x47? Accel/Gyro ok?) ===
+        Serial.println("[SCAN] === I2C-Bus ===");
+        for (uint8_t a=0x08; a<0x78; a++) {
+            uint8_t d=0;
+            if (i2c_master_write_to_device(I2C_NUM_0, a, &d, 1, pdMS_TO_TICKS(10)) == ESP_OK)
+                Serial.printf("[SCAN]   gefunden 0x%02X\n", a);
+        }
+        { uint8_t id;
+          if (rawI2C(0x47, 0x01, &id, 1)) Serial.printf("[BMP581] 0x47 CHIP_ID=0x%02X (soll 0x50)\n", id);
+          else                            Serial.println("[BMP581] 0x47 KEINE Antwort");
+          if (rawI2C(0x46, 0x01, &id, 1)) Serial.printf("[BMP581] 0x46 CHIP_ID=0x%02X (soll 0x50)  <- Loetbruecke-Adresse!\n", id);
+          else                            Serial.println("[BMP581] 0x46 keine Antwort");
+          if (rawI2C(0x6A, 0x0F, &id, 1)) Serial.printf("[LSM6]   0x6A WHO_AM_I=0x%02X (soll 0x6C)\n", id);
+          else                            Serial.println("[LSM6]   0x6A KEINE Antwort (Accel/Gyro defekt?)");
+          if (rawI2C(0x14, 0x00, &id, 1)) Serial.printf("[BMM350] 0x14 ID=0x%02X (Kompass)\n", id);
+          else                            Serial.println("[BMM350] 0x14 keine Antwort");
+        }
+        Serial.println("[BUZZER] Start-Chirp (Modulino 0x1E)");
+        buzzerStartup();   // hoerbarer Beweis, dass der Buzzer lebt
+
         fanet.selfTestTx();   // Ticket D: TX-Encoder byte-genau (kein Funk). Live-TX bleibt gated.
         Serial.printf("[DEV] (boot) MAC=%s token=%s status=%s\n",
                       deviceMac, deviceHasToken() ? "JA(NVS)" : "KEINER",
@@ -831,7 +861,12 @@ void loop() {
     } else if (currentScreen == SCR_SOUND) {
         // Flug-Ton-Menue: Tipp = Lautstaerke weiter, Lang = OK/schliessen, Auto-Close nach 5 s
         if (g == GEST_TAP) {
-            g_sound.volume = (uint8_t)((g_sound.volume + 1) % (SND_VOL_MAX + 1));  // 0..5 Umlauf
+            if (inSoundTest(touch.lastX(), touch.lastY())) {
+                buzzerTestNext();                            // TON-TEST-Button: naechste Frequenz hoeren
+            } else {
+                g_sound.volume = (uint8_t)((g_sound.volume + 1) % (SND_VOL_MAX + 1));  // 0..5 Umlauf
+                if (g_sound.volume > 0) buzzerTone(1200, 120);  // Piep beim Lauter (STUMM=0 bleibt still)
+            }
             soundLastActivity = millis();
             showSoundScreen(&hl, MODE_DU);                 // sofortiges sichtbares Feedback
         } else if (g == GEST_LONG_TAP || g == GEST_HOME || g == GEST_HOME_LONG) {  // Home-Knopf schliesst auch
@@ -927,13 +962,7 @@ void loop() {
                 }
             }
             Serial.printf("[TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
-        } else if (g == GEST_LONG_TAP) {
-            Serial.printf("[LONG TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
-            bool fromMapM = (currentScreen == SCR_MAP);  // aus Karte -> GC16 gegen Ghosting
-            currentScreen = SCR_MENU;
-            Serial.println("[MENU] Geoeffnet");
-            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count, fromMapM ? MODE_GC16 : MODE_DU);
-            lastDisplay = millis();
+        // Screen-Langdruck oeffnet das Menue NICHT mehr — Menue NUR ueber den Kapazitiv-Knopf (Ivo).
         } else if (g == GEST_HOME) {
             // Autonomer kapazitiver Knopf UNTER dem Screen: KURZ -> Ton-Menue
             soundReturnScreen = currentScreen;

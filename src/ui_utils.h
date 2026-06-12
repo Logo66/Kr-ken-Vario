@@ -85,12 +85,13 @@ static void sbDot(int cx, int cy, int r, bool filled, uint8_t *fb) {
 
 // Gemeinsamer Status-Zustand — main.cpp fuellt ihn 1x pro Loop, jeder Screen liest ihn.
 // "server" = Verbindung zum Buddy-Server (treibt den Buddy-Kreis).
-struct StatusBarState { int hh=0, mm=0, sats=0, fanet=0, bat=0; bool server=false; };
+struct StatusBarState { int hh=0, mm=0, sats=0, fanet=0, bat=0; bool server=false, ble=false, wifi=false; };
 static StatusBarState g_status;
 
-static void statusBarSet(int hh, int mm, int sats, int fanet, bool server, int bat) {
+static void statusBarSet(int hh, int mm, int sats, int fanet, bool server, int bat,
+                         bool ble=false, bool wifi=false) {
     g_status.hh=hh; g_status.mm=mm; g_status.sats=sats; g_status.fanet=fanet;
-    g_status.server=server; g_status.bat=bat;
+    g_status.server=server; g_status.bat=bat; g_status.ble=ble; g_status.wifi=wifi;
 }
 
 // Zeichnet die EINHEITLICHE Statusleiste oben — auf JEDEM Screen identisch.
@@ -104,6 +105,9 @@ static void drawStatusBar(uint8_t *fb) {
     drawText(&ArialBold16, b, 332, 38, fb);                                 // FANET
     // Buddy-Server-Verbindung = EINE Verbindung -> nur "Buddy" + ein Kreis
     sbDot(494, 29, 8, g_status.server, fb); drawText(&ArialBold16, "BUDDY", 510, 38, fb);
+    // BLE + WLAN — nur sichtbar, wenn tatsaechlich verbunden (sonst gar nichts)
+    if (g_status.ble)  drawText(&ArialBold16, "BLE",  600, 38, fb);
+    if (g_status.wifi) drawText(&ArialBold16, "WLAN", 686, 38, fb);
     uiBox(866,16,58,26,fb); uiFill(924,22,7,14,fb);
     uiFill(870,20,(int)(42.0f*g_status.bat/100.0f),18,fb);                  // Batterie (rechts)
     uiHLine(14, 48, 932, fb);                                               // Trennlinie (kompakt: Platz fuer Cruise/Thermik)
