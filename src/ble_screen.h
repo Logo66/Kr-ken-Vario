@@ -152,7 +152,7 @@ public:
         return false;
     }
 
-private:
+    // public: damit der BLE-Schreibweg (M2, applySettingKV) ble.name/pin/enabled persistieren kann.
     void saveConfig() {
         if (!sd || !sd->ok) return;
         File f = sd->openWrite("/ble.cfg");

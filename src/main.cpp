@@ -466,6 +466,10 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     else if (!strcmp(k,"vario.deadband"))        { g_sound.deadband=v.as<float>(); soundSettingsSave(); }
     else if (!strcmp(k,"vario.tone_curve"))      { g_sound.tone_curve=(uint8_t)v.as<int>(); soundSettingsSave(); }
     else if (!strcmp(k,"alt.qnh"))               { float q=v.as<float>(); if(q<800.0f||q>1100.0f){ok=false;err="range";} else alt_calc.setQNH(q); }
+    // ble.* werden persistiert und greifen beim naechsten Neustart (kein Live-Reinit -> aktive Verbindung bleibt)
+    else if (!strcmp(k,"ble.name"))              { const char* s=v.as<const char*>(); if(!s){ok=false;err="type";} else {strncpy(bleScreen.name,s,31);bleScreen.name[31]=0;bleScreen.saveConfig();} }
+    else if (!strcmp(k,"ble.pin"))               { int p=v.as<int>(); if(p<0||p>9999){ok=false;err="range";} else {snprintf(bleScreen.pin_str,sizeof(bleScreen.pin_str),"%04d",p); bleScreen.saveConfig();} }
+    else if (!strcmp(k,"ble.enabled"))           { bleScreen.enabled=v.as<bool>(); bleScreen.saveConfig(); }
     else { ok=false; err="unknown_key"; }
     if (ok) snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":true}", k);
     else    snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":false,\"err\":\"%s\"}", k, err);

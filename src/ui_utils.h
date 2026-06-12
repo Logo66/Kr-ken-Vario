@@ -6,6 +6,7 @@
 #include "arialbold40.h"
 #include "arialbold28.h"
 #include "arialbold16.h"
+#include <math.h>
 
 // === Exakte Text-Messung ===
 // Gibt die Pixelbreite und -hoehe eines Strings zurueck
@@ -70,6 +71,20 @@ static void uiBox(int x, int y, int w, int h, uint8_t *fb) {
     uiFill(x + w - 4, y, 4, h, fb);   // rechts
 }
 
+// Linie (Bresenham), 2px dick — fuer einfache Icons in der Statusleiste
+static void uiLine(int x0, int y0, int x1, int y1, uint8_t *fb, uint8_t color = 0) {
+    int dx = abs(x1-x0), sx = x0<x1?1:-1;
+    int dy = -abs(y1-y0), sy = y0<y1?1:-1;
+    int err = dx+dy;
+    for (;;) {
+        uiFill(x0, y0, 2, 2, fb, color);
+        if (x0==x1 && y0==y1) break;
+        int e2 = 2*err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
 // === EINHEITLICHE STATUSLEISTE (alle Flug-Screens) ===========================
 // Reihenfolge: Uhr | Sat | FANET | Buddy | Batterie
 // "Buddy" = Verbindung zum Buddy-Server (eine Verbindung, ein Kreis).
@@ -81,6 +96,28 @@ static void sbDot(int cx, int cy, int r, bool filled, uint8_t *fb) {
             if (filled ? (dd <= r*r) : (dd <= r*r && dd >= (r-2)*(r-2)))
                 uiFill(cx+x, cy+y, 1, 1, fb);
         }
+}
+
+// Einfaches Bluetooth-Zeichen (Rune), ~12x20 px — gleiche Hoehe wie die Bar-Schrift.
+static void sbBluetooth(int cx, int cy, uint8_t *fb) {
+    const int H=10, W=6, Q=5;
+    uiLine(cx,   cy-H, cx,   cy+H, fb);   // Mittelstrich
+    uiLine(cx,   cy-H, cx+W, cy-Q, fb);   // oben      -> rechts-oben
+    uiLine(cx+W, cy-Q, cx-W, cy+Q, fb);   // rechts-oben -> links-unten (Kreuz)
+    uiLine(cx,   cy+H, cx+W, cy+Q, fb);   // unten     -> rechts-unten
+    uiLine(cx+W, cy+Q, cx-W, cy-Q, fb);   // rechts-unten -> links-oben (Kreuz)
+}
+
+// Einfaches WLAN-Zeichen — Punkt + 3 Boegen nach oben — gleiche Hoehe wie die Bar-Schrift.
+static void sbWifi(int cx, int cyBase, uint8_t *fb) {
+    sbDot(cx, cyBase, 2, true, fb);
+    for (int ri=0; ri<3; ri++) {
+        int r = 5 + ri*5;
+        for (int a=40; a<=140; a+=3) {
+            float rad = a * 3.14159265f / 180.0f;
+            uiFill(cx + (int)(r*cosf(rad)), cyBase - (int)(r*sinf(rad)), 2, 2, fb);
+        }
+    }
 }
 
 // Gemeinsamer Status-Zustand — main.cpp fuellt ihn 1x pro Loop, jeder Screen liest ihn.
@@ -105,9 +142,9 @@ static void drawStatusBar(uint8_t *fb) {
     drawText(&ArialBold16, b, 332, 38, fb);                                 // FANET
     // Buddy-Server-Verbindung = EINE Verbindung -> nur "Buddy" + ein Kreis
     sbDot(494, 29, 8, g_status.server, fb); drawText(&ArialBold16, "BUDDY", 510, 38, fb);
-    // BLE + WLAN — nur sichtbar, wenn tatsaechlich verbunden (sonst gar nichts)
-    if (g_status.ble)  drawText(&ArialBold16, "BLE",  600, 38, fb);
-    if (g_status.wifi) drawText(&ArialBold16, "WLAN", 686, 38, fb);
+    // BLE + WLAN — einfache Icons, nur sichtbar wenn tatsaechlich verbunden
+    if (g_status.ble)  sbBluetooth(648, 28, fb);
+    if (g_status.wifi) sbWifi(720, 38, fb);
     uiBox(866,16,58,26,fb); uiFill(924,22,7,14,fb);
     uiFill(870,20,(int)(42.0f*g_status.bat/100.0f),18,fb);                  // Batterie (rechts)
     uiHLine(14, 48, 932, fb);                                               // Trennlinie (kompakt: Platz fuer Cruise/Thermik)
