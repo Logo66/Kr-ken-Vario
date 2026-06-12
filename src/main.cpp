@@ -68,6 +68,7 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
 #include "wind_estimator.h"   // Windschaetzung aus GPS-Kreisdrift (nur Anzeige/BLE, nicht im Vario)
 #include "buzzer.h"           // Arduino Modulino Buzzer (I2C 0x1E)
 #include <ArduinoJson.h>      // M2/M3: BLE-Konfig/Task-JSON
+#include "config_model.h"     // M1: ein versioniertes NVS-JSON-Settings-Modell
 #include "vario_sound.h"      // Steigton ueber den Buzzer (vom Vario gesteuert)
 #include "fanet.h"
 #include "device_registry.h"   // Ticket C: Self-Registration + NVS-Device-Token (Bearer)
@@ -438,6 +439,9 @@ void setup() {
         Serial.println("[BLE] aus (Schalter stand auf AUS)");
     }
 
+    // M1: EIN Settings-Modell (NVS-JSON) laden/erzeugen — Migration der Altpfade (Ton/BLE/QNH)
+    modelInit(g_sound.volume, bleScreen.name, (uint32_t)atoi(bleScreen.pin_str), bleScreen.enabled, alt_calc.getQNH()/100.0f);
+
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
 
@@ -470,7 +474,9 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     else if (!strcmp(k,"ble.name"))              { const char* s=v.as<const char*>(); if(!s){ok=false;err="type";} else {strncpy(bleScreen.name,s,31);bleScreen.name[31]=0;bleScreen.saveConfig();} }
     else if (!strcmp(k,"ble.pin"))               { int p=v.as<int>(); if(p<0||p>9999){ok=false;err="range";} else {snprintf(bleScreen.pin_str,sizeof(bleScreen.pin_str),"%04d",p); bleScreen.saveConfig();} }
     else if (!strcmp(k,"ble.enabled"))           { bleScreen.enabled=v.as<bool>(); bleScreen.saveConfig(); }
-    else { ok=false; err="unknown_key"; }
+    else if (!modelKeyKnown(k))                  { ok=false; err="unknown_key"; }   // nicht im Vertrag -> ablehnen
+    // andere Vertrags-Keys (units/display/pilot/fanet/map/log/warn/buddy): nur ins Modell (Live-Wirkung folgt)
+    if (ok) modelSet(k, v);                       // EINE Wahrheit: ins NVS-JSON-Modell (+ updated_at)
     if (ok) snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":true}", k);
     else    snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":false,\"err\":\"%s\"}", k, err);
     Serial.printf("[CFG] settings %s -> %s\n", k, ok?"ok":err);
