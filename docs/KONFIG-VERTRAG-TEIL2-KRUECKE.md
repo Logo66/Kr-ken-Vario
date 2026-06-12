@@ -113,14 +113,16 @@ Fehler: `{ "ack":"task", "ok":false, "err":"crc|json|too_big" }`. Reassembly-Puf
 ## 7. Phase 2 — Cloud-Hub (nur vorgesehen)
 Heartbeat synct Modell (`updated_at`) gegen Server; Task ggf. aus Cloud. BLE bleibt Feld-Weg. Braucht später Sync-Vertrag Server↔Krücke.
 
-## 8. Bau-Reihenfolge / Gates
-- **M1:** 1 Settings-Modell (versioniert, NVS-JSON), Touch liest+schreibt, Migration der 4 Altpfade. *(Beweis: Touch ändert Lautstärke → im Modell → übersteht Neustart.)*
-- **M2:** Write-Char `…0006`, `kind:settings`, App ändert 1 Wert, Echo, persistent.
-- **M3:** `kind:task` chunked+CRC → SD `/tasks/`, Echo „N WP".
-- **M4:** aktiver Task im Flug (Wegpunkt-Navigation, Stufe 1).
-- **M5:** FANET-TX-Flag nur mit Compile-Gate D (doppelt).
+## 8. Bau-Reihenfolge / Gates — STAND 2026-06-12
+- **M1 ✅ ERLEDIGT** (`7ebcbdf`): 1 Settings-Modell (versioniert, NVS-JSON `cfg/model`, `schema_version`+`updated_at`), Migration der Altpfade (Ton-NVS, `/ble.cfg`, QNH). Alle 13 Vertrags-Gruppen schreibbar; Live-Keys (Ton/Vario/QNH/BLE) wenden sofort an, der Rest ist persistent gespeichert. *(Verifiziert: `pilot.name`/`units.alt`/`warn.airspace` → ok, `bogus.key` → unknown_key, Modell 761 B übersteht Neustart, Migration `ble.enabled`.)*
+- **M2 ✅ ERLEDIGT** (`7b940c0`): Write-Char `…0006`, `kind:settings` (dotted-path key/value), Echo-Ack. *(Live verifiziert am echten Gerät: `sound.*`/`vario.*` → ok, auch Slider-Bursts.)*
+- **M3 ✅ ERLEDIGT** (`05455af`): `kind:task` chunked + **CRC32 (Standard IEEE/zlib, Poly 0xEDB88820)** → SD `/tasks/<name>.json`, Echo „N WP". *(Selbsttest: 2 Chunks → CRC ok → 2 WP, 4 KB Reassembly-Puffer, MTU 247.)*
+- **M4 ⏳ offen:** aktiver Task im Flug (Wegpunkt-Navigation, Stufe 1).
+- **M5 ⏳ offen:** FANET-TX-Flag nur mit Compile-Gate D (doppelt).
+
+> **⚠️ Sicherheits-Abweichung (Phase 1) — `e9033ac`:** Der Write-Char `…0006` ist **vorerst OFFEN** (`WRITE+NOTIFY`, **kein** `WRITE_ENC`), konsequent mit den ohnehin offenen Lese-Chars. **Grund:** NimBLE-Bonding hielt nicht (Disconnect unterbrach die Key-Verteilung → Android `BOND_NONE` → bei jeder Änderung neuer PIN; mit `WRITE_ENC` wurden Writes dann ohne Verschlüsselung abgewiesen → App „ausstehend"). **Disconnect-Fix ist drin** (kein Advertising-Neustart in `onConnect`; Buddy-Heartbeat-TLS pausiert während BLE-Session). **Phase-2-Härtung:** Verschlüsselung + persistenter Bond **konsequent für ALLE Chars** (Reads + Write) — NimBLE-Bond-Config (Public-Adresse, NVS-Persist, Key-Dist) ist bereits korrekt.
 
 ## 9. HEILIG
 - **Ein Schreibweg, zwei Inhalte** (`settings`/`task`) — kein zweites BLE-Protokoll.
 - Modell = einzige Wahrheit; `schema_version`+`updated_at` ab Start. FANET-TX doppelt gesichert.
-- **Keys exakt wie Teil 1.** Schreiben nur verschlüsselt (Pairing). Voll-Sicherung + sauberer Commit pro Schritt.
+- **Keys exakt wie Teil 1.** ~~Schreiben nur verschlüsselt (Pairing)~~ → **Phase 1: Write-Char offen** (siehe §8 Sicherheits-Abweichung `e9033ac`); Verschlüsselung + Bond konsequent für ALLE Chars als **Phase-2-Härtung**. Voll-Sicherung + sauberer Commit pro Schritt.
