@@ -35,6 +35,11 @@ struct Waypoint {
 static Waypoint activeWP = {"FIESCH", 46.4089, 8.1339, 2212.0f};
 static GoalData goalLive = {};
 
+// === M4: aktiver Task (Flugplan) — Wegpunkt-Navigation ===
+struct TaskWP { char name[24]; double lat, lon; float alt; int radius; };
+static TaskWP g_task[24];
+static int    g_taskCount = 0, g_taskIdx = 0;
+
 static float haversineDist(double lat1, double lon1, double lat2, double lon2) {
     double R = 6371000;
     double dlat = (lat2-lat1)*M_PI/180.0;
@@ -167,6 +172,9 @@ static void updateGoalData() {
             goalLive.gr_current = (live.speed/3.6f) / fabsf(live.vario);
         else goalLive.gr_current = 0;
     }
+    // M4: aktiver Task -> Wegpunkt-Index an den Namen haengen
+    static char g_wpLabel[40];
+    if (g_taskCount > 0) { snprintf(g_wpLabel, 40, "%s  %d/%d", activeWP.name, g_taskIdx+1, g_taskCount); goalLive.wp_name = g_wpLabel; }
     goalLive.rtc_hour = live.rtc_hour;
     goalLive.rtc_min = live.rtc_min;
     goalLive.sats = live.sats;
@@ -174,6 +182,38 @@ static void updateGoalData() {
     goalLive.fanet_peers = fanet.pilot_count;
     goalLive.buddy_connected = false;
     goalLive.buddy_hint = NULL;
+}
+
+// === M4: Task laden (SD /tasks/) + Wegpunkt-Navigation ===
+static bool taskLoad(const char *name) {
+    char path[80]; snprintf(path, sizeof(path), "/tasks/%s.json", name);
+    File f = sdcard.openRead(path);
+    if (!f) { Serial.printf("[TASK] %s nicht gefunden\n", path); return false; }
+    JsonDocument doc; DeserializationError e = deserializeJson(doc, f); f.close();
+    if (e) { Serial.println("[TASK] JSON-Fehler"); return false; }
+    g_taskCount = 0;
+    for (JsonObject w : doc["waypoints"].as<JsonArray>()) {
+        if (g_taskCount >= 24) break;
+        TaskWP &t = g_task[g_taskCount];
+        const char* wn = w["name"].as<const char*>(); strncpy(t.name, (wn&&*wn)?wn:"WP", 23); t.name[23]=0;
+        t.lat = w["lat"].as<double>(); t.lon = w["lon"].as<double>();
+        t.alt = w["alt"].as<float>(); int r = w["radius"].as<int>(); t.radius = (r>0)?r:400;
+        g_taskCount++;
+    }
+    g_taskIdx = 0;
+    Serial.printf("[TASK] aktiv: %s (%d WP)\n", name, g_taskCount);
+    return g_taskCount > 0;
+}
+// aktiven Wegpunkt in activeWP spiegeln + bei Erreichen (im Flug, im Radius) weiterschalten
+static void taskTick() {
+    if (g_taskCount == 0) return;
+    TaskWP &t = g_task[g_taskIdx];
+    activeWP.name = t.name; activeWP.lat = t.lat; activeWP.lon = t.lon; activeWP.alt = t.alt;
+    if (flight.state == FLIGHT_FLYING && live.gps_fix && lastGoodLat != 0 && g_taskIdx < g_taskCount-1) {
+        if (haversineDist(lastGoodLat, lastGoodLon, t.lat, t.lon) <= t.radius) {
+            g_taskIdx++; Serial.printf("[TASK] WP erreicht -> %d/%d\n", g_taskIdx+1, g_taskCount);
+        }
+    }
 }
 
 // === Ton-Menue: Zustand + Helfer zum Neuzeichnen des Flug-Screens =============
@@ -450,6 +490,7 @@ void setup() {
     { int ac = g_model["fanet"]["aircraft"].as<int>(); if (ac>=1 && ac<=7) g_fanetAircraft=(uint8_t)ac; }
     unitsLoad();                                                            // #1: Anzeige-Einheiten aus dem Modell
     backlight_on = g_model["display"]["backlight"].as<bool>(); digitalWrite(11, backlight_on?HIGH:LOW);  // Backlight-Zustand aus dem Modell
+    { File af = sdcard.openRead("/tasks/active.txt"); if (af) { String tn=af.readStringUntil('\n'); af.close(); tn.trim(); if (tn.length()) taskLoad(tn.c_str()); } }  // M4: aktiven Task laden
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
@@ -544,6 +585,7 @@ static void handleTaskChunk(JsonDocument &doc) {
     File f = sdcard.openWrite(path);
     if (!f) { ble.notifyCfg("{\"ack\":\"task\",\"ok\":false,\"err\":\"sd_write\"}"); return; }
     f.write((const uint8_t*)_taskBuf, _taskLen); f.close();
+    { File af = sdcard.openWrite("/tasks/active.txt"); if(af){ af.println(safe); af.close(); } } taskLoad(safe);  // M4: hochgeladenen Task aktiv setzen
     char ack[120]; snprintf(ack, sizeof(ack), "{\"ack\":\"task\",\"name\":\"%s\",\"wp\":%d,\"ok\":true}", safe, wp);
     Serial.printf("[CFG] task gespeichert: %s (%d WP, %u Byte)\n", path, wp, (unsigned)_taskLen);
     ble.notifyCfg(ack);
@@ -756,6 +798,7 @@ void loop() {
 
     // === FLUG-ERKENNUNG ===
     flight.update(live.speed, live.vario, live.altitude, live.gps_fix, live.sats);
+    taskTick();   // M4: aktiven Wegpunkt spiegeln + bei Erreichen weiterschalten
 
     // Im Flug: IGC-Punkt loggen (intern auf ~2s gedrosselt)
     if (flight.state == FLIGHT_FLYING)
