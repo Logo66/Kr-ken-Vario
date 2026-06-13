@@ -37,6 +37,23 @@ static const int ASP_MAX = 200;
 static Airspace *airspaces = nullptr;   // alloc in parseOpenAir (PSRAM)
 static int airspace_count = 0;
 
+// Hoehen-String ("GND"/"FL100"/"2500 MSL") -> Meter (OpenAir-Default: Fuss).
+static float aspAltM(const char* s) {
+    if (!s || !*s) return 0;
+    if (strstr(s,"GND")||strstr(s,"SFC")||strstr(s,"GROUND")) return 0;
+    float v = (strncmp(s,"FL",2)==0) ? (float)atof(s+2)*100.0f : (float)atof(s);
+    return v * 0.3048f;
+}
+// Punkt-in-Polygon (Ray-Casting) auf die Luftraum-Punkte.
+static bool aspContains(const Airspace& a, float lat, float lon) {
+    bool in=false;
+    for (int i=0,j=a.num_pts-1; i<a.num_pts; j=i++) {
+        float yi=a.pts[i].lat, xi=a.pts[i].lon, yj=a.pts[j].lat, xj=a.pts[j].lon;
+        if (((yi>lat)!=(yj>lat)) && (lon < (xj-xi)*(lat-yi)/(yj-yi)+xi)) in=!in;
+    }
+    return in;
+}
+
 // Hilfsfunktion: "47:35:12 N" oder "47:35.2 N" → Dezimalgrad
 static float parseCoord(const char *s) {
     // Formate: DD:MM:SS N/S/E/W oder DD:MM.MM N/S/E/W

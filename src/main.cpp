@@ -117,6 +117,9 @@ static CruiseData live = {};
 static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
 static uint8_t g_fanetAircraft = 1;   // FANET-Flugzeugtyp (1=Gleitschirm) — per App (fanet.aircraft)
 static int g_windTest = -1;           // Windpfeil-Bench-Test: -1=aus, sonst Test-Richtung in Grad (0/45/.../315)
+static bool  g_warnAirspace = true;   // #3: Luftraum-Warnung an/aus (warn.airspace)
+static float g_warnBufV = 150.0f;     // #3: vertikaler Puffer in m (warn.buffer_v)
+static int   g_aspWarnIdx = -1, g_aspWarnPrev = -1;   // aktueller/voriger Luftraum (Eintritts-Erkennung)
 static WindEstimator windEst;   // Wind aus Kreisdrift -> live.wind_speed/wind_dir + BLE
 static VarioSound    varioSound; // Steigton-Zustand fuer den Buzzer
 static unsigned long lastPrint=0, lastDisplay=0;
@@ -213,6 +216,22 @@ static void taskTick() {
         if (haversineDist(lastGoodLat, lastGoodLon, t.lat, t.lon) <= t.radius) {
             g_taskIdx++; Serial.printf("[TASK] WP erreicht -> %d/%d\n", g_taskIdx+1, g_taskCount);
         }
+    }
+}
+
+// === #3: Luftraum-Warnung — warn-Config laden + Innen-Check (nur im Flug) ===
+static void warnLoad() {
+    JsonVariant wa = g_model["warn"]["airspace"]; g_warnAirspace = wa.isNull() ? true : wa.as<bool>();
+    int bv = g_model["warn"]["buffer_v"].as<int>(); if (bv > 0) g_warnBufV = (float)bv;
+}
+static void aspWarnTick() {
+    g_aspWarnIdx = -1;
+    if (!g_warnAirspace || airspace_count == 0 || flight.state != FLIGHT_FLYING || !live.gps_fix || lastGoodLat == 0) return;
+    for (int a = 0; a < airspace_count; a++) {
+        Airspace& asp = airspaces[a];
+        if (!asp.active || asp.num_pts < 3) continue;
+        if (!aspContains(asp, lastGoodLat, lastGoodLon)) continue;
+        if (live.altitude >= aspAltM(asp.lower) - g_warnBufV && live.altitude <= aspAltM(asp.upper) + g_warnBufV) { g_aspWarnIdx = a; break; }
     }
 }
 
@@ -491,6 +510,7 @@ void setup() {
     unitsLoad();                                                            // #1: Anzeige-Einheiten aus dem Modell
     backlight_on = g_model["display"]["backlight"].as<bool>(); digitalWrite(11, backlight_on?HIGH:LOW);  // Backlight-Zustand aus dem Modell
     { File af = sdcard.openRead("/tasks/active.txt"); if (af) { String tn=af.readStringUntil('\n'); af.close(); tn.trim(); if (tn.length()) taskLoad(tn.c_str()); } }  // M4: aktiven Task laden
+    warnLoad();   // #3: Luftraum-Warn-Config aus dem Modell
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
@@ -532,6 +552,7 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     // andere Vertrags-Keys (units/display/pilot/fanet/map/log/warn/buddy): nur ins Modell (Live-Wirkung folgt)
     if (ok) modelSet(k, v);                       // EINE Wahrheit: ins NVS-JSON-Modell (+ updated_at)
     if (ok && !strncmp(k, "units.", 6)) unitsLoad();   // Einheiten sofort live uebernehmen
+    if (ok && !strncmp(k, "warn.", 5))  warnLoad();    // Luftraum-Warn-Config sofort uebernehmen
     if (ok) snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":true}", k);
     else    snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":false,\"err\":\"%s\"}", k, err);
     Serial.printf("[CFG] settings %s -> %s\n", k, ok?"ok":err);
@@ -799,6 +820,21 @@ void loop() {
     // === FLUG-ERKENNUNG ===
     flight.update(live.speed, live.vario, live.altitude, live.gps_fix, live.sats);
     taskTick();   // M4: aktiven Wegpunkt spiegeln + bei Erreichen weiterschalten
+    aspWarnTick();   // #3: Luftraum-Innen-Check (nur im Flug)
+    if (g_aspWarnIdx >= 0 && g_aspWarnIdx != g_aspWarnPrev) {   // Eintritt -> Alarm (Buzzer + 2.5s Warn-Screen)
+        Airspace& a = airspaces[g_aspWarnIdx];
+        Serial.printf("[WARN] LUFTRAUM: %s %s (%s-%s)\n", airspaceClassStr(a.cls), a.name, a.lower, a.upper);
+        for (int b=0;b<3;b++){ buzzerTone(2600,160); delay(220); }
+        uint8_t* wfb = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl); char wb[64];
+        drawHCenter(&ArialBold40, "!! LUFTRAUM !!", 0, 960, 175, wfb);
+        drawHCenter(&ArialBold28, a.name, 0, 960, 255, wfb);
+        snprintf(wb,64,"%s    %s - %s", airspaceClassStr(a.cls), a.lower, a.upper);
+        drawHCenter(&ArialBold28, wb, 0, 960, 320, wfb);
+        epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+        delay(2500);
+        drawFlightScreen(currentScreen, MODE_DU);
+    }
+    g_aspWarnPrev = g_aspWarnIdx;
 
     // Im Flug: IGC-Punkt loggen (intern auf ~2s gedrosselt)
     if (flight.state == FLIGHT_FLYING)
