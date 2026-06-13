@@ -31,7 +31,7 @@ static void modelDefaults() {
     g_model["schema_version"] = 1;
     g_model["updated_at"]     = 0;
     JsonObject snd = g_model["sound"].to<JsonObject>();   snd["volume"]=3; snd["muted"]=false;
-    JsonObject var = g_model["vario"].to<JsonObject>();   var["climb_threshold"]=0.2; var["sink_alarm"]=-3.0; var["deadband"]=0.1; var["tone_curve"]=0; var["sink_tone"]=true;
+    JsonObject var = g_model["vario"].to<JsonObject>();   var["climb_threshold"]=0.2; var["sink_alarm"]=-3.0; var["deadband"]=0.1; var["tone_curve"]=0; var["sink_tone"]=true; var["avg_window_s"]=20;
     JsonObject uni = g_model["units"].to<JsonObject>();   uni["alt"]="m"; uni["speed"]="kmh"; uni["vario"]="ms"; uni["temp"]="c";
     JsonObject dis = g_model["display"].to<JsonObject>(); dis["backlight"]=true; dis["brightness"]=80;
     JsonObject wif = g_model["wifi"].to<JsonObject>();    wif["ssid"]=""; wif["pass"]="";

@@ -109,6 +109,7 @@ static KalmanVario kf;
 static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=false;
 static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im Flug
 static CruiseData live = {};
+static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
 static WindEstimator windEst;   // Wind aus Kreisdrift -> live.wind_speed/wind_dir + BLE
 static VarioSound    varioSound; // Steigton-Zustand fuer den Buzzer
 static unsigned long lastPrint=0, lastDisplay=0;
@@ -441,6 +442,8 @@ void setup() {
 
     // M1: EIN Settings-Modell (NVS-JSON) laden/erzeugen — Migration der Altpfade (Ton/BLE/QNH)
     modelInit(g_sound.volume, bleScreen.name, (uint32_t)atoi(bleScreen.pin_str), bleScreen.enabled, alt_calc.getQNH()/100.0f);
+    int _aw = g_model["vario"]["avg_window_s"].as<int>();                    // AVG-Fenster aus dem Modell
+    g_avgWindowSec = (_aw >= 1 && _aw <= 120) ? _aw : 20;                    // fehlt/ungueltig -> Default 20
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
@@ -469,6 +472,7 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     else if (!strcmp(k,"vario.sink_alarm"))      { g_sound.sink_alarm=v.as<float>(); soundSettingsSave(); }
     else if (!strcmp(k,"vario.deadband"))        { g_sound.deadband=v.as<float>(); soundSettingsSave(); }
     else if (!strcmp(k,"vario.tone_curve"))      { g_sound.tone_curve=(uint8_t)v.as<int>(); soundSettingsSave(); }
+    else if (!strcmp(k,"vario.avg_window_s"))    { int w=v.as<int>(); if(w<1||w>120){ok=false;err="range";} else g_avgWindowSec=w; }
     else if (!strcmp(k,"alt.qnh"))               { float q=v.as<float>(); if(q<800.0f||q>1100.0f){ok=false;err="range";} else alt_calc.setQNH(q); }
     // ble.* werden persistiert und greifen beim naechsten Neustart (kein Live-Reinit -> aktive Verbindung bleibt)
     else if (!strcmp(k,"ble.name"))              { const char* s=v.as<const char*>(); if(!s){ok=false;err="type";} else {strncpy(bleScreen.name,s,31);bleScreen.name[31]=0;bleScreen.saveConfig();} }
@@ -601,7 +605,8 @@ void loop() {
         live.vario = kf.vario;
         vario_sum += kf.vario;
         vario_count++;
-        if (millis()-vario_window > 20000) {
+        live.avg_seconds = g_avgWindowSec;                                  // Cruise zeigt das echte Fenster
+        if (millis()-vario_window > (unsigned long)g_avgWindowSec*1000UL) {
             live.vario_avg = vario_sum / fmaxf(1,vario_count);
             vario_sum=0; vario_count=0; vario_window=millis();
         }
@@ -1112,6 +1117,7 @@ void loop() {
                        live.vario, live.vario_avg, live.altitude,
                        live.temp, live.dewpoint, live.bat_pct,
                        live.rtc_hour, live.rtc_min);
+        thermal.data.avg_seconds = g_avgWindowSec;                          // Thermik zeigt dasselbe Fenster
     }
 
     // Auto-Thermik bei Steigen

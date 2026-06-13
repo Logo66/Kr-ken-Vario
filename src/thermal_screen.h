@@ -15,6 +15,7 @@ struct ThermalData {
     float kern_dx, kern_dy, kern_dist;
     const char *kern_hint;
     int rtc_hour, rtc_min, bat_pct;
+    int avg_seconds;
 };
 
 static void fillCircle(int cx, int cy, int r, uint8_t *fb) {
@@ -82,7 +83,8 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     const int LCOL_W = TH_LEFT_W;                  // 350
     const int F_TOP = 98, F_H = 126;               // unter Statusleiste+Thermik-Zeile: 3 Felder 98-224-350-476
     struct { const char *lbl; char val[24]; } fld[3];
-    snprintf(fld[0].val, 24, "%+.1f m/s", d.vario_avg); fld[0].lbl = "AVG CLIMB 20s";
+    char avglbl[20]; snprintf(avglbl, 20, "AVG CLIMB %ds", d.avg_seconds);   // gleiches Fenster wie Cruise
+    snprintf(fld[0].val, 24, "%+.1f m/s", d.vario_avg); fld[0].lbl = avglbl;
     snprintf(fld[1].val, 24, "%.0f m",    d.altitude);  fld[1].lbl = "HOEHE";
     snprintf(fld[2].val, 24, "%.0f m",    d.base_est);  fld[2].lbl = "BASE EST";
     for (int i = 0; i < 3; i++) {
@@ -169,7 +171,7 @@ static void showDemoThermalScreen(EpdiyHighlevelState *hl) {
     td.base_est=3120; td.gained=245;
     td.thermal_start_ms=millis()-134000;
     td.heading=320; td.speed=35;
-    td.rtc_hour=14; td.rtc_min=31; td.bat_pct=86;
+    td.rtc_hour=14; td.rtc_min=31; td.bat_pct=86; td.avg_seconds=20;
     td.sample_count=0; td.kern_dist=0; td.kern_hint="zu wenig Daten";
     showThermalScreen(hl, td);
 }
