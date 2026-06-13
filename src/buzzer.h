@@ -31,22 +31,25 @@ static uint32_t buzzerTestNext() {
 }
 static uint32_t buzzerTestCurrentFreq() { return (g_testFreqIdx < 0) ? 0 : g_testFreqs[g_testFreqIdx]; }
 
-// START-JINGLE — kurzer rockiger Riff beim Boot, bewusst im lauten Piezo-Band (~2400-3280 Hz).
-// Bogen: Gallop rauf -> Peak -> Hammer-Lick zur Spitze -> bluesiger Abstieg -> Doppel-Slam-Finale.
+// START-JINGLE — langsamer, geerdeter E-BLUES ueber das ganze Frequenzband (nicht giftig).
+// Bogen: warmer tiefer Grundton -> bluesiger Aufstieg (mit Blue Note) -> hoerbare Antwort
+// oben im lauten Band -> Aufloesung zurueck nach unten auf den langen Grundton (sicher geerdet).
 static void buzzerStartup() {
-    struct Note { uint16_t f, d; };
+    struct Note { uint16_t f, d; };   // E-Blues: E G A Bb B  (tief 659 ... laut 3136)
     static const Note jingle[] = {
-        {2400,  70}, {2400,  70}, {2700,  70}, {3000, 200},   // Gallop rauf -> Peak
-        {   0,  60},
-        {2850,  70}, {3000,  70}, {3280, 230},                // Hammer-Lick zur Spitze
-        {   0,  80},
-        {3000,  90}, {2700,  90}, {2550,  70}, {2400, 170},   // bluesiger Abstieg
-        {   0,  90},
-        {3280, 120}, {0, 45}, {3280, 340}                     // Doppel-Slam-Finale
+        { 659, 400},                                  // E5 — warmer Grund
+        {   0, 100},
+        { 784, 220}, { 880, 220}, { 932, 190}, { 988, 380},   // G A Bb B — bluesiger Aufstieg (Bb = Blue Note)
+        {   0, 110},
+        {2349, 260}, {2637, 400},                     // D7 -> E7 — hoerbare Antwort oben (lautes Band)
+        {3136, 230}, {2637, 360},                     // G7 -> E7 — bluesige Spitze, zurueck zum Grundton
+        {   0, 120},
+        { 988, 230}, { 880, 230}, { 784, 270},        // B A G — ruhig runter
+        { 659, 640}                                   // E5 — tief, lang: sicher geerdet
     };
     for (const Note &n : jingle) {
         if (n.f) buzzerTone(n.f, n.d);
-        delay(n.d + 22);                                      // ausklingen + kleine Artikulations-Pause
+        delay(n.d + 14);                              // sanfte, fast legato Phrasierung (kein Stakkato)
     }
     buzzerStop();
 }
