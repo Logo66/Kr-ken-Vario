@@ -981,14 +981,16 @@ void loop() {
     } else if (currentScreen == SCR_SOUND) {
         // Flug-Ton-Menue: Tipp = Lautstaerke weiter, Lang = OK/schliessen, Auto-Close nach 5 s
         if (g == GEST_TAP) {
-            if (inSoundTest(touch.lastX(), touch.lastY())) {
-                buzzerTestNext();                            // TON-TEST-Button: naechste Frequenz hoeren
+            uint16_t note = soundPianoFreqAt(touch.lastX(), touch.lastY());
+            if (note) {
+                buzzerTone(note, 300);                       // Klaviertaste spielen — kein Redraw (responsiv)
+                soundLastActivity = millis();
             } else {
-                g_sound.volume = (uint8_t)((g_sound.volume + 1) % (SND_VOL_MAX + 1));  // 0..5 Umlauf
-                if (g_sound.volume > 0) buzzerTone(1200, 120);  // Piep beim Lauter (STUMM=0 bleibt still)
+                g_sound.volume = (uint8_t)((g_sound.volume + 1) % (SND_VOL_MAX + 1));  // ausserhalb = Lautstaerke (0..5 Umlauf)
+                if (g_sound.volume > 0) buzzerTone(1200, 120);
+                soundLastActivity = millis();
+                showSoundScreen(&hl, MODE_DU);               // nur bei Lautstaerke-Aenderung neu zeichnen
             }
-            soundLastActivity = millis();
-            showSoundScreen(&hl, MODE_DU);                 // sofortiges sichtbares Feedback
         } else if (g == GEST_LONG_TAP || g == GEST_HOME || g == GEST_HOME_LONG) {  // Home-Knopf schliesst auch
             soundSettingsSave();
             currentScreen = soundReturnScreen;
