@@ -861,6 +861,14 @@ void loop() {
                 Serial.printf("[FUNK] %s\n", msg);
                 showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
                                fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0, msg);
+            } else if (fi == FUNK_FANET_TX) {
+                g_fanetTxEnabled = !g_fanetTxEnabled;                 // TX scharf/aus (Gate D ist offen)
+                { JsonDocument t; t["v"] = g_fanetTxEnabled; modelSet("fanet.tx_enabled", t["v"]); }   // persistieren
+                char msg2[56];
+                snprintf(msg2, sizeof(msg2), g_fanetTxEnabled ? "FANET TX SCHARF - sendet IM FLUG!" : "FANET TX aus");
+                Serial.printf("[FUNK] %s\n", msg2);
+                showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
+                               fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0, msg2);
             } else if (fi == FUNK_BACK) {
                 currentScreen = SCR_MENU;
                 showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);

@@ -1,8 +1,9 @@
 #pragma once
 // funk_screen.h — FUNK Sub-Menü: WLAN / BLE / FANET
 #include "ui_utils.h"
+#include "fanet.h"   // g_fanetTxEnabled (TX-Arm-Anzeige)
 
-enum FunkItem { FUNK_NONE, FUNK_WLAN, FUNK_BLE, FUNK_FANET, FUNK_BACK };
+enum FunkItem { FUNK_NONE, FUNK_WLAN, FUNK_BLE, FUNK_FANET, FUNK_FANET_TX, FUNK_BACK };
 
 static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
                            bool fanet_on, int fanet_peers, uint32_t ble_pin = 0,
@@ -34,17 +35,17 @@ static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
         drawHCenter(&ArialBold16, ble_on ? "AN" : "AUS", bx + bw/2, bw/2, y1 + 55, fb);
     }
 
-    // FANET
+    // FANET — links: RX-Status + TX-Test · rechts: TX SCHARF/AUS-Toggle
     int y2 = y1 + bh + gap;
     uiBox(bx, y2, bw, bh, fb);
-    drawText(&ArialBold28, "FANET", bx + 30, y2 + 55, fb);
-    if (fanet_on && fanet_peers > 0) {
-        snprintf(buf, 48, "AN  (%d)", fanet_peers);
-    } else {
-        snprintf(buf, 48, "%s", fanet_on ? "AN" : "AUS");
-    }
-    drawHCenter(&ArialBold16, buf, bx + bw/2, bw/2, y2 + 48, fb);
-    drawHCenter(&ArialBold16, "tippen = TX-Test", bx + bw/2, bw/2, y2 + 72, fb);
+    int split = bx + 300;                        // 500 — links RX/Test | rechts TX-Arm
+    uiVLine(split, y2 + 10, bh - 20, fb);
+    drawText(&ArialBold28, "FANET", bx + 20, y2 + 40, fb);
+    if (fanet_on && fanet_peers > 0) snprintf(buf, 48, "AN (%d)  Test", fanet_peers);
+    else                            snprintf(buf, 48, "%s  Test", fanet_on ? "AN" : "AUS");
+    drawText(&ArialBold16, buf, bx + 20, y2 + 70, fb);
+    drawHCenter(&ArialBold16, "TX SENDEN", split, bw - (split - bx), y2 + 36, fb);
+    drawHCenter(&ArialBold28, g_fanetTxEnabled ? "SCHARF" : "AUS", split, bw - (split - bx), y2 + 74, fb);
 
     // ZURUECK
     int y3 = y2 + bh + gap + 20;
@@ -62,11 +63,12 @@ static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
 static FunkItem checkFunkTap(int tx, int ty) {
     int bx = 200, bw = 560, bh = 90, gap = 20;
     int y0 = 80, y1 = y0+bh+gap, y2 = y1+bh+gap, y3 = y2+bh+gap+20;
+    int split = bx + 300;
 
     if (tx >= bx && tx < bx+bw) {
         if (ty >= y0 && ty < y0+bh) return FUNK_WLAN;
         if (ty >= y1 && ty < y1+bh) return FUNK_BLE;
-        if (ty >= y2 && ty < y2+bh) return FUNK_FANET;
+        if (ty >= y2 && ty < y2+bh) return (tx < split) ? FUNK_FANET : FUNK_FANET_TX;  // links Test, rechts Arm
     }
     if (tx >= 350 && tx < 610 && ty >= y3 && ty < y3+60) return FUNK_BACK;
     return FUNK_NONE;
