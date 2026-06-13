@@ -110,6 +110,7 @@ static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=fal
 static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im Flug
 static CruiseData live = {};
 static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
+static uint8_t g_fanetAircraft = 1;   // FANET-Flugzeugtyp (1=Gleitschirm) — per App (fanet.aircraft)
 static WindEstimator windEst;   // Wind aus Kreisdrift -> live.wind_speed/wind_dir + BLE
 static VarioSound    varioSound; // Steigton-Zustand fuer den Buzzer
 static unsigned long lastPrint=0, lastDisplay=0;
@@ -444,6 +445,8 @@ void setup() {
     modelInit(g_sound.volume, bleScreen.name, (uint32_t)atoi(bleScreen.pin_str), bleScreen.enabled, alt_calc.getQNH()/100.0f);
     int _aw = g_model["vario"]["avg_window_s"].as<int>();                    // AVG-Fenster aus dem Modell
     g_avgWindowSec = (_aw >= 1 && _aw <= 120) ? _aw : 20;                    // fehlt/ungueltig -> Default 20
+    g_fanetTxEnabled = g_model["fanet"]["tx_enabled"].as<bool>();            // FANET-TX-Arm aus dem Modell (Doppel-Sicherung)
+    { int ac = g_model["fanet"]["aircraft"].as<int>(); if (ac>=1 && ac<=7) g_fanetAircraft=(uint8_t)ac; }
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
@@ -453,7 +456,7 @@ void setup() {
 
     // Splash → Cruise → nach 15s Thermik-Demo
     showBootSplash(&hl, AURA_VERSION);  // Einziger GC16 beim Boot (Graustufen-Logo)
-    delay(4000);
+    buzzerStartup();                    // Start-Jingle spielt, WAEHREND das Logo steht -> beide gleich lang
     showCruiseScreen(&hl, live, MODE_DU);  // Kein zweiter Flash
     Serial.println("READY — Cruise aktiv, Thermik-Demo in 15s");
 }
@@ -478,6 +481,8 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     else if (!strcmp(k,"ble.name"))              { const char* s=v.as<const char*>(); if(!s){ok=false;err="type";} else {strncpy(bleScreen.name,s,31);bleScreen.name[31]=0;bleScreen.saveConfig();} }
     else if (!strcmp(k,"ble.pin"))               { int p=v.as<int>(); if(p<0||p>9999){ok=false;err="range";} else {snprintf(bleScreen.pin_str,sizeof(bleScreen.pin_str),"%04d",p); bleScreen.saveConfig();} }
     else if (!strcmp(k,"ble.enabled"))           { bleScreen.enabled=v.as<bool>(); bleScreen.saveConfig(); }
+    else if (!strcmp(k,"fanet.tx_enabled"))      { g_fanetTxEnabled = v.as<bool>(); }                  // Arm-Flag (Gate D bleibt zusaetzlich noetig + nur im Flug)
+    else if (!strcmp(k,"fanet.aircraft"))        { int ac=v.as<int>(); if(ac<1||ac>7){ok=false;err="range";} else g_fanetAircraft=(uint8_t)ac; }
     else if (!modelKeyKnown(k))                  { ok=false; err="unknown_key"; }   // nicht im Vertrag -> ablehnen
     // andere Vertrags-Keys (units/display/pilot/fanet/map/log/warn/buddy): nur ins Modell (Live-Wirkung folgt)
     if (ok) modelSet(k, v);                       // EINE Wahrheit: ins NVS-JSON-Modell (+ updated_at)
@@ -592,7 +597,7 @@ void loop() {
         lastFanetTx = millis();
         if (lastGoodLat != 0) {
             fanet.sendTracking(lastGoodLat, lastGoodLon, live.altitude,
-                               live.vario, live.speed, live.heading, 1);
+                               live.vario, live.speed, live.heading, g_fanetAircraft);
         }
     }
 
@@ -703,8 +708,7 @@ void loop() {
           if (rawI2C(0x14, 0x00, &id, 1)) Serial.printf("[BMM350] 0x14 ID=0x%02X (Kompass)\n", id);
           else                            Serial.println("[BMM350] 0x14 keine Antwort");
         }
-        Serial.println("[BUZZER] Start-Chirp (Modulino 0x1E)");
-        buzzerStartup();   // hoerbarer Beweis, dass der Buzzer lebt
+        // Buzzer-Beweis kommt jetzt als Start-Jingle beim Logo (setup) — nicht mehr hier.
 
         fanet.selfTestTx();   // Ticket D: TX-Encoder byte-genau (kein Funk). Live-TX bleibt gated.
         Serial.printf("[DEV] (boot) MAC=%s token=%s status=%s\n",
@@ -846,12 +850,12 @@ void loop() {
                     snprintf(msg, sizeof(msg), "FANET TX-Test: kein GPS-Fix");
                 } else {
                     fanet.sendTracking(lastGoodLat, lastGoodLon, live.altitude, live.vario,
-                                       live.speed, live.heading, 1);
+                                       live.speed, live.heading, g_fanetAircraft);
 #if FANET_TX_ENABLED
-                    snprintf(msg, sizeof(msg), "FANET TX gesendet: %.4f %.4f %.0fm",
-                             lastGoodLat, lastGoodLon, live.altitude);
+                    if (g_fanetTxEnabled) snprintf(msg, sizeof(msg), "FANET TX gesendet: %.4f %.4f", lastGoodLat, lastGoodLon);
+                    else                  snprintf(msg, sizeof(msg), "FANET bereit - tx_enabled=AUS (in App scharf schalten)");
 #else
-                    snprintf(msg, sizeof(msg), "FANET TX GESPERRT (Flag=0) - Frame im Log");
+                    snprintf(msg, sizeof(msg), "FANET TX GESPERRT (Gate D) - Frame im Log");
 #endif
                 }
                 Serial.printf("[FUNK] %s\n", msg);
