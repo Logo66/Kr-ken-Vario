@@ -43,7 +43,7 @@ static void modelDefaults() {
     JsonObject lay = mp["layers"].to<JsonObject>();       lay["contours"]=true; lay["water"]=true; lay["airspace"]=true; lay["obstacles"]=true; lay["track"]=true;
     JsonObject lg  = g_model["log"].to<JsonObject>();     lg["igc"]=true; lg["imu_raw"]=false;
     JsonObject bud = g_model["buddy"].to<JsonObject>();   bud["pairing_code"]="";
-    JsonObject war = g_model["warn"].to<JsonObject>();    war["buffer_h"]=500; war["buffer_v"]=150; war["airspace"]=true; war["obstacle"]=true;
+    JsonObject war = g_model["warn"].to<JsonObject>();    war["buffer_h"]=500; war["buffer_v"]=150; war["airspace"]=true; war["obstacle"]=true; war["sphere_outer_m"]=300; war["sphere_inner_m"]=100;
 }
 
 // Beim Boot: aus NVS laden; fehlt es -> Defaults + Migration der 4 Altpfade (Ton-NVS, /ble.cfg, QNH) -> speichern.

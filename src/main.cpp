@@ -59,6 +59,12 @@ static float bearingTo(double lat1, double lon1, double lat2, double lon2) {
     return brg;
 }
 
+// Peilung -> 8-Punkt-Himmelsrichtung (deutsch: N NO O SO S SW W NW)
+static const char* compass8(float brg) {
+    static const char* d[8] = {"N","NO","O","SO","S","SW","W","NW"};
+    return d[((int)((brg + 22.5f) / 45.0f)) & 7];
+}
+
 // updateGoalData() — definiert nach den globalen Variablen (braucht gps + live)
 
 #include "thermal_manager.h"
@@ -121,6 +127,16 @@ static int g_windTest = -1;           // Windpfeil-Bench-Test: -1=aus, sonst Tes
 static bool  g_warnAirspace = true;   // #3: Luftraum-Warnung an/aus (warn.airspace)
 static float g_warnBufV = 150.0f;     // #3: vertikaler Puffer in m (warn.buffer_v)
 static int   g_aspWarnIdx = -1, g_aspWarnPrev = -1;   // aktueller/voriger Luftraum (Eintritts-Erkennung)
+// === Hindernis-Warnung: 3D-Schutzkugel um den Piloten (zwei Kugeln, einstellbar) ===
+static bool  g_warnObstacle = true;    // warn.obstacle — Hindernis/Proximity-Warnung an/aus
+static float g_sphereOuterM = 300.0f;  // warn.sphere_outer_m — aeussere Kugel (Vorwarnung)
+static float g_sphereInnerM = 100.0f;  // warn.sphere_inner_m — innere Kugel (Alarm)
+static int   g_obstLevel = 0, g_obstPrevLevel = 0;    // 0=frei 1=aussen 2=innen (Flanke)
+static float g_obstDist = 0, g_obstBrg = 0;           // 3D-Distanz + Peilung zum naechsten Hindernis
+static char  g_obstWhat[24] = "";                     // "Verkehr" / Gipfelname
+static unsigned long g_obstLastAlarm = 0;             // Cooldown gegen Dauerfeuer
+// Welche Kugel? (eine, echte 3D-Distanz). innen < aussen.
+static int   sphereLevel(float d3) { return d3 <= g_sphereInnerM ? 2 : (d3 <= g_sphereOuterM ? 1 : 0); }
 static unsigned long g_loopMaxMs = 0;   // #5: max. Loop-Zeit im 5s-Intervall (Perf)
 static WindEstimator windEst;   // Wind aus Kreisdrift -> live.wind_speed/wind_dir + BLE
 static VarioSound    varioSound; // Steigton-Zustand fuer den Buzzer
@@ -225,6 +241,10 @@ static void taskTick() {
 static void warnLoad() {
     JsonVariant wa = g_model["warn"]["airspace"]; g_warnAirspace = wa.isNull() ? true : wa.as<bool>();
     int bv = g_model["warn"]["buffer_v"].as<int>(); if (bv > 0) g_warnBufV = (float)bv;
+    JsonVariant wo = g_model["warn"]["obstacle"]; g_warnObstacle = wo.isNull() ? true : wo.as<bool>();
+    int so = g_model["warn"]["sphere_outer_m"].as<int>(); if (so > 0) g_sphereOuterM = (float)so;
+    int si = g_model["warn"]["sphere_inner_m"].as<int>(); if (si > 0) g_sphereInnerM = (float)si;
+    if (g_sphereInnerM >= g_sphereOuterM) g_sphereInnerM = g_sphereOuterM * 0.5f;  // innen<aussen erzwingen
 }
 static void aspWarnTick() {
     g_aspWarnIdx = -1;
@@ -235,6 +255,40 @@ static void aspWarnTick() {
         if (!aspContains(asp, lastGoodLat, lastGoodLon)) continue;
         if (live.altitude >= aspAltM(asp.lower) - g_warnBufV && live.altitude <= aspAltM(asp.upper) + g_warnBufV) { g_aspWarnIdx = a; break; }
     }
+}
+
+// === Hindernis-Warnung: naechstes Objekt in der 3D-Kugel finden (nur im Flug) ===
+// Quellen: FANET-Verkehr (live, beweglich) + Gipfel (fest). Eine echte Kugel:
+// d3 = sqrt(horizontal^2 + vertikal^2). Setzt g_obstLevel/Dist/Brg/What.
+static void obstacleWarnTick() {
+    g_obstLevel = 0; g_obstDist = 0; g_obstBrg = 0; g_obstWhat[0] = 0;
+    if (!g_warnObstacle || flight.state != FLIGHT_FLYING || !live.gps_fix || lastGoodLat == 0) return;
+    float best = 1e9f, bestBrg = 0; const char* bestWhat = "";
+    float myAlt = live.altitude;
+    // Quelle 1: FANET-Verkehr (bis 20, beweglich) — nur frisch Gesehene
+    for (int i = 0; i < fanet.pilot_count; i++) {
+        FanetPilot& p = fanet.pilots[i];
+        if (millis() - p.last_seen > 30000) continue;          // veraltet -> ignorieren
+        if (p.lat == 0 && p.lon == 0) continue;
+        float dh = haversineDist(lastGoodLat, lastGoodLon, p.lat, p.lon);
+        if (dh > g_sphereOuterM) continue;                     // ausserhalb -> 3D erst recht
+        float dv = myAlt - p.altitude;
+        float d3 = sqrtf(dh*dh + dv*dv);
+        if (d3 < best) { best = d3; bestBrg = bearingTo(lastGoodLat, lastGoodLon, p.lat, p.lon); bestWhat = "Verkehr"; }
+    }
+    // Quelle 2: Gipfel (fest, viele) — horizontal vorfiltern spart die meisten sqrt
+    for (int i = 0; i < peak_count; i++) {
+        Peak& pk = peaks_arr[i];
+        float dh = haversineDist(lastGoodLat, lastGoodLon, pk.lat, pk.lon);
+        if (dh > g_sphereOuterM) continue;
+        float dv = myAlt - (float)pk.ele;
+        float d3 = sqrtf(dh*dh + dv*dv);
+        if (d3 < best) { best = d3; bestBrg = bearingTo(lastGoodLat, lastGoodLon, pk.lat, pk.lon); bestWhat = pk.name; }
+    }
+    if (best >= 1e9f) return;
+    g_obstDist = best; g_obstBrg = bestBrg;
+    strncpy(g_obstWhat, bestWhat, 23); g_obstWhat[23] = 0;
+    g_obstLevel = sphereLevel(best);
 }
 
 // === Ton-Menue: Zustand + Helfer zum Neuzeichnen des Flug-Screens =============
@@ -515,6 +569,11 @@ void setup() {
     backlight_on = g_model["display"]["backlight"].as<bool>(); digitalWrite(11, backlight_on?HIGH:LOW);  // Backlight-Zustand aus dem Modell
     { File af = sdcard.openRead("/tasks/active.txt"); if (af) { String tn=af.readStringUntil('\n'); af.close(); tn.trim(); if (tn.length()) taskLoad(tn.c_str()); } }  // M4: aktiven Task laden
     warnLoad();   // #3: Luftraum-Warn-Config aus dem Modell
+    // Selbsttest 3D-Schutzkugel: geladene Radien + Klassifikation synthetischer Distanzen
+    Serial.printf("[KUGEL] Hindernis-Warnung %s  aussen=%.0fm innen=%.0fm\n",
+                  g_warnObstacle ? "AN" : "AUS", g_sphereOuterM, g_sphereInnerM);
+    Serial.printf("[KUGEL-TEST] 85m->%d(soll2)  250m->%d(soll1)  500m->%d(soll0)\n",
+                  sphereLevel(sqrtf(80.f*80.f + 30.f*30.f)), sphereLevel(250.f), sphereLevel(500.f));
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
@@ -752,7 +811,8 @@ void loop() {
                  /*Buddy-Server-Verbindung*/ deviceServerOk, live.bat_pct,
                  /*BLE-Client verbunden*/ ble.connected,
                  /*WLAN verbunden*/ WiFi.status() == WL_CONNECTED,
-                 /*Luftraum-Warnung abgeschaltet*/ !g_warnAirspace);
+                 /*Luftraum-Warnung aus*/ !g_warnAirspace,
+                 /*Hindernis-Warnung aus*/ !g_warnObstacle);
 
     // K5: Tile-Fenster nachladen, wenn Position > 7 km vom geladenen Zentrum (Karte folgt Bewegung)
     static unsigned long lastReloadChk = 0;
@@ -849,6 +909,30 @@ void loop() {
         drawFlightScreen(currentScreen, MODE_DU);
     }
     g_aspWarnPrev = g_aspWarnIdx;
+
+    // === Hindernis-Warnung: 3D-Schutzkugel (Verkehr + Gipfel) ===
+    obstacleWarnTick();
+    if (g_obstLevel == 2 && (g_obstPrevLevel < 2 || millis() - g_obstLastAlarm > 3500)) {
+        // INNERE Kugel -> lauter Alarm + kurzer Banner (Distanz + Richtung)
+        Serial.printf("[WARN] HINDERNIS innen: %s  %.0fm  %s\n", g_obstWhat, g_obstDist, compass8(g_obstBrg));
+        for (int b=0;b<4;b++){ buzzerTone(3300,110); delay(95); buzzerTone(2100,110); delay(95); }
+        buzzerStop();
+        uint8_t* wfb = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl); char wb[64];
+        drawHCenter(&ArialBold40, "!! HINDERNIS !!", 0, 960, 175, wfb);
+        drawHCenter(&ArialBold28, g_obstWhat, 0, 960, 255, wfb);
+        snprintf(wb,64,"%.0f m   %s", g_obstDist, compass8(g_obstBrg));
+        drawHCenter(&ArialBold28, wb, 0, 960, 320, wfb);
+        epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+        delay(1400);
+        drawFlightScreen(currentScreen, MODE_DU);
+        g_obstLastAlarm = millis();
+    } else if (g_obstLevel == 1 && g_obstPrevLevel == 0 && millis() - g_obstLastAlarm > 8000) {
+        // AEUSSERE Kugel -> leiser Vorwarn-Chirp, KEIN Block-Screen (kein Gaggle-Spam)
+        Serial.printf("[WARN] Hindernis aussen: %s  %.0fm  %s\n", g_obstWhat, g_obstDist, compass8(g_obstBrg));
+        buzzerTone(2200, 90); delay(110); buzzerStop();
+        g_obstLastAlarm = millis();
+    }
+    g_obstPrevLevel = g_obstLevel;
 
     // Im Flug: IGC-Punkt loggen (intern auf ~2s gedrosselt)
     if (flight.state == FLIGHT_FLYING)

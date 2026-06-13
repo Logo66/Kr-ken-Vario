@@ -132,15 +132,16 @@ static void sbWarnTri(int cx, int cyBase, uint8_t *fb) {
 
 // Gemeinsamer Status-Zustand — main.cpp fuellt ihn 1x pro Loop, jeder Screen liest ihn.
 // "server" = Verbindung zum Buddy-Server (treibt den Buddy-Kreis).
-// "warnoff" = Luftraum-Warnung per App abgeschaltet -> bleibt sichtbar (Vertrag §5b).
-struct StatusBarState { int hh=0, mm=0, sats=0, fanet=0, bat=0; bool server=false, ble=false, wifi=false, warnoff=false; };
+// "aspoff"/"obstoff" = Luftraum- bzw. Hindernis-Warnung per App abgeschaltet
+//                      -> bleibt sichtbar (Vertrag §5b, nie still aus).
+struct StatusBarState { int hh=0, mm=0, sats=0, fanet=0, bat=0; bool server=false, ble=false, wifi=false, aspoff=false, obstoff=false; };
 static StatusBarState g_status;
 
 static void statusBarSet(int hh, int mm, int sats, int fanet, bool server, int bat,
-                         bool ble=false, bool wifi=false, bool warnoff=false) {
+                         bool ble=false, bool wifi=false, bool aspoff=false, bool obstoff=false) {
     g_status.hh=hh; g_status.mm=mm; g_status.sats=sats; g_status.fanet=fanet;
     g_status.server=server; g_status.bat=bat; g_status.ble=ble; g_status.wifi=wifi;
-    g_status.warnoff=warnoff;
+    g_status.aspoff=aspoff; g_status.obstoff=obstoff;
 }
 
 // Zeichnet die EINHEITLICHE Statusleiste oben — auf JEDEM Screen identisch.
@@ -154,8 +155,12 @@ static void drawStatusBar(uint8_t *fb) {
     drawText(&ArialBold16, b, 332, 38, fb);                                 // FANET
     // Buddy-Server-Verbindung = EINE Verbindung -> nur "Buddy" + ein Kreis
     sbDot(494, 29, 8, g_status.server, fb); drawText(&ArialBold16, "BUDDY", 510, 38, fb);
-    // Luftraum-Warnung abgeschaltet -> Indikator bleibt sichtbar (nie still aus)
-    if (g_status.warnoff) { sbWarnTri(580, 40, fb); drawText(&ArialBold16, "LR-WARN AUS", 596, 38, fb); }
+    // Abgeschaltete Warnung bleibt sichtbar (nie still aus): LR=Luftraum, HIND=Hindernis
+    if (g_status.aspoff || g_status.obstoff) {
+        const char* lbl = (g_status.aspoff && g_status.obstoff) ? "WARN-AUS"
+                        : g_status.aspoff ? "LR-AUS" : "HIND-AUS";
+        sbWarnTri(580, 40, fb); drawText(&ArialBold16, lbl, 596, 38, fb);
+    }
     // BLE + WLAN — einfache Icons, nur sichtbar wenn tatsaechlich verbunden
     if (g_status.ble)  sbBluetooth(726, 30, fb);
     if (g_status.wifi) sbWifi(808, 42, fb);
