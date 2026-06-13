@@ -31,7 +31,22 @@ static uint32_t buzzerTestNext() {
 }
 static uint32_t buzzerTestCurrentFreq() { return (g_testFreqIdx < 0) ? 0 : g_testFreqs[g_testFreqIdx]; }
 
-// Frequenz-Sweep beim Boot — Ivo hoert, welcher Ton am LAUTESTEN ist (= Piezo-Resonanz).
+// START-JINGLE — kurzer rockiger Riff beim Boot, bewusst im lauten Piezo-Band (~2400-3280 Hz).
+// Bogen: Gallop rauf -> Peak -> Hammer-Lick zur Spitze -> bluesiger Abstieg -> Doppel-Slam-Finale.
 static void buzzerStartup() {
-    for (int i = 0; i < g_testFreqCount; i++) { buzzerTone(g_testFreqs[i], 200); delay(280); }
+    struct Note { uint16_t f, d; };
+    static const Note jingle[] = {
+        {2400,  70}, {2400,  70}, {2700,  70}, {3000, 200},   // Gallop rauf -> Peak
+        {   0,  60},
+        {2850,  70}, {3000,  70}, {3280, 230},                // Hammer-Lick zur Spitze
+        {   0,  80},
+        {3000,  90}, {2700,  90}, {2550,  70}, {2400, 170},   // bluesiger Abstieg
+        {   0,  90},
+        {3280, 120}, {0, 45}, {3280, 340}                     // Doppel-Slam-Finale
+    };
+    for (const Note &n : jingle) {
+        if (n.f) buzzerTone(n.f, n.d);
+        delay(n.d + 22);                                      // ausklingen + kleine Artikulations-Pause
+    }
+    buzzerStop();
 }

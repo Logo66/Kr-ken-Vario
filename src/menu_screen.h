@@ -63,13 +63,13 @@ static MenuItem checkMenuTap(int tx, int ty) {
 
 static void showCreditsAndShutdown(EpdiyHighlevelState *hl) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
-    memset(fb, 0x00, epd_width()/2 * epd_height());
-    drawHCenter(&ArialBold40, "AURA", 0, 960, 180, fb, 0xFF);
-    drawHCenter(&ArialBold28, "Paragliding Vario", 0, 960, 240, fb, 0xFF);
-    drawHCenter(&ArialBold16, "KIE Engineering", 0, 960, 310, fb, 0xFF);
-    drawHCenter(&ArialBold16, "www.kie-engineering.com", 0, 960, 340, fb, 0xFF);
-    drawHCenter(&ArialBold16, "info@kie-engineering.com", 0, 960, 370, fb, 0xFF);
-    drawHCenter(&ArialBold16, "Das erste KI-entwickelte Vario", 0, 960, 440, fb, 0xFF);
+    epd_hl_set_all_white(hl);   // INVERTIERT: weisser Hintergrund (E-Paper sauber, kein schwarzes Ghosting)
+    drawHCenter(&ArialBold40, "AURA", 0, 960, 180, fb);   // schwarze Schrift (Default 0x00)
+    drawHCenter(&ArialBold28, "Paragliding Vario", 0, 960, 240, fb);
+    drawHCenter(&ArialBold16, "KIE Engineering", 0, 960, 310, fb);
+    drawHCenter(&ArialBold16, "www.kie-engineering.com", 0, 960, 340, fb);
+    drawHCenter(&ArialBold16, "info@kie-engineering.com", 0, 960, 370, fb);
+    drawHCenter(&ArialBold16, "Das erste KI-entwickelte Vario", 0, 960, 440, fb);
     epd_poweron(); epd_hl_update_screen(hl, MODE_GC16, 20); epd_poweroff();
     delay(7000);
     epd_poweron(); epd_clear(); epd_poweroff(); delay(500);
