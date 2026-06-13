@@ -111,6 +111,7 @@ static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im F
 static CruiseData live = {};
 static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
 static uint8_t g_fanetAircraft = 1;   // FANET-Flugzeugtyp (1=Gleitschirm) — per App (fanet.aircraft)
+static int g_windTest = -1;           // Windpfeil-Bench-Test: -1=aus, sonst Test-Richtung in Grad (0/45/.../315)
 static WindEstimator windEst;   // Wind aus Kreisdrift -> live.wind_speed/wind_dir + BLE
 static VarioSound    varioSound; // Steigton-Zustand fuer den Buzzer
 static unsigned long lastPrint=0, lastDisplay=0;
@@ -563,6 +564,7 @@ static void processConfigWrite(const uint8_t *data, size_t len) {
 
 void loop() {
     feedGPS();
+    if (g_windTest >= 0 && flight.state != FLIGHT_FLYING) { live.wind_speed = 12.0f; live.wind_dir = (float)g_windTest; }  // Windpfeil-Bench-Test haelt die Test-Richtung
     fanet.poll();
     updateClock();
 
@@ -1082,6 +1084,16 @@ void loop() {
                                 fanet.pilot_count,false,live.gps_fix};
                     showMapScreen(&hl, md);
                 }
+            }
+            else if (currentScreen==SCR_CRUISE && flight.state != FLIGHT_FLYING
+                     && touch.lastX()>=310 && touch.lastX()<=628 && touch.lastY()>=288 && touch.lastY()<=405) {
+                // Windpfeil-Bench-Test: aufs Wind-Feld tippen -> Test-Richtung 0/45/.../315/aus durchsteppen
+                g_windTest = (g_windTest < 0) ? 0 : g_windTest + 45;
+                if (g_windTest >= 360) g_windTest = -1;
+                live.wind_speed = (g_windTest>=0) ? 12.0f : 0.0f;
+                live.wind_dir   = (g_windTest>=0) ? (float)g_windTest : 0.0f;
+                showCruiseScreen(&hl, live, MODE_DU);
+                Serial.printf("[WINDTEST] dir=%d\n", g_windTest);
             }
             Serial.printf("[TAP] x=%d y=%d\n", touch.lastX(), touch.lastY());
         // Screen-Langdruck oeffnet das Menue NICHT mehr — Menue NUR ueber den Kapazitiv-Knopf (Ivo).
