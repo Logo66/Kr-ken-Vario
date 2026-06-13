@@ -19,7 +19,10 @@
 // Live-TX bleibt aber AUS, bis ein ECHTES Empfangsgeraet (Skytraxx / go-fanet) die
 // Kruecke an KORREKTER Position/Hoehe zeigt (Gate D). Erst DANN auf 1 setzen.
 // Rote Linie: lieber TX aus als TX falsch — falsche Position fuehrt fremde Piloten in die Irre.
-#define FANET_TX_ENABLED 0
+#define FANET_TX_ENABLED 1   // Gate D OFFEN (2026-06-13, nach Ivos Test-OK). DOPPEL-SICHERUNG bleibt: siehe g_fanetTxEnabled.
+// Live-TX nur wenn BEIDE an: Gate D (oben, compile) UND dieses Config-Flag (App/Menue: fanet.tx_enabled).
+// Default AUS -> Gate D offen heisst NICHT Dauerfunk. Plus: gesendet wird ohnehin nur IM FLUG.
+static bool g_fanetTxEnabled = false;
 
 struct FanetPilot {
     uint8_t manufacturer;
@@ -216,6 +219,11 @@ public:
         int n = encodeTracking(buf, 0xFC, txUid(), lat, lon, alt, climb,
                                speed, heading, aircraft, true);
 #if FANET_TX_ENABLED
+        if (!g_fanetTxEnabled) {   // Gate D offen, aber Config-Flag aus -> nur encoden, KEIN Funk (Doppel-Sicherung)
+            static unsigned long lw=0;
+            if (millis()-lw > 30000) { lw=millis(); Serial.println("[FANET] TX bereit (Gate D offen), aber fanet.tx_enabled=false -> kein Funk"); }
+            (void)n; return false;
+        }
         int state = radio.transmit(buf, n);
         Serial.printf("[FANET] TX %s (state=%d)\n",
                       state == RADIOLIB_ERR_NONE ? "OK" : "FAIL", state);
