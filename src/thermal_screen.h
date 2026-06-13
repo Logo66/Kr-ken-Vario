@@ -91,8 +91,8 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
         int fy = F_TOP + i*F_H;
         drawHCenter(&ArialBold16, fld[i].lbl, 0, LCOL_W, fy+22, fb);          // Label hoeher -> mehr Luft zum Wert
         measureText(&ArialBold40, fld[i].val, &tw, &th);                      // alle Werte gleich gross
-        if (tw <= LCOL_W - 24) drawHCenter(&ArialBold40, fld[i].val, 0, LCOL_W, fy+102, fb);
-        else                   drawHCenter(&ArialBold28, fld[i].val, 0, LCOL_W, fy+98, fb);
+        if (tw <= LCOL_W - 24) drawHCenter(&ArialBold40, fld[i].val, 0, LCOL_W, fy+92, fb);
+        else                   drawHCenter(&ArialBold28, fld[i].val, 0, LCOL_W, fy+90, fb);
         if (i < 2) uiHLine(10, fy + F_H, LCOL_W - 10, fb);                    // Trennlinie zwischen Feldern
     }
 

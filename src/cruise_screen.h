@@ -180,14 +180,14 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     // Aktuell: zentriert in oberer Haelfte (y 80-220)
     snprintf(buf,48,"%+.1f",d.vario);
     T(&ArialBold40,buf,130,160,fb);
-    T(&ArialBold16,"m/s",165,182,fb);
+    T(&ArialBold16,"m/s",165,194,fb);
     // Trennlinie auf Null-Hoehe
     H(110,zy,195,fb);
     // Integriert: zentriert in unterer Haelfte (y 230-390)
     snprintf(buf,48,"%+.1f",d.vario_avg);
     T(&ArialBold40,buf,130,310,fb);
     snprintf(buf,48,"avg %ds",d.avg_seconds);
-    T(&ArialBold16,buf,140,332,fb);
+    T(&ArialBold16,buf,140,344,fb);
 
     // === HAUPT-DIVIDER ===
     V(DX,50,R3B-50,fb);
