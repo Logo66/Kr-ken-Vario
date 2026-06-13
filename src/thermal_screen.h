@@ -1,6 +1,7 @@
 #pragma once
 // thermal_screen.h — Alle Texte BERECHNET, keine Schaetzungen
 #include "ui_utils.h"
+#include "arialbold32.h"
 #include <math.h>
 
 struct LiftSample {
@@ -89,10 +90,10 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     snprintf(fld[2].val, 24, "%.0f m",    d.base_est);  fld[2].lbl = "BASE EST";
     for (int i = 0; i < 3; i++) {
         int fy = F_TOP + i*F_H;
-        drawHCenter(&ArialBold16, fld[i].lbl, 0, LCOL_W, fy+22, fb);          // Label hoeher -> mehr Luft zum Wert
-        measureText(&ArialBold40, fld[i].val, &tw, &th);                      // alle Werte gleich gross
-        if (tw <= LCOL_W - 24) drawHCenter(&ArialBold40, fld[i].val, 0, LCOL_W, fy+92, fb);
-        else                   drawHCenter(&ArialBold28, fld[i].val, 0, LCOL_W, fy+90, fb);
+        drawHCenter(&ArialBold16, fld[i].lbl, 0, LCOL_W, fy+30, fb);          // Label tiefer -> klar UNTER der oberen Trennlinie
+        measureText(&ArialBold32, fld[i].val, &tw, &th);                      // Wert eine Stufe kleiner (wie Cruise) -> Abstand zu beiden Linien
+        if (tw <= LCOL_W - 24) drawHCenter(&ArialBold32, fld[i].val, 0, LCOL_W, fy+96, fb);
+        else                   drawHCenter(&ArialBold28, fld[i].val, 0, LCOL_W, fy+94, fb);
         if (i < 2) uiHLine(10, fy + F_H, LCOL_W - 10, fb);                    // Trennlinie zwischen Feldern
     }
 
