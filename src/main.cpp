@@ -116,6 +116,7 @@ static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im F
 static CruiseData live = {};
 static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
 static uint8_t g_fanetAircraft = 1;   // FANET-Flugzeugtyp (1=Gleitschirm) — per App (fanet.aircraft)
+static char    g_fanetPilotName[32] = "";   // FANET-Name-Beacon (fanet.pilot_name)
 static int g_windTest = -1;           // Windpfeil-Bench-Test: -1=aus, sonst Test-Richtung in Grad (0/45/.../315)
 static bool  g_warnAirspace = true;   // #3: Luftraum-Warnung an/aus (warn.airspace)
 static float g_warnBufV = 150.0f;     // #3: vertikaler Puffer in m (warn.buffer_v)
@@ -507,6 +508,8 @@ void setup() {
     g_avgWindowSec = (_aw >= 1 && _aw <= 120) ? _aw : 20;                    // fehlt/ungueltig -> Default 20
     g_fanetTxEnabled = g_model["fanet"]["tx_enabled"].as<bool>();            // FANET-TX-Arm aus dem Modell (Doppel-Sicherung)
     { int ac = g_model["fanet"]["aircraft"].as<int>(); if (ac>=1 && ac<=7) g_fanetAircraft=(uint8_t)ac; }
+    { JsonVariant ot = g_model["fanet"]["online_tracking"]; g_fanetOnline = ot.isNull() ? true : ot.as<bool>(); }
+    { const char* pn = g_model["fanet"]["pilot_name"].as<const char*>(); if (pn) { strncpy(g_fanetPilotName, pn, 31); g_fanetPilotName[31]=0; } }
     unitsLoad();                                                            // #1: Anzeige-Einheiten aus dem Modell
     backlight_on = g_model["display"]["backlight"].as<bool>(); digitalWrite(11, backlight_on?HIGH:LOW);  // Backlight-Zustand aus dem Modell
     { File af = sdcard.openRead("/tasks/active.txt"); if (af) { String tn=af.readStringUntil('\n'); af.close(); tn.trim(); if (tn.length()) taskLoad(tn.c_str()); } }  // M4: aktiven Task laden
@@ -547,6 +550,8 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     else if (!strcmp(k,"ble.enabled"))           { bleScreen.enabled=v.as<bool>(); bleScreen.saveConfig(); }
     else if (!strcmp(k,"fanet.tx_enabled"))      { g_fanetTxEnabled = v.as<bool>(); }                  // Arm-Flag (Gate D bleibt zusaetzlich noetig + nur im Flug)
     else if (!strcmp(k,"fanet.aircraft"))        { int ac=v.as<int>(); if(ac<1||ac>7){ok=false;err="range";} else g_fanetAircraft=(uint8_t)ac; }
+    else if (!strcmp(k,"fanet.online_tracking")) { g_fanetOnline = v.as<bool>(); }
+    else if (!strcmp(k,"fanet.pilot_name"))      { const char* s=v.as<const char*>(); if(s){strncpy(g_fanetPilotName,s,31);g_fanetPilotName[31]=0;} }
     else if (!strcmp(k,"display.backlight"))     { backlight_on = v.as<bool>(); digitalWrite(11, backlight_on?HIGH:LOW); }
     else if (!modelKeyKnown(k))                  { ok=false; err="unknown_key"; }   // nicht im Vertrag -> ablehnen
     // andere Vertrags-Keys (units/display/pilot/fanet/map/log/warn/buddy): nur ins Modell (Live-Wirkung folgt)
@@ -668,6 +673,10 @@ void loop() {
             fanet.sendTracking(lastGoodLat, lastGoodLon, live.altitude,
                                live.vario, live.speed, live.heading, g_fanetAircraft);
         }
+    }
+    static unsigned long lastFanetName = 0;   // #4: Namens-Beacon ~alle 60s im Flug
+    if (fanet.ok && flight.state == FLIGHT_FLYING && g_fanetPilotName[0] && millis()-lastFanetName > 60000) {
+        lastFanetName = millis(); fanet.sendName(g_fanetPilotName);
     }
 
     // BMP581 raw read + Kalman (~20 Hz)
@@ -1061,9 +1070,14 @@ void loop() {
                 showCruiseScreen(&hl, live, MODE_DU);
                 lastDisplay = millis();
             } else if (lc == LAND_RIDE) {
-                Serial.println("[LAND] Brauche Ride → FANET (TODO)");
+                char m[56]; snprintf(m, sizeof(m), "RIDE bitte %s %.4f,%.4f", g_fanetPilotName[0]?g_fanetPilotName:"Pilot", lastGoodLat, lastGoodLon);
+                bool sent = fanet.sendMessage(m); buzzerTone(2400,150); delay(180); buzzerTone(2400,150);
+                Serial.printf("[LAND] Ride -> FANET %s: %s\n", sent?"gesendet":"(TX aus - Funk scharf schalten)", m);
             } else if (lc == LAND_HELP) {
-                Serial.println("[LAND] HILFE → FANET Notruf (TODO)");
+                g_fanetTxEnabled = true;   // #4: SOS armt FANET im Notfall (Gate D muss offen sein)
+                char m[56]; snprintf(m, sizeof(m), "SOS HILFE %s %.4f,%.4f", g_fanetPilotName[0]?g_fanetPilotName:"Pilot", lastGoodLat, lastGoodLon);
+                bool sent = fanet.sendMessage(m); for(int b=0;b<3;b++){buzzerTone(2800,180);delay(220);}
+                Serial.printf("[LAND] SOS -> FANET %s: %s\n", sent?"gesendet":"(Gate D zu)", m);
             }
         }
     } else if (currentScreen == SCR_SOUND) {

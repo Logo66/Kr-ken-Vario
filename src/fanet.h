@@ -23,6 +23,7 @@
 // Live-TX nur wenn BEIDE an: Gate D (oben, compile) UND dieses Config-Flag (App/Menue: fanet.tx_enabled).
 // Default AUS -> Gate D offen heisst NICHT Dauerfunk. Plus: gesendet wird ohnehin nur IM FLUG.
 static bool g_fanetTxEnabled = false;
+static bool g_fanetOnline    = true;   // FANET Online-Tracking-Flag (fanet.online_tracking)
 
 struct FanetPilot {
     uint8_t manufacturer;
@@ -217,7 +218,7 @@ public:
         if (!ok) return false;
         uint8_t buf[15];
         int n = encodeTracking(buf, 0xFC, txUid(), lat, lon, alt, climb,
-                               speed, heading, aircraft, true);
+                               speed, heading, aircraft, g_fanetOnline);
 #if FANET_TX_ENABLED
         if (!g_fanetTxEnabled) {   // Gate D offen, aber Config-Flag aus -> nur encoden, KEIN Funk (Doppel-Sicherung)
             static unsigned long lw=0;
@@ -241,6 +242,34 @@ public:
         }
         (void)n;
         return false;
+#endif
+    }
+
+    // === FANET Type 2 (Name) + Type 3 (Message) — #4. Gleiche Doppel-Sicherung wie Tracking. ===
+    bool sendName(const char* name) {
+        if (!ok || !name || !*name) return false;
+        uint8_t buf[40]; buf[0]=0x02; buf[1]=0xFC; uint16_t uid=txUid(); buf[2]=uid&0xFF; buf[3]=(uid>>8)&0xFF;
+        int n=4; for (const char* p=name; *p && n<36; p++) buf[n++]=(uint8_t)*p;
+#if FANET_TX_ENABLED
+        if (!g_fanetTxEnabled) return false;
+        int st=radio.transmit(buf,n); Serial.printf("[FANET] Name-TX %s\n", st==RADIOLIB_ERR_NONE?"OK":"FAIL"); radio.startReceive();
+        return st==RADIOLIB_ERR_NONE;
+#else
+        (void)n; return false;
+#endif
+    }
+    // Nachricht (z.B. Ride/SOS) — sendet auch am Boden, aber nur bei Gate D + tx_enabled (bewusste Aktion).
+    bool sendMessage(const char* msg) {
+        if (!ok || !msg || !*msg) return false;
+        uint8_t buf[60]; buf[0]=0x03; buf[1]=0xFC; uint16_t uid=txUid(); buf[2]=uid&0xFF; buf[3]=(uid>>8)&0xFF;
+        buf[4]=0;   // Subheader: Message-Subtype 0 (Broadcast)
+        int n=5; for (const char* p=msg; *p && n<56; p++) buf[n++]=(uint8_t)*p;
+#if FANET_TX_ENABLED
+        if (!g_fanetTxEnabled) { Serial.println("[FANET] Msg: tx_enabled=false -> kein Funk"); return false; }
+        int st=radio.transmit(buf,n); Serial.printf("[FANET] Msg-TX %s: %s\n", st==RADIOLIB_ERR_NONE?"OK":"FAIL", msg); radio.startReceive();
+        return st==RADIOLIB_ERR_NONE;
+#else
+        Serial.printf("[FANET] Msg GESPERRT (Gate D): %s\n", msg); (void)n; return false;
 #endif
     }
 
