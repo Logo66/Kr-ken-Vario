@@ -20,6 +20,7 @@
 #include "arialbold28.h"
 #include "arialbold16.h"
 #include "ui_utils.h"          // gemeinsame Statusleiste (drawStatusBar)
+#include "units.h"             // Anzeige-Einheiten (alt/speed/temp)
 
 struct CruiseData {
     float altitude, vario, vario_avg, speed, heading, glide;
@@ -194,19 +195,19 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
 
     // === REIHE 1: HOEHE (volle Breite x310-950, alles zentriert) ===
     drawHCenter(&ArialBold16,"HOEHE MSL",RX,RW,72,fb);
-    snprintf(buf,48,"%.0f",d.altitude);
-    { int wv,hv,wm,hm; measureText(&ArialBold32,buf,&wv,&hv); measureText(&ArialBold28,"m",&wm,&hm);
-      int gap=10, tot=wv+gap+wm, sx=RX+(RW-tot)/2;            // "489 m" als Block mittig
-      T(&ArialBold32,buf,sx,130,fb); T(&ArialBold28,"m",sx+wv+gap,130,fb); }
-    snprintf(buf,48,"QNH %.0f  GND +%.0f m",d.qnh,d.delta_gnd);
+    snprintf(buf,48,"%.0f",uAlt(d.altitude));
+    { int wv,hv,wm,hm; const char* ul=uAltL(); measureText(&ArialBold32,buf,&wv,&hv); measureText(&ArialBold28,ul,&wm,&hm);
+      int gap=10, tot=wv+gap+wm, sx=RX+(RW-tot)/2;            // "489 m/ft" als Block mittig
+      T(&ArialBold32,buf,sx,130,fb); T(&ArialBold28,ul,sx+wv+gap,130,fb); }
+    snprintf(buf,48,"QNH %.0f  GND +%.0f %s",d.qnh,uAlt(d.delta_gnd),uAltL());
     drawHCenter(&ArialBold16,buf,RX,RW,158,fb);
     H(RX,R1B,RW,fb);
 
     // === REIHE 2: SPEED | GLIDE (y: 170-284, Werte zentriert + eine Stufe kleiner) ===
     drawHCenter(&ArialBold16,"SPEED",RX,RHW,195,fb);
-    snprintf(buf,48,"%.0f",d.speed);
+    snprintf(buf,48,"%.0f",uSpd(d.speed));
     { int ws,hs; measureText(&ArialBold32,buf,&ws,&hs); T(&ArialBold32,buf,RX+(RHW-ws)/2,250,fb); }
-    drawHCenter(&ArialBold16,"km/h",RX,RHW,274,fb);
+    drawHCenter(&ArialBold16,uSpdL(),RX,RHW,274,fb);
     // Divider
     V(RX+RHW,R2T,R2B-R2T,fb);
     // Glide: Feld x632-950
@@ -233,7 +234,7 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     // Divider
     V(RX+RHW,R3T,R3B-R3T,fb);
     // Temp+Dew: Feld x632-950
-    snprintf(buf,48,"%.1f C",d.temp);
+    snprintf(buf,48,"%.1f %s",uTmp(d.temp),uTmpL());
     T(&ArialBold28,buf,680,340,fb);
     snprintf(buf,48,"Dew %+.0f C",d.dewpoint);
     T(&ArialBold16,buf,680,370,fb);

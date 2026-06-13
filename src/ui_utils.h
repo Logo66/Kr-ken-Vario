@@ -100,7 +100,7 @@ static void sbDot(int cx, int cy, int r, bool filled, uint8_t *fb) {
 
 // Einfaches Bluetooth-Zeichen (Rune), ~12x20 px — gleiche Hoehe wie die Bar-Schrift.
 static void sbBluetooth(int cx, int cy, uint8_t *fb) {
-    const int H=10, W=6, Q=5;
+    const int H=13, W=8, Q=7;
     uiLine(cx,   cy-H, cx,   cy+H, fb);   // Mittelstrich
     uiLine(cx,   cy-H, cx+W, cy-Q, fb);   // oben      -> rechts-oben
     uiLine(cx+W, cy-Q, cx-W, cy+Q, fb);   // rechts-oben -> links-unten (Kreuz)
@@ -110,9 +110,9 @@ static void sbBluetooth(int cx, int cy, uint8_t *fb) {
 
 // Einfaches WLAN-Zeichen — Punkt + 3 Boegen nach oben — gleiche Hoehe wie die Bar-Schrift.
 static void sbWifi(int cx, int cyBase, uint8_t *fb) {
-    sbDot(cx, cyBase, 2, true, fb);
+    sbDot(cx, cyBase, 3, true, fb);
     for (int ri=0; ri<3; ri++) {
-        int r = 5 + ri*5;
+        int r = 7 + ri*6;
         for (int a=40; a<=140; a+=3) {
             float rad = a * 3.14159265f / 180.0f;
             uiFill(cx + (int)(r*cosf(rad)), cyBase - (int)(r*sinf(rad)), 2, 2, fb);
@@ -143,8 +143,8 @@ static void drawStatusBar(uint8_t *fb) {
     // Buddy-Server-Verbindung = EINE Verbindung -> nur "Buddy" + ein Kreis
     sbDot(494, 29, 8, g_status.server, fb); drawText(&ArialBold16, "BUDDY", 510, 38, fb);
     // BLE + WLAN — einfache Icons, nur sichtbar wenn tatsaechlich verbunden
-    if (g_status.ble)  sbBluetooth(648, 28, fb);
-    if (g_status.wifi) sbWifi(720, 38, fb);
+    if (g_status.ble)  sbBluetooth(726, 30, fb);
+    if (g_status.wifi) sbWifi(808, 42, fb);
     uiBox(866,16,58,26,fb); uiFill(924,22,7,14,fb);
     uiFill(870,20,(int)(42.0f*g_status.bat/100.0f),18,fb);                  // Batterie (rechts)
     uiHLine(14, 48, 932, fb);                                               // Trennlinie (kompakt: Platz fuer Cruise/Thermik)

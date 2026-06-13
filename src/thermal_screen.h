@@ -2,6 +2,7 @@
 // thermal_screen.h — Alle Texte BERECHNET, keine Schaetzungen
 #include "ui_utils.h"
 #include "arialbold32.h"
+#include "units.h"
 #include <math.h>
 
 struct LiftSample {
@@ -86,8 +87,8 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     struct { const char *lbl; char val[24]; } fld[3];
     char avglbl[20]; snprintf(avglbl, 20, "AVG CLIMB %ds", d.avg_seconds);   // gleiches Fenster wie Cruise
     snprintf(fld[0].val, 24, "%+.1f m/s", d.vario_avg); fld[0].lbl = avglbl;
-    snprintf(fld[1].val, 24, "%.0f m",    d.altitude);  fld[1].lbl = "HOEHE";
-    snprintf(fld[2].val, 24, "%.0f m",    d.base_est);  fld[2].lbl = "BASE EST";
+    snprintf(fld[1].val, 24, "%.0f %s",   uAlt(d.altitude), uAltL());  fld[1].lbl = "HOEHE";
+    snprintf(fld[2].val, 24, "%.0f %s",   uAlt(d.base_est), uAltL());  fld[2].lbl = "BASE EST";
     for (int i = 0; i < 3; i++) {
         int fy = F_TOP + i*F_H;
         drawHCenter(&ArialBold16, fld[i].lbl, 0, LCOL_W, fy+30, fb);          // Label tiefer -> klar UNTER der oberen Trennlinie

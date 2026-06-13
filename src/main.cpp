@@ -448,6 +448,8 @@ void setup() {
     g_avgWindowSec = (_aw >= 1 && _aw <= 120) ? _aw : 20;                    // fehlt/ungueltig -> Default 20
     g_fanetTxEnabled = g_model["fanet"]["tx_enabled"].as<bool>();            // FANET-TX-Arm aus dem Modell (Doppel-Sicherung)
     { int ac = g_model["fanet"]["aircraft"].as<int>(); if (ac>=1 && ac<=7) g_fanetAircraft=(uint8_t)ac; }
+    unitsLoad();                                                            // #1: Anzeige-Einheiten aus dem Modell
+    backlight_on = g_model["display"]["backlight"].as<bool>(); digitalWrite(11, backlight_on?HIGH:LOW);  // Backlight-Zustand aus dem Modell
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
@@ -484,9 +486,11 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     else if (!strcmp(k,"ble.enabled"))           { bleScreen.enabled=v.as<bool>(); bleScreen.saveConfig(); }
     else if (!strcmp(k,"fanet.tx_enabled"))      { g_fanetTxEnabled = v.as<bool>(); }                  // Arm-Flag (Gate D bleibt zusaetzlich noetig + nur im Flug)
     else if (!strcmp(k,"fanet.aircraft"))        { int ac=v.as<int>(); if(ac<1||ac>7){ok=false;err="range";} else g_fanetAircraft=(uint8_t)ac; }
+    else if (!strcmp(k,"display.backlight"))     { backlight_on = v.as<bool>(); digitalWrite(11, backlight_on?HIGH:LOW); }
     else if (!modelKeyKnown(k))                  { ok=false; err="unknown_key"; }   // nicht im Vertrag -> ablehnen
     // andere Vertrags-Keys (units/display/pilot/fanet/map/log/warn/buddy): nur ins Modell (Live-Wirkung folgt)
     if (ok) modelSet(k, v);                       // EINE Wahrheit: ins NVS-JSON-Modell (+ updated_at)
+    if (ok && !strncmp(k, "units.", 6)) unitsLoad();   // Einheiten sofort live uebernehmen
     if (ok) snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":true}", k);
     else    snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":false,\"err\":\"%s\"}", k, err);
     Serial.printf("[CFG] settings %s -> %s\n", k, ok?"ok":err);
@@ -759,7 +763,9 @@ void loop() {
 
     // Start erkannt → IGC-Datei oeffnen + Meldung auf Display
     if (flight.justStarted()) {
-        igc.start(&sdcard, gps, live.altitude, "Ivo Eichenberger", "Paraglider");
+        { const char* pn = g_model["pilot"]["name"].as<const char*>();
+          const char* pg = g_model["pilot"]["glider"].as<const char*>();
+          igc.start(&sdcard, gps, live.altitude, (pn&&*pn)?pn:"Pilot", (pg&&*pg)?pg:"Paraglider"); }
         g_max_flight = 0;   // G-Spitze fuer diesen Flug zuruecksetzen
         uint8_t *fb = epd_hl_get_framebuffer(&hl);
         epd_hl_set_all_white(&hl);
@@ -939,6 +945,7 @@ void loop() {
             } else if (mi == MENU_BACKLIGHT) {
                 backlight_on = !backlight_on;
                 digitalWrite(11, backlight_on ? HIGH : LOW);
+                { JsonDocument t; t["v"]=backlight_on; modelSet("display.backlight", t["v"]); }   // persistieren
                 Serial.printf("[MENU] Backlight %s\n", backlight_on?"AN":"AUS");
                 showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
             } else if (mi == MENU_FLUGBUCH) {
