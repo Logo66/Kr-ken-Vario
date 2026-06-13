@@ -121,6 +121,7 @@ static int g_windTest = -1;           // Windpfeil-Bench-Test: -1=aus, sonst Tes
 static bool  g_warnAirspace = true;   // #3: Luftraum-Warnung an/aus (warn.airspace)
 static float g_warnBufV = 150.0f;     // #3: vertikaler Puffer in m (warn.buffer_v)
 static int   g_aspWarnIdx = -1, g_aspWarnPrev = -1;   // aktueller/voriger Luftraum (Eintritts-Erkennung)
+static unsigned long g_loopMaxMs = 0;   // #5: max. Loop-Zeit im 5s-Intervall (Perf)
 static WindEstimator windEst;   // Wind aus Kreisdrift -> live.wind_speed/wind_dir + BLE
 static VarioSound    varioSound; // Steigton-Zustand fuer den Buzzer
 static unsigned long lastPrint=0, lastDisplay=0;
@@ -635,6 +636,7 @@ static void processConfigWrite(const uint8_t *data, size_t len) {
 }
 
 void loop() {
+    { static unsigned long _prev=0; unsigned long _n=millis(); if(_prev){ unsigned long dt=_n-_prev; if(dt>g_loopMaxMs) g_loopMaxMs=dt; } _prev=_n; }  // #5: Loop-Zeit messen
     feedGPS();
     if (g_windTest >= 0 && flight.state != FLIGHT_FLYING) { live.wind_speed = 12.0f; live.wind_dir = (float)g_windTest; }  // Windpfeil-Bench-Test haelt die Test-Richtung
     fanet.poll();
@@ -821,6 +823,8 @@ void loop() {
                        live.gps_fix?"FIX":"---", live.sats, g_now,
                        gps.passedChecksum(), gps.failedChecksum(),
                        gps_total_bytes);
+        Serial.printf("[PERF] loopMax=%lums  heap=%lu  psram=%lu\n", g_loopMaxMs, (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getFreePsram());
+        g_loopMaxMs = 0;
         // Gyro-Plausibilitaet (Gate): im Stand a_z~9.8, g~0; dreht bei Drehung
         Serial.printf("[IMU] a=%.2f,%.2f,%.2f m/s2  g=%.1f,%.1f,%.1f dps  log=%s\n",
                        imuAx, imuAy, imuAz, imuGx, imuGy, imuGz, imuOpen ? "AN" : "aus");

@@ -17,20 +17,6 @@ static void buzzerTone(uint32_t freq, uint32_t dur_ms) {
 
 static void buzzerStop() { buzzerTone(0, 0); }
 
-// Test-Frequenzen (zum Raushoeren der lautesten = Piezo-Resonanz).
-static const uint32_t g_testFreqs[] = { 1500, 1800, 2100, 2400, 2700, 3000, 3300, 3700, 4000 };
-static const int      g_testFreqCount = 9;
-static int            g_testFreqIdx = -1;
-
-// Naechste Test-Frequenz spielen (0.5 s) und zurueckgeben.
-static uint32_t buzzerTestNext() {
-    g_testFreqIdx = (g_testFreqIdx + 1) % g_testFreqCount;
-    uint32_t f = g_testFreqs[g_testFreqIdx];
-    buzzerTone(f, 500);
-    return f;
-}
-static uint32_t buzzerTestCurrentFreq() { return (g_testFreqIdx < 0) ? 0 : g_testFreqs[g_testFreqIdx]; }
-
 // START-JINGLE — langsamer, geerdeter E-BLUES ueber das ganze Frequenzband (nicht giftig).
 // Bogen: warmer tiefer Grundton -> bluesiger Aufstieg (mit Blue Note) -> hoerbare Antwort
 // oben im lauten Band -> Aufloesung zurueck nach unten auf den langen Grundton (sicher geerdet).
