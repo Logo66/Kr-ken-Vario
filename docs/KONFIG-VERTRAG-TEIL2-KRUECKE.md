@@ -16,7 +16,7 @@
   "schema_version": 1,
   "updated_at": 0,
   "sound":   { "volume": 3, "muted": false },
-  "vario":   { "climb_threshold": 0.2, "sink_alarm": -3.0, "deadband": 0.1, "tone_curve": 0, "sink_tone": true },
+  "vario":   { "climb_threshold": 0.2, "sink_alarm": -3.0, "deadband": 0.1, "tone_curve": 0, "sink_tone": true, "avg_window_s": 20 },
   "units":   { "alt": "m",   "speed": "kmh", "vario": "ms", "temp": "c" },
   "display": { "backlight": true, "brightness": 80, "screens": ["cruise","thermal","goal","map","xsection"] },
   "wifi":    { "ssid": "", "pass": "" },
