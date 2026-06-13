@@ -751,7 +751,8 @@ void loop() {
     statusBarSet(live.rtc_hour, live.rtc_min, live.sats, fanet.pilot_count,
                  /*Buddy-Server-Verbindung*/ deviceServerOk, live.bat_pct,
                  /*BLE-Client verbunden*/ ble.connected,
-                 /*WLAN verbunden*/ WiFi.status() == WL_CONNECTED);
+                 /*WLAN verbunden*/ WiFi.status() == WL_CONNECTED,
+                 /*Luftraum-Warnung abgeschaltet*/ !g_warnAirspace);
 
     // K5: Tile-Fenster nachladen, wenn Position > 7 km vom geladenen Zentrum (Karte folgt Bewegung)
     static unsigned long lastReloadChk = 0;
