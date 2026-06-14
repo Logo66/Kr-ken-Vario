@@ -10,7 +10,7 @@ Neue **Hindernis-Warnung** als **3D-Schutzkugel um den Piloten**. Zwei konzentri
 - **Eine echte Kugel:** 3D-Distanz `√(horizontal² + vertikal²)` zu jedem Objekt.
 - **Äussere Kugel** → **Vorwarnung** (leiser Chirp, kein Block-Screen → kein Gaggle-Spam).
 - **Innere Kugel** → **Alarm** (lauter Warble + Banner „!! HINDERNIS !!" mit Distanz + Himmelsrichtung).
-- **Quellen:** FANET-**Verkehr** (live, mit Höhe) + **Gipfel** (fest). Nur im Flug aktiv.
+- **Quelle:** **nur BAZL-Luftfahrthindernisse** — Seile, Hochspannung, Seilbahnen, Masten/Antennen, Windräder (die schlecht sichtbaren Gefahren). **Keine Berge** (Sichtflug) und **kein Verkehr** (FANET nur TX/Gesehen-werden, keine Kollisionswarnung). Nur im Flug aktiv.
 
 | Key | Typ | Einheit | Bereich | Default |
 |---|---|---|---|---|
@@ -28,7 +28,7 @@ Neue **Hindernis-Warnung** als **3D-Schutzkugel um den Piloten**. Zwei konzentri
    - **Schalter** „Hindernis-Warnung" → `warn.obstacle`
    - **Slider „Äussere Kugel (Vorwarnung)"** in Metern, empfohlen **100–600 m**, Schritt 25 m, Default **300**
    - **Slider „Innere Kugel (Alarm)"** in Metern, empfohlen **50–300 m**, Schritt 10 m, Default **100**
-   - Hinweistext z. B.: *„Warnt vor anderen Luftfahrzeugen (FANET) und Gipfeln innerhalb der Kugel."*
+   - Hinweistext z. B.: *„Warnt vor schlecht sichtbaren Hindernissen (Seile, Hochspannung, Masten, Seilbahnen) innerhalb der Kugel."*
 2. **Schreiben** beim Ändern — über den schon implementierten Settings-Weg (Char `…0006`, `kind:settings`):
    ```json
    { "kind":"settings", "k":"warn.sphere_outer_m", "v":300 }
@@ -52,9 +52,9 @@ Neue **Hindernis-Warnung** als **3D-Schutzkugel um den Piloten**. Zwei konzentri
 ## Wirkung am Gerät (zur Kontrolle)
 - Boot-Log: `[KUGEL] Hindernis-Warnung AN  aussen=300m innen=100m` + Selbsttest `[KUGEL-TEST] 85m→2 250m→1 500m→0`.
 - Änderung greift **live** (kein Neustart): `warn.*` → sofort `warnLoad()`.
-- Echter Alarm braucht ein Objekt in der Kugel (FANET-Gegenstelle oder Gipfel im Flug) — am Tisch nur über das Selbsttest-Log prüfbar.
+- Echter Alarm braucht ein Hindernis in der Kugel (im Flug) und die Datei `/obstacles/obstacles.txt` auf der SD — am Tisch nur über das Selbsttest-Log prüfbar. `Hindernisse=N` im `[KUGEL]`-Log zeigt, wie viele geladen sind.
 
 ---
 
 ## Kontext
-**Derselbe Schreibweg** wie alle Settings (M2). Du fügst im Warn-Reiter **einen Schalter + zwei Slider** hinzu. Die Keys stehen im **KONFIG-VERTRAG Teil 2** (Gruppe `warn`) ergänzt. **BAZL-Hindernisse** (Antennen/Kabel) sind noch nicht in der Kugel — die liegen nur als Download auf der SD; der GeoJSON-Parser ist der nächste Ausbau.
+**Derselbe Schreibweg** wie alle Settings (M2). Du fügst im Warn-Reiter **einen Schalter + zwei Slider** hinzu. Die Keys stehen im **KONFIG-VERTRAG Teil 2** (Gruppe `warn`) ergänzt. Die Firmware liest die Hindernisse aus `/obstacles/obstacles.txt` (vorkonvertiert aus dem amtlichen BAZL-Datensatz, WGS84). **App-Seite:** kein neuer Schreibweg nötig — nur Schalter + zwei Slider. Das Befüllen/Aktualisieren der Hindernis-Datei (BAZL-Konverter) ist Firmware-/Tool-Seite, kein App-Thema.

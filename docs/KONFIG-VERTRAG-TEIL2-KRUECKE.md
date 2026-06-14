@@ -32,7 +32,7 @@
 ```
 - **units:** `alt` ∈ {`m`,`ft`} · `speed` ∈ {`kmh`,`mph`,`kt`} · `vario` ∈ {`ms`,`ftmin`,`kt`} · `temp` ∈ {`c`,`f`}.
 - **fanet.aircraft:** FANET-Typ (1=Paraglider, 2=Hangglider, 3=Balloon, 4=Glider, 5=Powered, …).
-- **warn:** EIN 3D-Puffer (`buffer_h`/`buffer_v` in **Metern**) für die Luftraum-Warnung, `airspace`/`obstacle` = Alarm an/aus **pro Kategorie**. **Neu (Hindernis-Warnung):** `sphere_outer_m`/`sphere_inner_m` = die zwei Radien der **3D-Schutzkugel** um den Piloten in **Metern** (aussen=Vorwarnung, innen=Alarm; Firmware erzwingt innen<aussen). Quellen: FANET-Verkehr + Gipfel. Siehe `TICKET-APP-HINDERNIS-KUGEL.md`.
+- **warn:** EIN 3D-Puffer (`buffer_h`/`buffer_v` in **Metern**) für die Luftraum-Warnung, `airspace`/`obstacle` = Alarm an/aus **pro Kategorie**. **Neu (Hindernis-Warnung):** `sphere_outer_m`/`sphere_inner_m` = die zwei Radien der **3D-Schutzkugel** um den Piloten in **Metern** (aussen=Vorwarnung, innen=Alarm; Firmware erzwingt innen<aussen). **Quelle: nur BAZL-Luftfahrthindernisse** (Seile, Hochspannung, Seilbahnen, Masten, Windräder) — bewusst **keine Berge** (Sichtflug) und **kein Verkehr** (FANET dient nur dem Gesehen-werden via TX, keine Kollisionswarnung). Siehe `TICKET-APP-HINDERNIS-KUGEL.md`.
 - **Migration:** die 4 Altpfade (NVS `sound`, `/ble.cfg`, `/wifi.cfg`, QNH-Laufzeit) werden beim ersten Boot einmalig ins Modell gezogen.
 
 ## 2. Task-Modell (SD `/tasks/`, mehrere)
