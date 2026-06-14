@@ -50,36 +50,40 @@ static int parseObstacles(const char *path) {
     obstacle_count = 0;
     Serial.printf("[OBST] Parse %s (%u bytes, cap %d)...\n", path, (unsigned)f.size(), cap);
     unsigned long t0 = millis();
-    // BLOCK-Lesen (4 KB) statt byteweise — ~40x schneller, kein Watchdog-Hunger.
-    const int BUFSZ = 4096;
+    // BLOCK-Lesen (8 KB) + schneller manueller Parser (strtof/strtol statt sscanf).
+    // sscanf war der Flaschenhals: 104k Zeilen -> ~16 s; strtof -> wenige Sekunden.
+    const int BUFSZ = 8192;
     uint8_t *buf = (uint8_t*)malloc(BUFSZ);
     if (!buf) { Serial.println("[OBST] Lesepuffer-Alloc fehlgeschlagen!"); f.close(); return 0; }
-    char line[96]; int lp = 0;
-    delay(1);   // Watchdog fuettern bevor der (lange) Parse beginnt — IDLE-Task laeuft
+    char line[96]; int lp = 0, blk = 0;
+    delay(1);   // Watchdog fuettern bevor der lange Parse beginnt — IDLE-Task laeuft
     while (obstacle_count < obstacle_cap) {
         int n = f.read(buf, BUFSZ);
         if (n <= 0) break;
         for (int i = 0; i < n && obstacle_count < obstacle_cap; i++) {
             char ch = (char)buf[i];
             if (ch == '\n' || ch == '\r') {
-                if (lp > 0) {
-                    line[lp] = 0; lp = 0;
-                    if (line[0] != '#') {
-                        float a, b, c, d; int top, type;
-                        if (sscanf(line, "%f;%f;%f;%f;%d;%d", &a, &b, &c, &d, &top, &type) == 6) {
-                            Obstacle &o = obstacles_arr[obstacle_count];
-                            o.lat1 = a; o.lon1 = b; o.lat2 = c; o.lon2 = d;
-                            o.top_m = (int16_t)top; o.type = (uint8_t)type;
-                            if (o.lat2 == 0 && o.lon2 == 0) { o.lat2 = o.lat1; o.lon2 = o.lon1; }
-                            if (o.lat1 != 0 && o.lon1 != 0) obstacle_count++;
-                        }
-                    }
-                } else lp = 0;
+                if (lp > 0 && line[0] != '#') do {
+                    line[lp] = 0;
+                    char *s = line, *e;                         // lat1;lon1;lat2;lon2;top;type
+                    float a = strtof(s, &e); if (*e != ';') break; s = e + 1;
+                    float b = strtof(s, &e); if (*e != ';') break; s = e + 1;
+                    float c = strtof(s, &e); if (*e != ';') break; s = e + 1;
+                    float d = strtof(s, &e); if (*e != ';') break; s = e + 1;
+                    long top = strtol(s, &e, 10); if (*e != ';') break; s = e + 1;
+                    long type = strtol(s, &e, 10);
+                    Obstacle &o = obstacles_arr[obstacle_count];
+                    o.lat1 = a; o.lon1 = b; o.lat2 = c; o.lon2 = d;
+                    o.top_m = (int16_t)top; o.type = (uint8_t)type;
+                    if (o.lat2 == 0 && o.lon2 == 0) { o.lat2 = o.lat1; o.lon2 = o.lon1; }
+                    if (o.lat1 != 0 && o.lon1 != 0) obstacle_count++;
+                } while (0);
+                lp = 0;
             } else if (lp < (int)sizeof(line) - 1) {
                 line[lp++] = ch;
             }
         }
-        delay(1);   // 1x pro 4-KB-Block -> IDLE-Task laeuft, Watchdog gefuettert (yield reicht NICHT)
+        if ((++blk & 3) == 0) delay(1);   // ~alle 32 KB Watchdog fuettern (IDLE laeuft)
     }
     free(buf);
     f.close();

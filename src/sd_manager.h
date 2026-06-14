@@ -16,10 +16,15 @@ public:
         pinMode(BOARD_SD_CS, OUTPUT);
         digitalWrite(BOARD_SD_CS, HIGH);
 
-        // SD.begin nutzt den bereits initialisierten SPI-Bus
-        if (!SD.begin(BOARD_SD_CS)) {
-            Serial.println("[SD] Init FAIL");
-            return false;
+        // SD.begin nutzt den bereits initialisierten SPI-Bus. Hoeherer Takt: der Default
+        // 4 MHz war der Flaschenhals (4.6 MB Hindernis-Land-Datei ~13 s @ ~350 KB/s).
+        // 20 MHz -> ~5x schneller; Fallback auf 4 MHz, falls Karte/Verkabelung zickt.
+        if (!SD.begin(BOARD_SD_CS, SPI, 20000000)) {
+            Serial.println("[SD] 20MHz nicht ok -> 4MHz Fallback");
+            if (!SD.begin(BOARD_SD_CS, SPI, 4000000)) {
+                Serial.println("[SD] Init FAIL");
+                return false;
+            }
         }
 
         uint64_t total = SD.totalBytes() / (1024*1024);
