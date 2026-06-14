@@ -50,21 +50,38 @@ static int parseObstacles(const char *path) {
     obstacle_count = 0;
     Serial.printf("[OBST] Parse %s (%u bytes, cap %d)...\n", path, (unsigned)f.size(), cap);
     unsigned long t0 = millis();
-    char line[96];
-    while (obstacle_count < obstacle_cap && f.available()) {
-        int len = f.readBytesUntil('\n', (uint8_t*)line, sizeof(line) - 1);
-        if (len <= 0) continue;
-        line[len] = 0;
-        if (line[0] == '#') continue;
-        float a, b, c, d; int top, type;
-        if (sscanf(line, "%f;%f;%f;%f;%d;%d", &a, &b, &c, &d, &top, &type) != 6) continue;
-        Obstacle &o = obstacles_arr[obstacle_count];
-        o.lat1 = a; o.lon1 = b; o.lat2 = c; o.lon2 = d;
-        o.top_m = (int16_t)top; o.type = (uint8_t)type;
-        if (o.lat2 == 0 && o.lon2 == 0) { o.lat2 = o.lat1; o.lon2 = o.lon1; }   // Punkt
-        if (o.lat1 != 0 && o.lon1 != 0) obstacle_count++;
-        if ((obstacle_count & 8191) == 0) yield();      // Watchdog bei grossen Dateien
+    // BLOCK-Lesen (4 KB) statt byteweise — ~40x schneller, kein Watchdog-Hunger.
+    const int BUFSZ = 4096;
+    uint8_t *buf = (uint8_t*)malloc(BUFSZ);
+    if (!buf) { Serial.println("[OBST] Lesepuffer-Alloc fehlgeschlagen!"); f.close(); return 0; }
+    char line[96]; int lp = 0;
+    delay(1);   // Watchdog fuettern bevor der (lange) Parse beginnt — IDLE-Task laeuft
+    while (obstacle_count < obstacle_cap) {
+        int n = f.read(buf, BUFSZ);
+        if (n <= 0) break;
+        for (int i = 0; i < n && obstacle_count < obstacle_cap; i++) {
+            char ch = (char)buf[i];
+            if (ch == '\n' || ch == '\r') {
+                if (lp > 0) {
+                    line[lp] = 0; lp = 0;
+                    if (line[0] != '#') {
+                        float a, b, c, d; int top, type;
+                        if (sscanf(line, "%f;%f;%f;%f;%d;%d", &a, &b, &c, &d, &top, &type) == 6) {
+                            Obstacle &o = obstacles_arr[obstacle_count];
+                            o.lat1 = a; o.lon1 = b; o.lat2 = c; o.lon2 = d;
+                            o.top_m = (int16_t)top; o.type = (uint8_t)type;
+                            if (o.lat2 == 0 && o.lon2 == 0) { o.lat2 = o.lat1; o.lon2 = o.lon1; }
+                            if (o.lat1 != 0 && o.lon1 != 0) obstacle_count++;
+                        }
+                    }
+                } else lp = 0;
+            } else if (lp < (int)sizeof(line) - 1) {
+                line[lp++] = ch;
+            }
+        }
+        delay(1);   // 1x pro 4-KB-Block -> IDLE-Task laeuft, Watchdog gefuettert (yield reicht NICHT)
     }
+    free(buf);
     f.close();
     Serial.printf("[OBST] Fertig: %d Hindernisse in %lu ms\n", obstacle_count, millis() - t0);
     return obstacle_count;
