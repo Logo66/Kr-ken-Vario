@@ -482,10 +482,15 @@ static void feedGPS() {
         float raw_spd = gps.speed.kmph();
         live.speed = (raw_spd < 3.0f) ? 0 : raw_spd;  // GPS-Rauschen filtern
         live.heading = gps.course.deg();
-        // Wind aus der Kreisdrift schaetzen (NUR Anzeige/BLE, fliesst NICHT ins Vario)
-        windEst.update(gps.course.deg(), raw_spd, live.gps_fix);
-        live.wind_speed = windEst.wind_speed;
-        live.wind_dir   = windEst.wind_dir;
+        // Wind aus der Kreisdrift schaetzen — NUR im Flug. Am Boden (z.B. Tisch, 6 Sat) jittert
+        // GPS-Kurs/Speed -> der Schaetzer wuerde Geisterwind liefern. (Nur Anzeige/BLE, nicht ins Vario.)
+        if (flight.state == FLIGHT_FLYING) {
+            windEst.update(gps.course.deg(), raw_spd, live.gps_fix);
+            live.wind_speed = windEst.wind_speed;
+            live.wind_dir   = windEst.wind_dir;
+        } else {
+            live.wind_speed = 0;   // am Boden kein Wind anzeigen
+        }
     }
     if(live.speed < 2.0f) live.heading = 0;
 }

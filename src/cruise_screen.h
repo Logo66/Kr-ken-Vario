@@ -221,15 +221,16 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     // === REIHE 3: WIND | TEMP (y: 286-400) ===
     // Wind: Feld x310-628
     T(&ArialBold16,"WIND",410,310,fb);
-    snprintf(buf,48,"%.0f km/h",d.wind_speed);
-    T(&ArialBold28,buf,388,360,fb);
-    // Windrichtung — nur wenn im Flug berechnet (>1 km/h): Pfeil + Himmelsrichtung (deutsch)
+    // Richtung VOR den Wert: "N 4 km/h" (nur wenn im Flug geschaetzt, >1 km/h) + Pfeil.
     if (d.wind_speed > 1.0f) {
         static const char* WC[]={"N","NO","O","SO","S","SW","W","NW"};
         float wd=d.wind_dir; while(wd<0)wd+=360; while(wd>=360)wd-=360;
         int wc=((int)((wd+22.5f)/45.0f))&7;
+        snprintf(buf,48,"%s %.0f km/h", WC[wc], d.wind_speed);
+        T(&ArialBold28,buf,388,360,fb);
         windArrow(575, 335, wd, 18, fb);
-        drawHCenter(&ArialBold28, WC[wc], 522, 106, 392, fb);   // Feld x522-628
+    } else {
+        T(&ArialBold28,"-- km/h",388,360,fb);   // am Boden / noch kein Kreis: kein Schaetzwert
     }
     // Divider
     V(RX+RHW,R3T,R3B-R3T,fb);
