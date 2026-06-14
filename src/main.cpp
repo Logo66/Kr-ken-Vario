@@ -91,6 +91,8 @@ static const char* compass8(float brg) {
 #include "overlay_screen.h"
 #include "ble_manager.h"
 #include "ble_screen.h"
+#include "chat.h"
+#include "chat_screen.h"
 #include "touch.h"
 
 static TouchManager touch;
@@ -145,7 +147,7 @@ static VarioSound    varioSound; // Steigton-Zustand fuer den Buzzer
 static unsigned long lastPrint=0, lastDisplay=0;
 
 // Screen-Manager
-enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_XSECTION, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY, SCR_BLE, SCR_SOUND };
+enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_XSECTION, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY, SCR_BLE, SCR_SOUND, SCR_BUDDY, SCR_FANETCHAT };
 static Screen currentScreen = SCR_CRUISE;
 static bool backlight_on = false;
 
@@ -314,6 +316,22 @@ static void drawFlightScreen(Screen s, enum EpdDrawMode mode) {
     else if (s==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive, mode); }
     else if (s==SCR_MAP) { MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,false,live.gps_fix}; showMapScreen(&hl, md); }
     else if (s==SCR_XSECTION) { XSectionData xd={lastGoodLat,lastGoodLon,live.altitude,live.heading,live.speed,goalLive.gr_current,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,live.gps_fix}; showXSectionScreen(&hl, xd); }
+}
+
+// Eingehende Buddy-Nachricht als Vollbild-Popup (wie eine Wetter-/Luftraum-Warnung).
+// Bleibt bis Tap oder ~12 s; danach stellt der Aufrufer den Flug-Screen wieder her.
+static void showChatPopup(const char* from, const char* text) {
+    for (int b=0;b<2;b++){ buzzerTone(2200,140); delay(90); buzzerTone(2600,140); delay(160); }
+    buzzerStop();
+    uint8_t* fb = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl);
+    char hd[40]; snprintf(hd, 40, "NACHRICHT - %s", from);
+    drawHCenter(&ArialBold28, hd, 0, 960, 70, fb);
+    uiHLine(60, 92, 840, fb);
+    chatDrawWrapped(&ArialBold32, text, 80, 175, 30, 46, 440, fb);
+    drawHCenter(&ArialBold16, "tippen zum Schliessen", 0, 960, 512, fb);
+    epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+    unsigned long t0 = millis();
+    while (millis() - t0 < 12000) { if (touch.poll() == GEST_TAP) break; delay(20); }
 }
 
 static float qnh_ref_alt = 489.0f;  // Referenzhoehe fuer QNH (kalibrierbar)
@@ -962,6 +980,25 @@ void loop() {
     }
     g_obstPrevLevel = g_obstLevel;
 
+    // === Chat: eingehende FANET-Nachricht -> Kanal · Buddy-Nachricht -> Popup ===
+    if (fanet.msgPending) {
+        fanet.msgPending = false;
+        char fromid[18]; snprintf(fromid, 18, "%04X", fanet.lastMsgUid);
+        chatAddFanet(fromid, fanet.lastMsg, live.rtc_hour, live.rtc_min);
+    }
+    if (g_buddyPopupPending) {
+        g_buddyPopupPending = false;
+        showChatPopup(g_buddyPopupFrom, g_buddyPopupText);
+        drawFlightScreen(currentScreen, MODE_DU);   // Flug-Screen danach wiederherstellen
+    }
+    // Debug/Test am Serial: "buddy <text>" -> Buddy-Popup · "fanet <text>" -> FANET-Chat
+    if (Serial.available()) {
+        static char sb[160]; int sl = Serial.readBytesUntil('\n', (uint8_t*)sb, sizeof(sb)-1); sb[sl]=0;
+        while (sl>0 && (sb[sl-1]=='\r'||sb[sl-1]==' ')) sb[--sl]=0;
+        if (!strncmp(sb,"buddy ",6))      chatAddBuddy(sb+6, live.rtc_hour, live.rtc_min);
+        else if (!strncmp(sb,"fanet ",6)) chatAddFanet("TEST", sb+6, live.rtc_hour, live.rtc_min);
+    }
+
     // Im Flug: IGC-Punkt loggen (intern auf ~2s gedrosselt)
     if (flight.state == FLIGHT_FLYING)
         igc.logPoint(&sdcard, gps, live.altitude, live.vario);
@@ -1083,6 +1120,14 @@ void loop() {
                 Serial.printf("[FUNK] %s\n", msg2);
                 showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok,
                                fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0, msg2);
+            } else if (fi == FUNK_BUDDY) {
+                currentScreen = SCR_BUDDY;
+                showChatScreen(&hl, "BUDDY-CHAT", g_buddyChat, "Buddy meldet sich (Wetter/Warnungen)");
+                Serial.println("[FUNK] -> Buddy-Chat");
+            } else if (fi == FUNK_FANETCHAT) {
+                currentScreen = SCR_FANETCHAT;
+                showChatScreen(&hl, "FANET-CHAT", g_fanetChat, "Nachrichten anderer Piloten");
+                Serial.println("[FUNK] -> FANET-Chat");
             } else if (fi == FUNK_BACK) {
                 currentScreen = SCR_MENU;
                 showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
@@ -1090,6 +1135,14 @@ void loop() {
         } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             currentScreen = SCR_MENU;
             showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+        }
+    } else if (currentScreen == SCR_BUDDY || currentScreen == SCR_FANETCHAT) {
+        if (g == GEST_TAP && touch.lastY() >= 478) {        // ZURUECK
+            currentScreen = SCR_FUNK;
+            showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok, fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0);
+        } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
+            currentScreen = SCR_FUNK;
+            showFunkScreen(&hl, WiFi.status()==WL_CONNECTED, ble.ok, fanet.ok, fanet.pilot_count, ble.ok ? ble.pin : 0);
         }
     } else if (currentScreen == SCR_WIFI) {
         if (g == GEST_TAP) {

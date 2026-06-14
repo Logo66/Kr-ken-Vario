@@ -50,6 +50,10 @@ public:
     FanetStation stations[MAX_STATIONS];
     int station_count = 0;
     bool ok = false;
+    // Eingehende Text-Nachricht (Type 3) — main.cpp pollt msgPending -> Chat
+    char     lastMsg[60] = {0};
+    uint16_t lastMsgUid  = 0;
+    volatile bool msgPending = false;
 
     bool init() {
         // --- Schritt 1: SPI-Bus CS sauber (Factory-Vorgabe) ---
@@ -144,6 +148,14 @@ public:
                 // Eigene TX-Echos ignorieren (Mfr 0xFC)
                 if ((type == FANET_TYPE_TRACKING || type == 7) && len >= 11 && mfr != 0xFC) {
                     parseTracking(buf+4, len-4, mfr, uid);
+                }
+                // Type 3 = Text-Nachricht (Pilot-zu-Pilot). [4]=Subheader, Text ab [5].
+                if (type == 3 && mfr != 0xFC && len > 5) {
+                    int tl = len - 5; if (tl > 58) tl = 58;
+                    memcpy(lastMsg, buf + 5, tl); lastMsg[tl] = 0;
+                    lastMsgUid = uid;
+                    msgPending = true;
+                    Serial.printf("[FANET] MSG von 0x%04X: %s\n", uid, lastMsg);
                 }
             }
         } else if (state != RADIOLIB_ERR_NONE) {

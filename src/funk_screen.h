@@ -3,7 +3,8 @@
 #include "ui_utils.h"
 #include "fanet.h"   // g_fanetTxEnabled (TX-Arm-Anzeige)
 
-enum FunkItem { FUNK_NONE, FUNK_WLAN, FUNK_BLE, FUNK_FANET, FUNK_FANET_TX, FUNK_BACK };
+enum FunkItem { FUNK_NONE, FUNK_WLAN, FUNK_BLE, FUNK_FANET, FUNK_FANET_TX,
+                FUNK_BUDDY, FUNK_FANETCHAT, FUNK_BACK };
 
 static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
                            bool fanet_on, int fanet_peers, uint32_t ble_pin = 0,
@@ -47,10 +48,17 @@ static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
     drawHCenter(&ArialBold16, "TX SENDEN", split, bw - (split - bx), y2 + 36, fb);
     drawHCenter(&ArialBold28, g_fanetTxEnabled ? "SCHARF" : "AUS", split, bw - (split - bx), y2 + 74, fb);
 
+    // Chat-Zeile: Buddy-Chat (KI) | FANET-Chat (Piloten)
+    int yc = y2 + bh + 15;
+    uiBox(bx, yc, 270, 55, fb);
+    drawBoxCenter(&ArialBold24, "BUDDY", bx, yc, 270, 55, fb);
+    uiBox(bx + 290, yc, 270, 55, fb);
+    drawBoxCenter(&ArialBold24, "F-CHAT", bx + 290, yc, 270, 55, fb);
+
     // ZURUECK
-    int y3 = y2 + bh + gap + 20;
-    uiBox(350, y3, 260, 60, fb);
-    drawBoxCenter(&ArialBold24, "ZURUECK", 350, y3, 260, 60, fb);
+    int y3 = yc + 55 + 15;
+    uiBox(350, y3, 260, 55, fb);
+    drawBoxCenter(&ArialBold24, "ZURUECK", 350, y3, 260, 55, fb);
 
     // Status-Meldung (z.B. FANET TX-Test) unten
     if (msg) drawHCenter(&ArialBold16, msg, 0, 960, y3 + 78, fb);
@@ -62,14 +70,17 @@ static void showFunkScreen(EpdiyHighlevelState *hl, bool wifi_on, bool ble_on,
 
 static FunkItem checkFunkTap(int tx, int ty) {
     int bx = 200, bw = 560, bh = 90, gap = 20;
-    int y0 = 80, y1 = y0+bh+gap, y2 = y1+bh+gap, y3 = y2+bh+gap+20;
+    int y0 = 80, y1 = y0+bh+gap, y2 = y1+bh+gap;
+    int yc = y2 + bh + 15;          // Chat-Zeile (Buddy | F-Chat)
+    int y3 = yc + 55 + 15;          // ZURUECK
     int split = bx + 300;
 
     if (tx >= bx && tx < bx+bw) {
         if (ty >= y0 && ty < y0+bh) return FUNK_WLAN;
         if (ty >= y1 && ty < y1+bh) return FUNK_BLE;
         if (ty >= y2 && ty < y2+bh) return (tx < split) ? FUNK_FANET : FUNK_FANET_TX;  // links Test, rechts Arm
+        if (ty >= yc && ty < yc+55) return (tx < bx+285) ? FUNK_BUDDY : FUNK_FANETCHAT; // Chat-Zeile
     }
-    if (tx >= 350 && tx < 610 && ty >= y3 && ty < y3+60) return FUNK_BACK;
+    if (tx >= 350 && tx < 610 && ty >= y3 && ty < y3+55) return FUNK_BACK;
     return FUNK_NONE;
 }
