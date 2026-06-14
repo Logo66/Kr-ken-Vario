@@ -250,6 +250,16 @@ static void warnLoad() {
     int si = g_model["warn"]["sphere_inner_m"].as<int>(); if (si > 0) g_sphereInnerM = (float)si;
     if (g_sphereInnerM >= g_sphereOuterM) g_sphereInnerM = g_sphereOuterM * 0.5f;  // innen<aussen erzwingen
 }
+// Karten-Layer an/aus aus dem Modell (map.layers.*) -> Render-Gate in map_screen.h
+static void mapLayersLoad() {
+    JsonObject l = g_model["map"]["layers"].as<JsonObject>();
+    JsonVariant v;
+    v = l["contours"]; g_layerContours = v.isNull() ? true : v.as<bool>();
+    v = l["water"];    g_layerWater    = v.isNull() ? true : v.as<bool>();
+    v = l["roads"];    g_layerRoads    = v.isNull() ? true : v.as<bool>();
+    v = l["airspace"]; g_layerAirspace = v.isNull() ? true : v.as<bool>();
+    v = l["track"];    g_layerTrack    = v.isNull() ? true : v.as<bool>();
+}
 static void aspWarnTick() {
     g_aspWarnIdx = -1;
     if (!g_warnAirspace || airspace_count == 0 || flight.state != FLIGHT_FLYING || !live.gps_fix || lastGoodLat == 0) return;
@@ -607,6 +617,7 @@ void setup() {
     backlight_on = g_model["display"]["backlight"].as<bool>(); digitalWrite(11, backlight_on?HIGH:LOW);  // Backlight-Zustand aus dem Modell
     { File af = sdcard.openRead("/tasks/active.txt"); if (af) { String tn=af.readStringUntil('\n'); af.close(); tn.trim(); if (tn.length()) taskLoad(tn.c_str()); } }  // M4: aktiven Task laden
     warnLoad();   // #3: Luftraum-Warn-Config aus dem Modell
+    mapLayersLoad();   // Karten-Layer an/aus aus dem Modell
     // Selbsttest 3D-Schutzkugel: geladene Radien + Klassifikation synthetischer Distanzen
     Serial.printf("[KUGEL] Hindernis-Warnung %s  aussen=%.0fm innen=%.0fm  Hindernisse=%d\n",
                   g_warnObstacle ? "AN" : "AUS", g_sphereOuterM, g_sphereInnerM, obstacle_count);
@@ -662,6 +673,10 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     if (ok) modelSet(k, v);                       // EINE Wahrheit: ins NVS-JSON-Modell (+ updated_at)
     if (ok && !strncmp(k, "units.", 6)) unitsLoad();   // Einheiten sofort live uebernehmen
     if (ok && !strncmp(k, "warn.", 5))  warnLoad();    // Luftraum-Warn-Config sofort uebernehmen
+    if (ok && !strncmp(k, "map.layers.", 11)) {        // Karten-Layer live umschalten (wie AVG)
+        mapLayersLoad();
+        if (currentScreen == SCR_MAP) drawFlightScreen(SCR_MAP, MODE_GC16);   // sofort neu zeichnen
+    }
     if (ok) snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":true}", k);
     else    snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":false,\"err\":\"%s\"}", k, err);
     Serial.printf("[CFG] settings %s -> %s\n", k, ok?"ok":err);

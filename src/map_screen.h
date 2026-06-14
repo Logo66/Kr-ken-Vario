@@ -430,6 +430,35 @@ static void drawPeaks(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
     }
 }
 
+// === KARTEN-LAYER an/aus (aus map.layers.* im Modell; main.cpp setzt sie via mapLayersLoad) ===
+static bool g_layerContours = true, g_layerWater = true, g_layerRoads = true;
+static bool g_layerAirspace = true, g_layerTrack = true;
+
+// === STRASSEN-LAYER (flag=3) — DEZENT (duenn + gepunktet = grau-Eindruck auf 1-bit),
+// in der Z-Order UNTER Luftraum/Hindernis/Gipfel gezeichnet, damit Sicherheits-Layer Vorrang haben.
+static void drawDottedSeg(int x0, int y0, int x1, int y1, uint8_t *fb) {
+    int dx = x1 - x0, dy = y1 - y0;
+    int steps = max(abs(dx), abs(dy)); if (steps < 1) return;
+    for (int s = 0; s <= steps; s += 4)                  // alle 4 px ein kleiner Punkt
+        uiFill(x0 + dx * s / steps, y0 + dy * s / steps, 2, 1, fb);
+}
+static void drawRoads(double myLat, double myLon, int zoomIdx, uint8_t *fb) {
+    if (!contPool) return;
+    for (int c = 0; c < contour_count; c++) {
+        const Contour &ct = contours[c];
+        if (ct.flag != 3 || ct.num_pts < 2) continue;
+        const ContourPt *pts = contPoints(ct);
+        int prev_sx = 0, prev_sy = 0;
+        for (int i = 0; i < ct.num_pts; i++) {
+            int sx, sy;
+            projectToScreen(myLat, myLon, pts[i].lat, pts[i].lon, zoomIdx, &sx, &sy);
+            if (i > 0 && (inClip(prev_sx, prev_sy) || inClip(sx, sy)))
+                drawDottedSeg(prev_sx, prev_sy, sx, sy, fb);
+            prev_sx = sx; prev_sy = sy;
+        }
+    }
+}
+
 static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
@@ -486,14 +515,15 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
         }
     }
 
-    // === HOEHENLINIEN (Konturen — unter Wasser/Luftraum/Gipfel) ===
+    // === HOEHENLINIEN / STRASSEN / WASSER (Layer-schaltbar; alle UNTER Luftraum/Gipfel) ===
     if (haveCenter && contour_count > 0) {
-        drawContours(cLat, cLon, mapZoomIdx, fb);
-        drawWater(cLat, cLon, mapZoomIdx, fb);   // Wasser ueber Hoehenlinien (Anker R1, dick)
+        if (g_layerContours) drawContours(cLat, cLon, mapZoomIdx, fb);
+        if (g_layerRoads)    drawRoads(cLat, cLon, mapZoomIdx, fb);    // dezent, unter Wasser/Luftraum
+        if (g_layerWater)    drawWater(cLat, cLon, mapZoomIdx, fb);
     }
 
-    // === LUFTRAEUME (Vektor-Polygone, dicke Linien) ===
-    if (haveCenter && airspace_count > 0) {
+    // === LUFTRAEUME (Vektor-Polygone, dicke Linien) — Sicherheits-Layer, oben ===
+    if (haveCenter && airspace_count > 0 && g_layerAirspace) {
         drawAirspaces(cLat, cLon, mapZoomIdx, fb);
     }
 
@@ -509,8 +539,8 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
         drawText(&ArialBold16, "kein GPS-Fix - letzte/Test-Position", 280, 80, fb);
     }
 
-    // === TRACK-SPUR (dicke Linie, stroke 3.5) ===
-    if (d.lat != 0 && d.lon != 0) {
+    // === TRACK-SPUR (dicke Linie, stroke 3.5) — Layer-schaltbar ===
+    if (d.lat != 0 && d.lon != 0 && g_layerTrack) {
         drawTrack(d.lat, d.lon, mapZoomIdx, fb);
     }
 
@@ -606,11 +636,11 @@ static void updateMapOverlay(EpdiyHighlevelState *hl, const MapData &d) {
     // Kein Rahmen — Karte edge-to-edge
 
     // Luftraeume
-    if (d.lat != 0 && d.lon != 0 && airspace_count > 0)
+    if (d.lat != 0 && d.lon != 0 && airspace_count > 0 && g_layerAirspace)
         drawAirspaces(d.lat, d.lon, mapZoomIdx, fb);
 
     // Track
-    if (d.lat != 0 && d.lon != 0)
+    if (d.lat != 0 && d.lon != 0 && g_layerTrack)
         drawTrack(d.lat, d.lon, mapZoomIdx, fb);
 
     // Pilot-Marker mit weissem Halo
