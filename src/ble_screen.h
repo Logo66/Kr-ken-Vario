@@ -40,9 +40,9 @@ public:
             int bx = 100, bw = 760, bh = 65, gap = 18;
             int y0 = 80;
 
-            // Status AN/AUS
+            // Status / Schalter — Aktion klar benennen (nicht nur Status)
             uiBox(bx, y0, bw, bh, fb);
-            snprintf(buf, 64, "BLE  %s", ble->ok ? "AN" : "AUS");
+            snprintf(buf, 64, ble->ok ? "BLE AN  -  tippen = AUS" : "BLE EINSCHALTEN  (tippen)");
             drawBoxCenter(&ArialBold24, buf, bx, y0, bw, bh, fb);
 
             // Name
@@ -90,6 +90,13 @@ public:
                     if (ble->ok) {
                         ble->stop();
                     } else {
+                        // Sofort-Rueckmeldung: init() blockiert ~1s -> ohne Feedback tippt man doppelt = wieder aus
+                        uint8_t *fb = epd_hl_get_framebuffer(hl);
+                        epd_hl_set_all_white(hl);
+                        drawHCenter(&ArialBold28, "BLE", 0, 960, 44, fb);
+                        uiHLine(14, 58, 932, fb);
+                        drawHCenter(&ArialBold40, "BLE startet...", 0, 960, 260, fb);
+                        epd_poweron(); epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
                         ble->pin = atoi(pin_str);   // PIN VOR init setzen
                         ble->init(name);
                     }

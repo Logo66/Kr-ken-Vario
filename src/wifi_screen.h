@@ -29,23 +29,31 @@ public:
     char nets[MAX_NETS][33];
     int rssis[MAX_NETS];
     int net_count = 0;
+    bool triedSaved = false;   // gespeichertes Netz nur EINMAL automatisch versuchen
 
     void begin(SDManager *sdm) {
         sd = sdm;
         state = WIFI_SCANNING;
         net_count = 0;
+        triedSaved = false;
         ssid[0] = 0;
         pass[0] = 0;
     }
 
     void doScan(EpdiyHighlevelState *hl) {
-        // Gespeichertes WiFi? Direkt verbinden
-        if (ssid[0] == 0 && loadSaved()) {
-            state = WIFI_CONNECTING;
-            draw(hl);
-            doConnect(hl);
-            return;
+        // Beim ERSTEN Aufruf: gespeichertes Netz einmal automatisch versuchen.
+        // Klappt es nicht (Netz weg / Passwort alt), geht's DIREKT zur Liste — kein
+        // Haengenbleiben am gespeicherten Netz, man kann ein neues waehlen.
+        if (!triedSaved) {
+            triedSaved = true;
+            if (ssid[0] == 0 && loadSaved()) {
+                state = WIFI_CONNECTING;
+                draw(hl);
+                if (doConnect(hl)) return;          // verbunden -> fertig
+                // sonst: gespeichertes Netz weg -> weiter zur Liste
+            }
         }
+        ssid[0] = 0;                                 // frische Auswahl in der Liste
         state = WIFI_SCANNING;
         draw(hl);
         WiFi.mode(WIFI_STA);
@@ -123,10 +131,10 @@ public:
             break;
 
         case WIFI_ERROR:
-            drawHCenter(&ArialBold40, "FEHLER", 0, 960, 240, fb);
-            drawHCenter(&ArialBold16, status_msg, 0, 960, 300, fb);
-            uiBox(350, 380, 260, 60, fb);
-            drawBoxCenter(&ArialBold24, "OK", 350, 380, 260, 60, fb);
+            drawHCenter(&ArialBold40, "FEHLER", 0, 960, 230, fb);
+            drawHCenter(&ArialBold16, status_msg, 0, 960, 290, fb);
+            uiBox(250, 380, 460, 60, fb);
+            drawBoxCenter(&ArialBold24, "NETZ WAEHLEN", 250, 380, 460, 60, fb);
             break;
         }
         epd_poweron();
@@ -165,7 +173,7 @@ public:
                     strncpy(pass, kb.text, 64);
                     state = WIFI_CONNECTING;
                     draw(hl);
-                    doConnect(hl);
+                    if (!doConnect(hl)) { state = WIFI_ERROR; draw(hl); }
                 } else if (kb.cancelled) {
                     state = WIFI_LIST;
                     draw(hl);
@@ -189,10 +197,10 @@ public:
             break;
 
         case WIFI_ERROR:
-            if (ty >= 380 && ty < 440 && tx >= 350 && tx < 610) {
+            if (ty >= 380 && ty < 440 && tx >= 250 && tx < 710) {
                 if (WiFi.status() == WL_CONNECTED) {
                     state = WIFI_CONNECTED; draw(hl);
-                } else { return true; }
+                } else { doScan(hl); }   // zur Netzwerk-Liste -> neues Netz waehlen (nicht Screen verlassen)
             }
             break;
         default: break;
@@ -226,7 +234,7 @@ private:
         Serial.printf("[WIFI] Gespeichert: %s\n", ssid);
     }
 
-    void doConnect(EpdiyHighlevelState *hl) {
+    bool doConnect(EpdiyHighlevelState *hl) {       // true = verbunden
         Serial.printf("[WIFI] Connecting '%s'...\n", ssid);
         WiFi.begin(ssid, pass);
         int timeout = 30;   // 15 s
@@ -237,15 +245,15 @@ private:
             saveCredentials();
             deviceLoop();   // Ticket C: jetzt registrieren (falls kein NVS-Token) -> Pairing-Code bereit
             state = WIFI_CONNECTED;
-        } else {
-            const char* reason = (st==WL_NO_SSID_AVAIL) ? "Netz nicht gefunden" :
-                                 (st==WL_CONNECT_FAILED) ? "Passwort falsch?" :
-                                 (st==WL_CONNECTION_LOST) ? "Verbindung verloren" :
-                                 (st==WL_DISCONNECTED)   ? "Getrennt / kein DHCP" : "Timeout";
-            snprintf(status_msg, 64, "%s (Code %d)", reason, st);
-            Serial.printf("[WIFI] FAIL status=%d\n", st);
-            state = WIFI_ERROR;
+            draw(hl);
+            return true;
         }
-        draw(hl);
+        const char* reason = (st==WL_NO_SSID_AVAIL) ? "Netz nicht gefunden" :
+                             (st==WL_CONNECT_FAILED) ? "Passwort falsch?" :
+                             (st==WL_CONNECTION_LOST) ? "Verbindung verloren" :
+                             (st==WL_DISCONNECTED)   ? "Getrennt / kein DHCP" : "Timeout";
+        snprintf(status_msg, 64, "%s (Code %d)", reason, st);
+        Serial.printf("[WIFI] FAIL status=%d\n", st);
+        return false;   // Aufrufer: auto -> Liste, manuell -> Fehler-Screen
     }
 };

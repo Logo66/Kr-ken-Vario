@@ -305,26 +305,6 @@ static void obstacleWarnTick() {
     g_obstLevel = sphereLevel(best);
 }
 
-// === Hindernis-Notfetch (Ticket §5) — nur wenn GAR KEINE Daten auf der SD sind ===
-// XC-Modell: normal liegt das ganze Land auf der SD (wie die Luftraeume, einmal geladen +
-// beim Neustart ETag-Abgleich) und wird im Flug OFFLINE abgefragt. Dieser Fetch ist nur die
-// Reissleine bei leerer SD: holt den Umkreis (r40km), damit wenigstens die Naehe gewarnt wird.
-// Nie wenn schon Daten da sind (ueberschreibt die Land-Datei NICHT), nie im Flug.
-static void obstacleMaybeFetch() {
-    if (obstacle_count > 0) return;                              // Daten da (Land auf SD) -> nichts tun
-    if (WiFi.status() != WL_CONNECTED || !deviceHasToken()) return;
-    if (flight.state == FLIGHT_FLYING) return;
-    if (lastGoodLat == 0 && lastGoodLon == 0) return;
-    static unsigned long lastTry = 0; static int fails = 0;
-    if (fails >= 5) return;                                       // nach 5 Fehlversuchen Ruhe bis Neustart
-    if (lastTry != 0 && millis() - lastTry < 60000) return;       // max. 1 Versuch/Minute
-    lastTry = millis();
-    char err[64];
-    int c = obstacleFetch(lastGoodLat, lastGoodLon, 40, err, sizeof(err));
-    Serial.printf("[OBST] Notfetch %.5f,%.5f -> %d (%s)\n", lastGoodLat, lastGoodLon, c, err);
-    if (c != 200 && c != 304) fails++; else fails = 0;
-}
-
 // === Ton-Menue: Zustand + Helfer zum Neuzeichnen des Flug-Screens =============
 static Screen        soundReturnScreen = SCR_CRUISE;   // wohin nach dem Schliessen
 static unsigned long soundLastActivity = 0;            // fuer Auto-Close (5 s)
@@ -848,9 +828,10 @@ void loop() {
 
     // Contract-Cross-Read einmalig ~6s nach Boot (Serial dann stabil, nicht in der Reenum-Luecke)
     igcServerLoop();   // WLAN-Webserver fuer IGC-Download (laeuft nur wenn WLAN verbunden)
-    if (!ble.connected) { deviceLoop();          // Buddy-Heartbeat (blockierendes TLS) NICHT waehrend aktiver BLE-Session
-                          obstacleMaybeFetch(); } // Hindernis-Fetch nach Standort (am Boden) — auch TLS, gleiche Regel
+    if (!ble.connected) deviceLoop();  // Buddy-Heartbeat (blockierendes TLS) NICHT waehrend aktiver BLE-Session
                                        // -> keine Radio-Koexistenz-Stoerung -> kein BLE-Disconnect/Bond-Abbruch
+    // (Hindernisse werden NICHT mehr im Loop geholt — das blockierte die UI nach dem WLAN-Verbinden.
+    //  Ganz-Land-Modell: Datei liegt auf SD; manueller Fetch ueber KARTE-Screen mit Fortschritt.)
 
     // Einheitliche Statusleiste 1x pro Loop fuellen (alle Screens lesen denselben Zustand):
     // Uhr | Sat | FANET | Buddy | Batterie  (Buddy-Kreis = Verbindung zum Buddy-Server)
