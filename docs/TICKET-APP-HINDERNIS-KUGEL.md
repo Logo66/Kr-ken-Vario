@@ -57,4 +57,4 @@ Neue **Hindernis-Warnung** als **3D-Schutzkugel um den Piloten**. Zwei konzentri
 ---
 
 ## Kontext
-**Derselbe Schreibweg** wie alle Settings (M2). Du fügst im Warn-Reiter **einen Schalter + zwei Slider** hinzu. Die Keys stehen im **KONFIG-VERTRAG Teil 2** (Gruppe `warn`) ergänzt. Die Firmware liest die Hindernisse aus `/obstacles/obstacles.txt` (vorkonvertiert aus dem amtlichen BAZL-Datensatz, WGS84). **App-Seite:** kein neuer Schreibweg nötig — nur Schalter + zwei Slider. Das Befüllen/Aktualisieren der Hindernis-Datei (BAZL-Konverter) ist Firmware-/Tool-Seite, kein App-Thema.
+**Derselbe Schreibweg** wie alle Settings (M2). Du fügst im Warn-Reiter **einen Schalter + zwei Slider** hinzu. Die Keys stehen im **KONFIG-VERTRAG Teil 2** (Gruppe `warn`) ergänzt. Die Firmware liest die Hindernisse aus `/obstacles/obstacles.txt` (BAZL, WGS84). **App-Seite:** kein neuer Schreibweg nötig — nur Schalter + zwei Slider. Das **Generieren + Bereitstellen** der Hindernis-Daten macht der **Server** (nach Standort), die Krücke holt sie selbst — siehe `TICKET-SERVER-HINDERNIS-DATEN.md`. Kein App-Thema.
