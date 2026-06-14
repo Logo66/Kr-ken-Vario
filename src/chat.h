@@ -34,17 +34,24 @@ struct ChatChannel {
 
 static ChatChannel  g_buddyChat;
 static ChatChannel  g_fanetChat;
-static volatile bool g_buddyPopupPending = false;    // neue Buddy-Nachricht -> Popup
-static char          g_buddyPopupText[140] = "";     // Text fuer das Popup
-static char          g_buddyPopupFrom[18]  = "Buddy";
+// Eingehende Nachricht (Buddy ODER FANET) -> kurzes Einblenden. Dauer = g_chatPopupSec (main.cpp).
+static volatile bool g_popupPending = false;
+static char          g_popupText[140] = "";
+static char          g_popupFrom[18]  = "";
 
-static void chatAddBuddy(const char* text, uint8_t hh, uint8_t mm) {
+static void chatPopup(const char* from, const char* text) {
+    strncpy(g_popupFrom, from, 17); g_popupFrom[17] = 0;
+    strncpy(g_popupText, text, 139); g_popupText[139] = 0;
+    g_popupPending = true;
+}
+// popup=false (Severity "info") -> landet nur im Chat, kein Einblenden.
+static void chatAddBuddy(const char* text, uint8_t hh, uint8_t mm, bool popup = true) {
     g_buddyChat.add("Buddy", text, hh, mm, false);
-    strncpy(g_buddyPopupText, text, 139); g_buddyPopupText[139] = 0;
-    g_buddyPopupPending = true;
+    if (popup) chatPopup("Buddy", text);
 }
 static void chatAddFanet(const char* from, const char* text, uint8_t hh, uint8_t mm) {
     g_fanetChat.add(from, text, hh, mm, false);
+    chatPopup(from, text);
 }
 
 // Greedy Wort-Umbruch: zeichnet text in Zeilen <= maxChars, gibt die naechste y zurueck.

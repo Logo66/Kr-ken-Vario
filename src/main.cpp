@@ -260,6 +260,13 @@ static void mapLayersLoad() {
     v = l["airspace"]; g_layerAirspace = v.isNull() ? true : v.as<bool>();
     v = l["track"];    g_layerTrack    = v.isNull() ? true : v.as<bool>();
 }
+// Chat-Popup-Dauer (Sekunden) aus dem Modell — wie lange eine eingehende Nachricht einblendet.
+static int g_chatPopupSec = 5;
+static void chatLoad() {
+    JsonVariant v = g_model["chat"]["popup_seconds"];
+    int s = v.isNull() ? 5 : v.as<int>();          // fehlt (alte Config) -> Default 5, NICHT 0
+    g_chatPopupSec = (s >= 0 && s <= 60) ? s : 5;
+}
 static void aspWarnTick() {
     g_aspWarnIdx = -1;
     if (!g_warnAirspace || airspace_count == 0 || flight.state != FLIGHT_FLYING || !live.gps_fix || lastGoodLat == 0) return;
@@ -340,8 +347,8 @@ static void showChatPopup(const char* from, const char* text) {
     chatDrawWrapped(&ArialBold32, text, 80, 175, 30, 46, 440, fb);
     drawHCenter(&ArialBold16, "tippen zum Schliessen", 0, 960, 512, fb);
     epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
-    unsigned long t0 = millis();
-    while (millis() - t0 < 12000) { if (touch.poll() == GEST_TAP) break; delay(20); }
+    unsigned long t0 = millis(), dur = (unsigned long)g_chatPopupSec * 1000UL;   // einstellbar (chat.popup_seconds)
+    while (millis() - t0 < dur) { if (touch.poll() == GEST_TAP) break; delay(20); }
 }
 
 static float qnh_ref_alt = 489.0f;  // Referenzhoehe fuer QNH (kalibrierbar)
@@ -618,6 +625,7 @@ void setup() {
     { File af = sdcard.openRead("/tasks/active.txt"); if (af) { String tn=af.readStringUntil('\n'); af.close(); tn.trim(); if (tn.length()) taskLoad(tn.c_str()); } }  // M4: aktiven Task laden
     warnLoad();   // #3: Luftraum-Warn-Config aus dem Modell
     mapLayersLoad();   // Karten-Layer an/aus aus dem Modell
+    chatLoad();        // Chat-Popup-Dauer aus dem Modell
     // Selbsttest 3D-Schutzkugel: geladene Radien + Klassifikation synthetischer Distanzen
     Serial.printf("[KUGEL] Hindernis-Warnung %s  aussen=%.0fm innen=%.0fm  Hindernisse=%d\n",
                   g_warnObstacle ? "AN" : "AUS", g_sphereOuterM, g_sphereInnerM, obstacle_count);
@@ -677,6 +685,7 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
         mapLayersLoad();
         if (currentScreen == SCR_MAP) drawFlightScreen(SCR_MAP, MODE_GC16);   // sofort neu zeichnen
     }
+    if (ok && !strncmp(k, "chat.", 5)) chatLoad();     // Popup-Dauer sofort live
     if (ok) snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":true}", k);
     else    snprintf(ack, alen, "{\"ack\":\"settings\",\"k\":\"%s\",\"ok\":false,\"err\":\"%s\"}", k, err);
     Serial.printf("[CFG] settings %s -> %s\n", k, ok?"ok":err);
@@ -865,6 +874,13 @@ void loop() {
                                        // -> keine Radio-Koexistenz-Stoerung -> kein BLE-Disconnect/Bond-Abbruch
     // (Hindernisse werden NICHT mehr im Loop geholt — das blockierte die UI nach dem WLAN-Verbinden.
     //  Ganz-Land-Modell: Datei liegt auf SD; manueller Fetch ueber KARTE-Screen mit Fortschritt.)
+    // Buddy-Nachrichten aus dem Heartbeat (Phase A) -> Chat/Popup, dann im naechsten Heartbeat acken
+    if (devMsgCount > 0) {
+        for (int i = 0; i < devMsgCount; i++)
+            chatAddBuddy(devMsgQueue[i].text, live.rtc_hour, live.rtc_min, devMsgQueue[i].warn);
+        devMsgCount = 0;
+        devAckMsgId = devRecvMaxId;
+    }
 
     // Einheitliche Statusleiste 1x pro Loop fuellen (alle Screens lesen denselben Zustand):
     // Uhr | Sat | FANET | Buddy | Batterie  (Buddy-Kreis = Verbindung zum Buddy-Server)
@@ -1001,10 +1017,12 @@ void loop() {
         char fromid[18]; snprintf(fromid, 18, "%04X", fanet.lastMsgUid);
         chatAddFanet(fromid, fanet.lastMsg, live.rtc_hour, live.rtc_min);
     }
-    if (g_buddyPopupPending) {
-        g_buddyPopupPending = false;
-        showChatPopup(g_buddyPopupFrom, g_buddyPopupText);
-        drawFlightScreen(currentScreen, MODE_DU);   // Flug-Screen danach wiederherstellen
+    if (g_popupPending) {
+        g_popupPending = false;
+        if (g_chatPopupSec > 0) {                    // 0 = aus (Nachricht nur in den Chat, kein Einblenden)
+            showChatPopup(g_popupFrom, g_popupText);
+            drawFlightScreen(currentScreen, MODE_DU);   // Flug-Screen danach wiederherstellen
+        }
     }
     // Debug/Test am Serial: "buddy <text>" -> Buddy-Popup · "fanet <text>" -> FANET-Chat
     if (Serial.available()) {

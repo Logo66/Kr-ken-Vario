@@ -12,7 +12,7 @@ static Preferences  cfgPrefs;
 // Vertrags-Gruppen (Top-Level). Nur Keys aus diesen Gruppen werden akzeptiert.
 static bool modelKeyKnown(const char *k) {
     static const char *groups[] = {"sound","vario","units","display","wifi","ble","fanet",
-                                   "pilot","alt","map","log","buddy","warn"};
+                                   "pilot","alt","map","log","buddy","warn","chat"};
     for (auto g : groups) { size_t n = strlen(g); if (!strncmp(k, g, n) && k[n] == '.') return true; }
     return false;
 }
@@ -44,6 +44,7 @@ static void modelDefaults() {
     JsonObject lg  = g_model["log"].to<JsonObject>();     lg["igc"]=true; lg["imu_raw"]=false;
     JsonObject bud = g_model["buddy"].to<JsonObject>();   bud["pairing_code"]="";
     JsonObject war = g_model["warn"].to<JsonObject>();    war["buffer_h"]=500; war["buffer_v"]=150; war["airspace"]=true; war["obstacle"]=true; war["sphere_outer_m"]=300; war["sphere_inner_m"]=100;
+    JsonObject cht = g_model["chat"].to<JsonObject>();    cht["popup_seconds"]=5;   // Einblend-Dauer eingehender Nachrichten (0=aus)
 }
 
 // Beim Boot: aus NVS laden; fehlt es -> Defaults + Migration der 4 Altpfade (Ton-NVS, /ble.cfg, QNH) -> speichern.
