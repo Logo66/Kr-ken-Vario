@@ -20,6 +20,7 @@
 #include "sound_settings.h"
 #include "sound_screen.h"
 #include "pack_reader.h"
+#include "obstacles.h"
 
 // Forward-Declarations (definiert weiter unten nach globalen Variablen)
 static void updateGoalData();
@@ -257,37 +258,42 @@ static void aspWarnTick() {
     }
 }
 
-// === Hindernis-Warnung: naechstes Objekt in der 3D-Kugel finden (nur im Flug) ===
-// Quellen: FANET-Verkehr (live, beweglich) + Gipfel (fest). Eine echte Kugel:
-// d3 = sqrt(horizontal^2 + vertikal^2). Setzt g_obstLevel/Dist/Brg/What.
+// === Hindernis-Warnung: 3D-Schutzkugel um den Piloten (nur im Flug) ===
+// Quelle: BAZL-Luftfahrthindernisse (Seile/Leitungen/Masten/Seilbahnen/Windraeder) —
+// die SCHLECHT SICHTBAREN Gefahren. KEINE Berge (sieht man), KEIN Verkehr (Sichtflug,
+// der Gleitschirm-Pilot weicht selbst aus — er muss nur per FANET-TX gesehen werden).
+// Hindernis = senkrechte Struktur vom Boden bis top_m: UNTER der Oberkante zaehlt nur
+// die HORIZONTALE Distanz (Mast/Kabel ist auf Pilotenhoehe da), DARUEBER die 3D-Distanz.
+// Linien (Kabel) per Punkt-zu-Segment-Abstand. Setzt g_obstLevel/Dist/Brg/What.
+static float segNearest(double myLat, double myLon, const Obstacle& o, float* pe, float* pn) {
+    double clat = cos(myLat * M_PI / 180.0);
+    float ax = (float)((o.lon1 - myLon) * 111320.0 * clat), ay = (float)((o.lat1 - myLat) * 110540.0);
+    float bx = (float)((o.lon2 - myLon) * 111320.0 * clat), by = (float)((o.lat2 - myLat) * 110540.0);
+    float dx = bx - ax, dy = by - ay, len2 = dx*dx + dy*dy;
+    float t = len2 > 0 ? -(ax*dx + ay*dy) / len2 : 0.0f;   // Pilot (Ursprung) auf Segment AB projizieren
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    *pe = ax + t*dx; *pn = ay + t*dy;                      // naechster Punkt relativ zum Piloten (Ost,Nord) in m
+    return sqrtf((*pe)*(*pe) + (*pn)*(*pn));
+}
 static void obstacleWarnTick() {
     g_obstLevel = 0; g_obstDist = 0; g_obstBrg = 0; g_obstWhat[0] = 0;
-    if (!g_warnObstacle || flight.state != FLIGHT_FLYING || !live.gps_fix || lastGoodLat == 0) return;
-    float best = 1e9f, bestBrg = 0; const char* bestWhat = "";
+    if (!g_warnObstacle || obstacle_count == 0 || flight.state != FLIGHT_FLYING || !live.gps_fix || lastGoodLat == 0) return;
+    float best = 1e9f, bestE = 0, bestN = 0; const Obstacle* bestO = nullptr;
     float myAlt = live.altitude;
-    // Quelle 1: FANET-Verkehr (bis 20, beweglich) — nur frisch Gesehene
-    for (int i = 0; i < fanet.pilot_count; i++) {
-        FanetPilot& p = fanet.pilots[i];
-        if (millis() - p.last_seen > 30000) continue;          // veraltet -> ignorieren
-        if (p.lat == 0 && p.lon == 0) continue;
-        float dh = haversineDist(lastGoodLat, lastGoodLon, p.lat, p.lon);
-        if (dh > g_sphereOuterM) continue;                     // ausserhalb -> 3D erst recht
-        float dv = myAlt - p.altitude;
+    for (int i = 0; i < obstacle_count; i++) {
+        Obstacle& o = obstacles_arr[i];
+        float pe, pn, dh = segNearest(lastGoodLat, lastGoodLon, o, &pe, &pn);
+        if (dh > g_sphereOuterM) continue;                 // horizontal schon draussen -> 3D erst recht
+        float dv = myAlt - (float)o.top_m;                 // ueber der Oberkante zaehlt Hoehe, darunter 0
+        if (dv < 0) dv = 0;
         float d3 = sqrtf(dh*dh + dv*dv);
-        if (d3 < best) { best = d3; bestBrg = bearingTo(lastGoodLat, lastGoodLon, p.lat, p.lon); bestWhat = "Verkehr"; }
+        if (d3 < best) { best = d3; bestE = pe; bestN = pn; bestO = &o; }
     }
-    // Quelle 2: Gipfel (fest, viele) — horizontal vorfiltern spart die meisten sqrt
-    for (int i = 0; i < peak_count; i++) {
-        Peak& pk = peaks_arr[i];
-        float dh = haversineDist(lastGoodLat, lastGoodLon, pk.lat, pk.lon);
-        if (dh > g_sphereOuterM) continue;
-        float dv = myAlt - (float)pk.ele;
-        float d3 = sqrtf(dh*dh + dv*dv);
-        if (d3 < best) { best = d3; bestBrg = bearingTo(lastGoodLat, lastGoodLon, pk.lat, pk.lon); bestWhat = pk.name; }
-    }
-    if (best >= 1e9f) return;
-    g_obstDist = best; g_obstBrg = bestBrg;
-    strncpy(g_obstWhat, bestWhat, 23); g_obstWhat[23] = 0;
+    if (!bestO) return;
+    g_obstDist = best;
+    float brg = atan2f(bestE, bestN) * 180.0f / (float)M_PI; if (brg < 0) brg += 360;   // Ost,Nord -> Kompass
+    g_obstBrg = brg;
+    snprintf(g_obstWhat, 24, "%s %s", obstacleTypeStr(bestO->type), bestO->name);
     g_obstLevel = sphereLevel(best);
 }
 
@@ -513,6 +519,11 @@ void setup() {
         parseOpenAir("/airspace/ch_asp.txt");
     }
 
+    // BAZL-Hindernisse von SD parsen (Seile/Leitungen/Masten) — fuer die Hindernis-Kugel
+    if (sdcard.ok && sdcard.exists("/obstacles/obstacles.txt")) {
+        parseObstacles("/obstacles/obstacles.txt");
+    }
+
     // Karten-Pack: zuletzt heruntergeladenes (active.txt) laden — ECHTES Server-Pack, kein Demo.
     parseCenterLat = lastGoodLat; parseCenterLon = lastGoodLon;   // Fenster um letzte/Test-Position
     if (sdcard.ok) {
@@ -570,8 +581,8 @@ void setup() {
     { File af = sdcard.openRead("/tasks/active.txt"); if (af) { String tn=af.readStringUntil('\n'); af.close(); tn.trim(); if (tn.length()) taskLoad(tn.c_str()); } }  // M4: aktiven Task laden
     warnLoad();   // #3: Luftraum-Warn-Config aus dem Modell
     // Selbsttest 3D-Schutzkugel: geladene Radien + Klassifikation synthetischer Distanzen
-    Serial.printf("[KUGEL] Hindernis-Warnung %s  aussen=%.0fm innen=%.0fm\n",
-                  g_warnObstacle ? "AN" : "AUS", g_sphereOuterM, g_sphereInnerM);
+    Serial.printf("[KUGEL] Hindernis-Warnung %s  aussen=%.0fm innen=%.0fm  Hindernisse=%d\n",
+                  g_warnObstacle ? "AN" : "AUS", g_sphereOuterM, g_sphereInnerM, obstacle_count);
     Serial.printf("[KUGEL-TEST] 85m->%d(soll2)  250m->%d(soll1)  500m->%d(soll0)\n",
                   sphereLevel(sqrtf(80.f*80.f + 30.f*30.f)), sphereLevel(250.f), sphereLevel(500.f));
 
