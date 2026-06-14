@@ -40,7 +40,7 @@ static void modelDefaults() {
     JsonObject pil = g_model["pilot"].to<JsonObject>();   pil["name"]=""; pil["glider"]=""; pil["weight_kg"]=95;
     JsonObject alt = g_model["alt"].to<JsonObject>();     alt["qnh"]=1013.25;
     JsonObject mp  = g_model["map"].to<JsonObject>();     mp["region"]="ch_v1";
-    JsonObject lay = mp["layers"].to<JsonObject>();       lay["contours"]=true; lay["water"]=true; lay["airspace"]=true; lay["obstacles"]=true; lay["track"]=true;
+    JsonObject lay = mp["layers"].to<JsonObject>();       lay["contours"]=true; lay["water"]=true; lay["airspace"]=true; lay["obstacles"]=true; lay["track"]=true; lay["roads"]=true;
     JsonObject lg  = g_model["log"].to<JsonObject>();     lg["igc"]=true; lg["imu_raw"]=false;
     JsonObject bud = g_model["buddy"].to<JsonObject>();   bud["pairing_code"]="";
     JsonObject war = g_model["warn"].to<JsonObject>();    war["buffer_h"]=500; war["buffer_v"]=150; war["airspace"]=true; war["obstacle"]=true; war["sphere_outer_m"]=300; war["sphere_inner_m"]=100;
