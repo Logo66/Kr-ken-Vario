@@ -1,0 +1,6 @@
+# Generierte Hindernis-Daten + Quell-Download — nicht ins Repo (regenerierbar via bazl_to_obstacles.py)
+*.kmz
+*.zip
+obstacles_ch.txt
+obstacles_region.txt
+obstacles.txt

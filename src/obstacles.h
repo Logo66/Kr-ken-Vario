@@ -20,7 +20,7 @@ struct Obstacle {
     char    name[20];
 };
 
-static const int OBST_MAX = 6000;     // CH-weit grosszuegig (Spannfeld-Segmente)
+static const int OBST_MAX = 8000;     // regional gefiltert (nur Flug-Gebiete) — Spannfeld-Segmente
 static Obstacle *obstacles_arr = nullptr;   // alloc in parseObstacles (PSRAM)
 static int obstacle_count = 0;
 

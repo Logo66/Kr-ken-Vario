@@ -585,6 +585,12 @@ void setup() {
                   g_warnObstacle ? "AN" : "AUS", g_sphereOuterM, g_sphereInnerM, obstacle_count);
     Serial.printf("[KUGEL-TEST] 85m->%d(soll2)  250m->%d(soll1)  500m->%d(soll0)\n",
                   sphereLevel(sqrtf(80.f*80.f + 30.f*30.f)), sphereLevel(250.f), sphereLevel(500.f));
+    { // segNearest gegen synthetisches Hindernis 80 m oestlich -> ~80 m, innere Kugel
+        Obstacle to; to.lat1 = 47.0; to.lon1 = 8.0 + 80.0 / (111320.0 * cos(47.0 * M_PI / 180.0));
+        to.lat2 = to.lat1; to.lon2 = to.lon1; to.top_m = 0; to.type = 0;
+        float pe, pn, dh = segNearest(47.0, 8.0, to, &pe, &pn);
+        Serial.printf("[KUGEL-TEST] segNearest Punkt 80m-Ost = %.0fm -> level %d (soll ~80 / 2)\n", dh, sphereLevel(dh));
+    }
 
     // Flugbuch von SD laden (persistent — keine Demo-Fluege mehr)
     flugbuch.load(&sdcard);
