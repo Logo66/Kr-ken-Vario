@@ -7,6 +7,7 @@
 #include "sd_manager.h"
 #include "map_pack.h"
 #include "pack_reader.h"   // parsePack: geladenes Pack einlesen + rendern (Stufe 3)
+#include "obstacle_fetch.h"   // obstacleFetch: Hindernisse nach Standort holen (§5)
 
 // Schweiz: Luftraeume von openAIP, Hindernisse vom BAZL (amtlich, tagesaktuell)
 #define URL_AIRSPACE_CH   "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/ch_asp.txt"
@@ -31,6 +32,7 @@ public:
     SDManager *sd = nullptr;
     char status_msg[64] = {0};
     int download_pct = 0;
+    double curLat = 0, curLon = 0;   // aktueller Standort (von main gesetzt) — fuer Hindernis-Fetch
 
     void begin(SDManager *sdm) {
         sd = sdm;
@@ -48,7 +50,7 @@ public:
         case OVL_MENU: {
             bool wifi = (WiFi.status() == WL_CONNECTED);
             bool has_asp = sd && sd->ok && sd->exists("/airspace/ch_asp.txt");
-            bool has_obs = sd && sd->ok && sd->exists("/obstacles/ch_bazl.json");
+            bool has_obs = sd && sd->ok && sd->exists("/obstacles/obstacles.txt");
             bool has_hot = sd && sd->ok && sd->exists("/obstacles/ch_hot.cup");
 
             if (!wifi) {
@@ -69,7 +71,7 @@ public:
             drawBoxCenter(&ArialBold16, lb, bx, by0, bw, bh, fb);
 
             uiBox(bx, by0+bh+bgap, bw, bh, fb);
-            snprintf(lb, 48, "Hindernisse BAZL  %s", has_obs ? "[OK]" : "");
+            snprintf(lb, 48, "Hindernisse (Standort)  %s", has_obs ? "[OK]" : "");
             drawBoxCenter(&ArialBold16, lb, bx, by0+bh+bgap, bw, bh, fb);
 
             uiBox(bx, by0+2*(bh+bgap), bw, bh, fb);
@@ -158,7 +160,7 @@ public:
                 } else if (ty >= 100 && ty < 165) {
                     downloadFile(hl, URL_AIRSPACE_CH, "/airspace/ch_asp.txt", "Luftraeume CH");
                 } else if (ty >= 183 && ty < 248) {
-                    downloadFile(hl, URL_OBSTACLES_CH, "/obstacles/ch_bazl.json", "Hindernisse BAZL");
+                    downloadObstacles(hl);   // §5: Hindernisse NACH STANDORT vom Server
                 } else if (ty >= 266 && ty < 331) {
                     downloadFile(hl, URL_HOTSPOTS_CH, "/obstacles/ch_hot.cup", "Hotspots CH");
                 } else if (ty >= 349 && ty < 414) {
@@ -238,6 +240,20 @@ private:
             snprintf(status_msg, 64, "%s", err);   // REJECT/Fehler — klar, kein Crash
             state = OVL_ERROR;
         }
+        draw(hl);
+    }
+
+    // §5: Hindernisse NACH STANDORT holen (GET /obstacles?lat&lon&r) -> SD -> parseObstacles.
+    void downloadObstacles(EpdiyHighlevelState *hl) {
+        if (!sd || !sd->ok) { snprintf(status_msg, 64, "Keine SD-Karte"); state = OVL_ERROR; draw(hl); return; }
+        if (curLat == 0 && curLon == 0) { snprintf(status_msg, 64, "Kein GPS-Standort"); state = OVL_ERROR; draw(hl); return; }
+        state = OVL_DOWNLOADING;
+        snprintf(status_msg, 64, "Hindernisse (Standort, r40km)...");
+        download_pct = 0; draw(hl);
+        char err[64];
+        int c = obstacleFetch(curLat, curLon, 40, err, sizeof(err));
+        snprintf(status_msg, 64, "%s", err);
+        state = (c == 200 || c == 304) ? OVL_DONE : OVL_ERROR;
         draw(hl);
     }
 

@@ -21,6 +21,7 @@
 #include "sound_screen.h"
 #include "pack_reader.h"
 #include "obstacles.h"
+#include "obstacle_fetch.h"
 
 // Forward-Declarations (definiert weiter unten nach globalen Variablen)
 static void updateGoalData();
@@ -297,6 +298,29 @@ static void obstacleWarnTick() {
     g_obstLevel = sphereLevel(best);
 }
 
+// === Hindernisse nach Standort holen (Ticket §5) — nur am Boden, wenn WLAN + Standort da ===
+// Fetcht: noch keine Daten ODER Standort > r/2 vom letzten Fetch-Zentrum (neues Gebiet).
+// ETag/304 haelt Revalidierungen billig; im Flug NIE (kein Netz-Stall, WLAN eh nur am Boden).
+static void obstacleMaybeFetch() {
+    if (WiFi.status() != WL_CONNECTED || !deviceHasToken()) return;
+    if (flight.state == FLIGHT_FLYING) return;
+    if (lastGoodLat == 0 && lastGoodLon == 0) return;
+    const int R = 40;
+    bool haveCenter = (g_obstFetchLat != 0 || g_obstFetchLon != 0);
+    bool drift = haveCenter &&
+                 haversineDist(lastGoodLat, lastGoodLon, g_obstFetchLat, g_obstFetchLon)
+                   > (g_obstFetchR > 0 ? g_obstFetchR : R) * 1000.0f / 2.0f;
+    if (!(!haveCenter || drift || obstacle_count == 0)) return;   // Daten fuer dieses Gebiet vorhanden
+    static unsigned long lastTry = 0; static int fails = 0;
+    if (fails >= 5) return;                                       // nach 5 Fehlversuchen Ruhe bis Neustart
+    if (lastTry != 0 && millis() - lastTry < 60000) return;       // max. 1 Versuch/Minute
+    lastTry = millis();
+    char err[64];
+    int c = obstacleFetch(lastGoodLat, lastGoodLon, R, err, sizeof(err));
+    Serial.printf("[OBST] MaybeFetch %.5f,%.5f -> %d (%s)\n", lastGoodLat, lastGoodLon, c, err);
+    if (c != 200 && c != 304) fails++; else fails = 0;
+}
+
 // === Ton-Menue: Zustand + Helfer zum Neuzeichnen des Flug-Screens =============
 static Screen        soundReturnScreen = SCR_CRUISE;   // wohin nach dem Schliessen
 static unsigned long soundLastActivity = 0;            // fuer Auto-Close (5 s)
@@ -523,6 +547,7 @@ void setup() {
     if (sdcard.ok && sdcard.exists("/obstacles/obstacles.txt")) {
         parseObstacles("/obstacles/obstacles.txt");
     }
+    obstacleLoadMeta();   // letztes Fetch-Zentrum/ETag (Standort-Drift + 304-Revalidierung)
 
     // Karten-Pack: zuletzt heruntergeladenes (active.txt) laden — ECHTES Server-Pack, kein Demo.
     parseCenterLat = lastGoodLat; parseCenterLon = lastGoodLon;   // Fenster um letzte/Test-Position
@@ -819,7 +844,8 @@ void loop() {
 
     // Contract-Cross-Read einmalig ~6s nach Boot (Serial dann stabil, nicht in der Reenum-Luecke)
     igcServerLoop();   // WLAN-Webserver fuer IGC-Download (laeuft nur wenn WLAN verbunden)
-    if (!ble.connected) deviceLoop();  // Buddy-Heartbeat (blockierendes TLS) NICHT waehrend aktiver BLE-Session
+    if (!ble.connected) { deviceLoop();          // Buddy-Heartbeat (blockierendes TLS) NICHT waehrend aktiver BLE-Session
+                          obstacleMaybeFetch(); } // Hindernis-Fetch nach Standort (am Boden) — auch TLS, gleiche Regel
                                        // -> keine Radio-Koexistenz-Stoerung -> kein BLE-Disconnect/Bond-Abbruch
 
     // Einheitliche Statusleiste 1x pro Loop fuellen (alle Screens lesen denselben Zustand):
@@ -1009,6 +1035,7 @@ void loop() {
 
     if (currentScreen == SCR_OVERLAY) {
         if (g == GEST_TAP) {
+            overlayScreen.curLat = lastGoodLat; overlayScreen.curLon = lastGoodLon;   // Standort fuer Hindernis-Fetch
             if (overlayScreen.handleTap(touch.lastX(), touch.lastY(), &hl)) {
                 currentScreen = SCR_MENU;
                 showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
@@ -1154,6 +1181,7 @@ void loop() {
             } else if (mi == MENU_KARTE) {
                 currentScreen = SCR_OVERLAY;
                 overlayScreen.begin(&sdcard);
+                overlayScreen.curLat = lastGoodLat; overlayScreen.curLon = lastGoodLon;
                 overlayScreen.draw(&hl);
                 Serial.println("[MENU] Karte Overlays");
             } else if (mi == MENU_AUS) {
