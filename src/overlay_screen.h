@@ -71,7 +71,7 @@ public:
             drawBoxCenter(&ArialBold16, lb, bx, by0, bw, bh, fb);
 
             uiBox(bx, by0+bh+bgap, bw, bh, fb);
-            snprintf(lb, 48, "Hindernisse (Standort)  %s", has_obs ? "[OK]" : "");
+            snprintf(lb, 48, "Hindernisse (Land)  %s", has_obs ? "[OK]" : "");
             drawBoxCenter(&ArialBold16, lb, bx, by0+bh+bgap, bw, bh, fb);
 
             uiBox(bx, by0+2*(bh+bgap), bw, bh, fb);
@@ -243,15 +243,17 @@ private:
         draw(hl);
     }
 
-    // §5: Hindernisse NACH STANDORT holen (GET /obstacles?lat&lon&r) -> SD -> parseObstacles.
+    // Hindernisse fuers GANZE LAND holen (GET /obstacles/country?lat&lon, Server bestimmt Land)
+    // -> SD -> parseObstacles. ETag/304: unveraendert = kein Download. Mit Fortschrittsbalken.
     void downloadObstacles(EpdiyHighlevelState *hl) {
         if (!sd || !sd->ok) { snprintf(status_msg, 64, "Keine SD-Karte"); state = OVL_ERROR; draw(hl); return; }
         if (curLat == 0 && curLon == 0) { snprintf(status_msg, 64, "Kein GPS-Standort"); state = OVL_ERROR; draw(hl); return; }
         state = OVL_DOWNLOADING;
-        snprintf(status_msg, 64, "Hindernisse (Standort, r40km)...");
+        snprintf(status_msg, 64, "Hindernisse (ganzes Land)...");
         download_pct = 0; draw(hl);
+        s_self = this; s_hl = hl;
         char err[64];
-        int c = obstacleFetch(curLat, curLon, 40, err, sizeof(err));
+        int c = obstacleFetch(curLat, curLon, err, sizeof(err), s_dlProgress);
         snprintf(status_msg, 64, "%s", err);
         state = (c == 200 || c == 304) ? OVL_DONE : OVL_ERROR;
         draw(hl);

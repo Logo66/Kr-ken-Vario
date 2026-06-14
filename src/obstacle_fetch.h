@@ -42,7 +42,7 @@ static void obstacleSaveMeta(double lat, double lon, int r, const char *etag) {
 
 // Holt Hindernisse fuer (lat,lon,r km). 200=neu geladen+geparst, 304=Cache aktuell,
 // <0/HTTP-Code = Fehler (alter Cache bleibt gueltig). errbuf: Klartext fuer den Screen.
-static int obstacleFetch(double lat, double lon, int radiusKm, char *errbuf, size_t errlen) {
+static int obstacleFetch(double lat, double lon, char *errbuf, size_t errlen, void (*progress)(int) = nullptr) {
     if (WiFi.status() != WL_CONNECTED) { snprintf(errbuf, errlen, "Kein WLAN"); return -1; }
     if (!deviceHasToken())             { snprintf(errbuf, errlen, "Kein Geraete-Token"); return -2; }
     if (lat == 0 && lon == 0)          { snprintf(errbuf, errlen, "Kein Standort"); return -3; }
@@ -51,25 +51,28 @@ static int obstacleFetch(double lat, double lon, int radiusKm, char *errbuf, siz
     WiFiClientSecure client; client.setInsecure();
     HTTPClient http;
     char url[160];
-    snprintf(url, sizeof(url), "%s/obstacles?lat=%.6f&lon=%.6f&r=%d", BUDDY_BASE_URL, lat, lon, radiusKm);
+    // Pro-Land-Endpoint (Server bestimmt das Land per BBox aus dem Standort) -> ganze Land-Datei
+    snprintf(url, sizeof(url), "%s/obstacles/country?lat=%.6f&lon=%.6f", BUDDY_BASE_URL, lat, lon);
     if (!http.begin(client, url)) { snprintf(errbuf, errlen, "begin() fehlgeschlagen"); return -4; }
     http.addHeader("Authorization", String("Bearer ") + deviceToken);
-    if (g_obstEtag[0]) http.addHeader("If-None-Match", g_obstEtag);
-    const char *collect[] = { "ETag", "X-SHA256" };
-    http.collectHeaders(collect, 2);
+    if (g_obstEtag[0]) http.addHeader("If-None-Match", g_obstEtag);   // Neustart-/Update-Abgleich -> 304
+    const char *collect[] = { "ETag", "X-SHA256", "X-Country" };
+    http.collectHeaders(collect, 3);
     http.setTimeout(20000);
 
     int code = http.GET();
     if (code == 304) { http.end(); snprintf(errbuf, errlen, "aktuell (304), %d Hind.", obstacle_count); return 304; }
+    if (code == 404) { http.end(); snprintf(errbuf, errlen, "Land nicht abgedeckt"); return 404; }
     if (code != 200) {
         if (code == 401)   snprintf(errbuf, errlen, "401 Token/Device");
         else if (code < 0) snprintf(errbuf, errlen, "Netzfehler %d", code);
         else               snprintf(errbuf, errlen, "HTTP %d", code);
-        Serial.printf("[OBST] /obstacles -> %d\n", code);
+        Serial.printf("[OBST] /obstacles/country -> %d\n", code);
         http.end(); return code;
     }
     String etag = http.header("ETag");
     String wantSha = http.header("X-SHA256");
+    String country = http.header("X-Country");
     int total = http.getSize();
     WiFiClient *stream = http.getStreamPtr();
 
@@ -80,12 +83,13 @@ static int obstacleFetch(double lat, double lon, int radiusKm, char *errbuf, siz
     if (!f) { snprintf(errbuf, errlen, "SD Schreibfehler"); http.end(); return -5; }
 
     mbedtls_sha256_context sha; mbedtls_sha256_init(&sha); mbedtls_sha256_starts(&sha, 0);
-    uint8_t buf[1024]; int received = 0; unsigned long tData = millis();
+    uint8_t buf[1024]; int received = 0, lastPct = -1; unsigned long tData = millis();
     while (http.connected() && (total < 0 || received < total)) {
         int avail = stream->available();
         if (avail > 0) {
             int rd = stream->readBytes(buf, min(avail, 1024));
             f.write(buf, rd); mbedtls_sha256_update(&sha, buf, rd); received += rd; tData = millis();
+            if (progress && total > 0) { int p = (int)(100.0f * received / total); if (p != lastPct) { lastPct = p; progress(p); } }
         } else if (millis() - tData > 15000) {
             break;   // 15s ohne Daten -> WLAN weg: Temp wird unten verworfen
         }
@@ -102,9 +106,10 @@ static int obstacleFetch(double lat, double lon, int radiusKm, char *errbuf, siz
     SD.remove("/obstacles/obstacles.txt");
     if (!SD.rename(tmp, "/obstacles/obstacles.txt")) { SD.remove(tmp); snprintf(errbuf, errlen, "Rename fehlgeschlagen"); return -8; }
 
-    obstacleSaveMeta(lat, lon, radiusKm, etag.c_str());
+    obstacleSaveMeta(lat, lon, 0, etag.c_str());
     int n = parseObstacles("/obstacles/obstacles.txt");
-    Serial.printf("[OBST] Fetch OK %.5f,%.5f r%d -> %d B, %d Hindernisse, sha %.8s\n", lat, lon, radiusKm, received, n, hex);
-    snprintf(errbuf, errlen, "OK %d B, %d Hindernisse", received, n);
+    Serial.printf("[OBST] Fetch OK %s %.5f,%.5f -> %d B, %d Hindernisse, sha %.8s\n",
+                  country.length() ? country.c_str() : "?", lat, lon, received, n, hex);
+    snprintf(errbuf, errlen, "%s OK: %d Hindernisse", country.length() ? country.c_str() : "Land", n);
     return 200;
 }
