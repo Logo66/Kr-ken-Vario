@@ -757,6 +757,18 @@ static void processConfigWrite(const uint8_t *data, size_t len) {
         ble.notifyCfg(ack);
     } else if (!strcmp(kind, "task")) {
         handleTaskChunk(doc);
+    } else if (!strcmp(kind, "message")) {
+        // Buddy-Nachricht vom Handy (das hat Mobilfunk) — IM FLUG der Weg fuer Wetterwarnungen.
+        // App holt sie vom Server (/buddy/inbox) und schiebt sie hier per BLE rein. severity:
+        // "warn" -> Vollbild-Popup, "info" -> nur in den Chat.
+        const char *text = doc["text"] | "";
+        const char *sev  = doc["severity"] | "warn";
+        if (*text) {
+            chatAddBuddy(text, live.rtc_hour, live.rtc_min, strcmp(sev, "info") != 0);
+            ble.notifyCfg("{\"ack\":\"message\",\"ok\":true}");
+        } else {
+            ble.notifyCfg("{\"ack\":\"message\",\"ok\":false,\"err\":\"empty\"}");
+        }
     } else {
         ble.notifyCfg("{\"ack\":\"error\",\"ok\":false,\"err\":\"unknown_kind\"}");
     }
@@ -874,13 +886,8 @@ void loop() {
                                        // -> keine Radio-Koexistenz-Stoerung -> kein BLE-Disconnect/Bond-Abbruch
     // (Hindernisse werden NICHT mehr im Loop geholt — das blockierte die UI nach dem WLAN-Verbinden.
     //  Ganz-Land-Modell: Datei liegt auf SD; manueller Fetch ueber KARTE-Screen mit Fortschritt.)
-    // Buddy-Nachrichten aus dem Heartbeat (Phase A) -> Chat/Popup, dann im naechsten Heartbeat acken
-    if (devMsgCount > 0) {
-        for (int i = 0; i < devMsgCount; i++)
-            chatAddBuddy(devMsgQueue[i].text, live.rtc_hour, live.rtc_min, devMsgQueue[i].warn);
-        devMsgCount = 0;
-        devAckMsgId = devRecvMaxId;
-    }
+    // Buddy-Nachrichten kommen NICHT ueber WLAN/Heartbeat (im Flug kein WLAN!), sondern ueber
+    // BLE vom Handy (kind:message) — das Handy hat Mobilfunk. Siehe BLE-Write-Handler.
 
     // Einheitliche Statusleiste 1x pro Loop fuellen (alle Screens lesen denselben Zustand):
     // Uhr | Sat | FANET | Buddy | Batterie  (Buddy-Kreis = Verbindung zum Buddy-Server)

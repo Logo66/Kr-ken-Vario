@@ -36,14 +36,6 @@ static bool deviceRegTried       = false; // genau 1 Versuch pro Boot (kein Retr
 static unsigned long deviceLastHb = 0;     // Heartbeat-Takt (0 = noch nicht gesendet)
 static bool deviceServerOk       = false;  // Server-Verbindung (letzter Heartbeat 200 + WLAN up) -> Statusleiste
 
-// Buddy-Nachrichten aus der Heartbeat-Antwort (Phase A Transport). main.cpp holt sie -> Chat/Popup.
-#define DEV_MSG_MAX 6
-struct DevMsg { char text[140]; bool warn; };
-static DevMsg devMsgQueue[DEV_MSG_MAX];
-static int    devMsgCount  = 0;     // wartende Nachrichten fuer main.cpp
-static long   devRecvMaxId = 0;     // hoechste empfangene id (-> ack)
-static long   devAckMsgId  = 0;     // wird im naechsten Heartbeat als ack_msg_id gesendet
-
 static void deviceReadMac() {
     uint8_t m[6];
     WiFi.macAddress(m);                    // STA-MAC aus efuse (kein WLAN noetig)
@@ -157,27 +149,10 @@ static int deviceHeartbeat(char *errbuf, size_t errlen) {
 
     JsonDocument body;
     body["firmware_ver"] = AURA_VERSION;
-    if (devAckMsgId > 0) body["ack_msg_id"] = devAckMsgId;   // zugestellte Buddy-Nachrichten bestaetigen
     String payload;
     serializeJson(body, payload);
 
     int code = http.POST(payload);
-    if (code == 200) {
-        String resp = http.getString();                      // Antwort enthaelt evtl. messages[] (Phase A)
-        JsonDocument doc;
-        if (deserializeJson(doc, resp) == DeserializationError::Ok) {
-            for (JsonObject m : doc["messages"].as<JsonArray>()) {
-                if (devMsgCount >= DEV_MSG_MAX) break;
-                long id = m["id"] | 0L;
-                DevMsg& d = devMsgQueue[devMsgCount++];
-                strncpy(d.text, m["text"] | "", sizeof(d.text) - 1); d.text[sizeof(d.text) - 1] = 0;
-                const char* sev = m["severity"] | "warn";
-                d.warn = (strcmp(sev, "info") != 0);          // info -> nur Chat, kein Popup
-                if (id > devRecvMaxId) devRecvMaxId = id;
-                Serial.printf("[BUDDY] msg id=%ld sev=%s: %s\n", id, sev, d.text);
-            }
-        }
-    }
     http.end();
     if (code == 200)       snprintf(errbuf, errlen, "OK");
     else if (code == 403)  snprintf(errbuf, errlen, "403 Device blocked");
