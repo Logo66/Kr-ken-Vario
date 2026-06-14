@@ -281,8 +281,15 @@ static void obstacleWarnTick() {
     if (!g_warnObstacle || obstacle_count == 0 || flight.state != FLIGHT_FLYING || !live.gps_fix || lastGoodLat == 0) return;
     float best = 1e9f, bestE = 0, bestN = 0; const Obstacle* bestO = nullptr;
     float myAlt = live.altitude;
+    // Billiger Bounding-Box-Vorfilter: bei CH-weiten Daten (104k) faellt >99% hier raus,
+    // BEVOR das teure segNearest laeuft -> Abfrage pro Tick bleibt im Sub-Millisekunden-Bereich.
+    float mLat = (float)lastGoodLat, mLon = (float)lastGoodLon;
+    float latMargin = (g_sphereOuterM + 2000.0f) / 111000.0f;       // Kugel + Spannfeld-Reserve in Grad
+    float lonMargin = latMargin / cosf(mLat * (float)M_PI / 180.0f);
     for (int i = 0; i < obstacle_count; i++) {
         Obstacle& o = obstacles_arr[i];
+        if (fabsf(o.lat1 - mLat) > latMargin && fabsf(o.lat2 - mLat) > latMargin) continue;
+        if (fabsf(o.lon1 - mLon) > lonMargin && fabsf(o.lon2 - mLon) > lonMargin) continue;
         float pe, pn, dh = segNearest(lastGoodLat, lastGoodLon, o, &pe, &pn);
         if (dh > g_sphereOuterM) continue;                 // horizontal schon draussen -> 3D erst recht
         float dv = myAlt - (float)o.top_m;                 // ueber der Oberkante zaehlt Hoehe, darunter 0
@@ -294,30 +301,27 @@ static void obstacleWarnTick() {
     g_obstDist = best;
     float brg = atan2f(bestE, bestN) * 180.0f / (float)M_PI; if (brg < 0) brg += 360;   // Ost,Nord -> Kompass
     g_obstBrg = brg;
-    snprintf(g_obstWhat, 24, "%s %s", obstacleTypeStr(bestO->type), bestO->name);
+    snprintf(g_obstWhat, 24, "%s", obstacleTypeStr(bestO->type));
     g_obstLevel = sphereLevel(best);
 }
 
-// === Hindernisse nach Standort holen (Ticket §5) — nur am Boden, wenn WLAN + Standort da ===
-// Fetcht: noch keine Daten ODER Standort > r/2 vom letzten Fetch-Zentrum (neues Gebiet).
-// ETag/304 haelt Revalidierungen billig; im Flug NIE (kein Netz-Stall, WLAN eh nur am Boden).
+// === Hindernis-Notfetch (Ticket §5) — nur wenn GAR KEINE Daten auf der SD sind ===
+// XC-Modell: normal liegt das ganze Land auf der SD (wie die Luftraeume, einmal geladen +
+// beim Neustart ETag-Abgleich) und wird im Flug OFFLINE abgefragt. Dieser Fetch ist nur die
+// Reissleine bei leerer SD: holt den Umkreis (r40km), damit wenigstens die Naehe gewarnt wird.
+// Nie wenn schon Daten da sind (ueberschreibt die Land-Datei NICHT), nie im Flug.
 static void obstacleMaybeFetch() {
+    if (obstacle_count > 0) return;                              // Daten da (Land auf SD) -> nichts tun
     if (WiFi.status() != WL_CONNECTED || !deviceHasToken()) return;
     if (flight.state == FLIGHT_FLYING) return;
     if (lastGoodLat == 0 && lastGoodLon == 0) return;
-    const int R = 40;
-    bool haveCenter = (g_obstFetchLat != 0 || g_obstFetchLon != 0);
-    bool drift = haveCenter &&
-                 haversineDist(lastGoodLat, lastGoodLon, g_obstFetchLat, g_obstFetchLon)
-                   > (g_obstFetchR > 0 ? g_obstFetchR : R) * 1000.0f / 2.0f;
-    if (!(!haveCenter || drift || obstacle_count == 0)) return;   // Daten fuer dieses Gebiet vorhanden
     static unsigned long lastTry = 0; static int fails = 0;
     if (fails >= 5) return;                                       // nach 5 Fehlversuchen Ruhe bis Neustart
     if (lastTry != 0 && millis() - lastTry < 60000) return;       // max. 1 Versuch/Minute
     lastTry = millis();
     char err[64];
-    int c = obstacleFetch(lastGoodLat, lastGoodLon, R, err, sizeof(err));
-    Serial.printf("[OBST] MaybeFetch %.5f,%.5f -> %d (%s)\n", lastGoodLat, lastGoodLon, c, err);
+    int c = obstacleFetch(lastGoodLat, lastGoodLon, 40, err, sizeof(err));
+    Serial.printf("[OBST] Notfetch %.5f,%.5f -> %d (%s)\n", lastGoodLat, lastGoodLon, c, err);
     if (c != 200 && c != 304) fails++; else fails = 0;
 }
 
