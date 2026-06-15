@@ -108,6 +108,10 @@ static BLEManager ble;
 static BleScreen bleScreen;
 #include "vario/altitude.h"
 #include "kalman_vario.h"
+#include "imu.h"
+#if defined(USE_IMU_BNO055)
+#include "imu_bno055.h"
+#endif
 #include "esp_sleep.h"
 
 // --- Objekte ---
@@ -122,6 +126,15 @@ static KalmanVario kf;
 
 // --- Zustand ---
 static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=false;
+
+// IMU-Abstraktion (imu.h): heute Null-Quelle (LSM6 tot) -> Vario reines Baro, Heading GPS-Kurs.
+// Mit -DUSE_IMU_BNO055 zeigt 'g_imu' nach erfolgreichem begin() auf den BNO055-Treiber — sonst
+// ist NICHTS weiter zu aendern, Vario/Heading/G-Meter haengen schon an diesem Pointer.
+static ImuNull imuNull;
+#if defined(USE_IMU_BNO055)
+static ImuBno055 imuBno;
+#endif
+static IMU* g_imu = &imuNull;
 static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im Flug
 static CruiseData live = {};
 static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
@@ -492,7 +505,10 @@ static void feedGPS() {
             live.wind_speed = 0;   // am Boden kein Wind anzeigen
         }
     }
-    if(live.speed < 2.0f) live.heading = 0;
+    // Heading: IMU-Fusion bevorzugt (auch im Stand gueltig); sonst GPS-Kurs (im Stand wertlos -> 0).
+    { ImuSample s = g_imu->sample();
+      if (s.heading_valid)        live.heading = s.heading;
+      else if (live.speed < 2.0f) live.heading = 0; }
 }
 
 // === SETUP ===
@@ -601,6 +617,13 @@ void setup() {
     // LSM6DSO32 Beschleunigung in Betrieb nehmen (raw I2C, nach Wire.end)
     lsm_ok = lsm6Init();
     if (lsm_ok) imuLogConfig();   // Gyro + FIFO @104Hz fuer Roh-IMU-Logging (NICHT im Vario)
+
+    // IMU-Abstraktion hochfahren: BNO055 bevorzugt (wenn verbaut+kompiliert), sonst Null-Quelle.
+#if defined(USE_IMU_BNO055)
+    if (imuBno.begin()) g_imu = &imuBno;
+    else Serial.println("[IMU] BNO055 nicht gefunden -> Null-Quelle (Baro/GPS)");
+#endif
+    Serial.printf("[IMU] Quelle: %s\n", g_imu->name());
 
     // Touch init (GT911 ueber raw I2C)
     touch.init();
@@ -781,6 +804,7 @@ static void processConfigWrite(const uint8_t *data, size_t len) {
 
 void loop() {
     { static unsigned long _prev=0; unsigned long _n=millis(); if(_prev){ unsigned long dt=_n-_prev; if(dt>g_loopMaxMs) g_loopMaxMs=dt; } _prev=_n; }  // #5: Loop-Zeit messen
+    g_imu->update();   // IMU-Sample auffrischen (vor feedGPS, damit Heading frisch ist)
     feedGPS();
     if (g_windTest >= 0 && flight.state != FLIGHT_FLYING) { live.wind_speed = 12.0f; live.wind_dir = (float)g_windTest; }  // Windpfeil-Bench-Test haelt die Test-Richtung
     fanet.poll();
@@ -829,7 +853,12 @@ void loop() {
     float p = rawBMP581Pressure();  // Pa
     if (p > 10000 && p < 120000) {  // Plausibilitaet: 100-1200 hPa
         float alt = alt_calc.computeISA(p);
-        kf.update(alt);
+        ImuSample imuS = g_imu->sample();
+        kf.update(alt);                       // Baro-Update (heute die einzige Vario-Quelle)
+        if (imuS.accel_valid) {
+            // TODO BNO055: accel-gestuetzte Fusion — imuS.accel_up als Steuergroesse ins Kalman.
+            // Naht steht; Fusion + Tuning kommen mit dem echten Sensor (bewusst geparkt).
+        }
         live.altitude = kf.altitude;
         live.vario = kf.vario;
         vario_sum += kf.vario;
@@ -845,12 +874,15 @@ void loop() {
     bool flyingNow = (flight.state == FLIGHT_FLYING);
     varioSound.update(live.vario, soundMuted() || !flyingNow, g_sound.climb_threshold, g_sound.sink_alarm);
 
-    // LSM6 Beschleunigung (G) — aktuell + Spitze im Flug
-    if (lsm_ok) {
-        float g = lsm6ReadG();
-        if (g >= 0) {
-            g_now = g;
-            if (flight.state == FLIGHT_FLYING && g > g_max_flight) g_max_flight = g;
+    // G-Meter: BNO055-Betrag bevorzugt; sonst Legacy-LSM6 (faellt mit dem Sensor-Tausch weg)
+    {
+        float gval = -1.0f;
+        ImuSample imuG = g_imu->sample();
+        if (imuG.g_valid)  gval = imuG.accel_g;
+        else if (lsm_ok)   gval = lsm6ReadG();
+        if (gval >= 0) {
+            g_now = gval;
+            if (flight.state == FLIGHT_FLYING && gval > g_max_flight) g_max_flight = gval;
         }
     }
 
