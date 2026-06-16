@@ -144,6 +144,18 @@ static float g_varioFuseTau   = 0.5f;    // 1/s: De-Drift aufs Baro (hoeher = na
 static float g_varioFuseBiasK = 0.02f;   // 1/s: Bias-Nachfuehrung (frisst den accel_up-Offset), langsam
 static float g_northOffset    = 0.0f;    // Kompass-Nullpunkt (Grad), per "NORDEN SETZEN" gesetzt + in NVS
 
+// Vario-Feintuning (App-Regler 0-100 -> Physik). 50 = der getestete Default-"Feel".
+static float vorhaltToTau(int x)   { return 2.0f  * powf(0.0625f, x/100.0f); }  // Accel-Vorhalt: 0=reines Baro .. 50=0.5 .. 100=max Inertial
+static float reaktionToQvar(int x) { return 0.12f * powf(16.0f,   x/100.0f); }  // Reaktion: 0=weich .. 50~0.5 .. 100=spritzig
+static void varioTuneLoad() {       // aus dem Modell anwenden (Boot + nach BLE-Write)
+    JsonVariant av = g_model["vario"]["accel_vorhalt"]; int a = av.isNull() ? 50 : av.as<int>();
+    JsonVariant rk = g_model["vario"]["reaktion"];      int r = rk.isNull() ? 50 : rk.as<int>();
+    if (a<0||a>100) a=50;  if (r<0||r>100) r=50;
+    g_varioFuseTau = vorhaltToTau(a);
+    kf.Q_var       = reaktionToQvar(r);
+    Serial.printf("[VARIO] Vorhalt=%d->tau=%.2f  Reaktion=%d->Qvar=%.2f\n", a, g_varioFuseTau, r, kf.Q_var);
+}
+
 // BNO055-Kalibrierprofil (22 Byte) in NVS. Beim Boot laden -> Sensor startet kalibriert;
 // der Bausatz-Kaeufer muss nicht bei jedem Einschalten neu kalibrieren.
 static bool imuCalLoad() {              // NVS -> BNO055
@@ -691,6 +703,7 @@ void setup() {
     warnLoad();   // #3: Luftraum-Warn-Config aus dem Modell
     mapLayersLoad();   // Karten-Layer an/aus aus dem Modell
     chatLoad();        // Chat-Popup-Dauer aus dem Modell
+    varioTuneLoad();   // Vario-Feintuning (Accel-Vorhalt + Reaktion) aus dem Modell
     // Selbsttest 3D-Schutzkugel: geladene Radien + Klassifikation synthetischer Distanzen
     Serial.printf("[KUGEL] Hindernis-Warnung %s  aussen=%.0fm innen=%.0fm  Hindernisse=%d\n",
                   g_warnObstacle ? "AN" : "AUS", g_sphereOuterM, g_sphereInnerM, obstacle_count);
@@ -731,6 +744,8 @@ static bool applySettingKV(const char *k, JsonVariant v, char *ack, size_t alen)
     else if (!strcmp(k,"vario.deadband"))        { g_sound.deadband=v.as<float>(); soundSettingsSave(); }
     else if (!strcmp(k,"vario.tone_curve"))      { g_sound.tone_curve=(uint8_t)v.as<int>(); soundSettingsSave(); }
     else if (!strcmp(k,"vario.avg_window_s"))    { int w=v.as<int>(); if(w<1||w>120){ok=false;err="range";} else g_avgWindowSec=w; }
+    else if (!strcmp(k,"vario.accel_vorhalt"))   { int x=v.as<int>(); if(x<0||x>100){ok=false;err="range";} else g_varioFuseTau=vorhaltToTau(x); }
+    else if (!strcmp(k,"vario.reaktion"))        { int x=v.as<int>(); if(x<0||x>100){ok=false;err="range";} else kf.Q_var=reaktionToQvar(x); }
     else if (!strcmp(k,"alt.qnh"))               { float q=v.as<float>(); if(q<800.0f||q>1100.0f){ok=false;err="range";} else alt_calc.setQNH(q); }
     // ble.* werden persistiert und greifen beim naechsten Neustart (kein Live-Reinit -> aktive Verbindung bleibt)
     else if (!strcmp(k,"ble.name"))              { const char* s=v.as<const char*>(); if(!s){ok=false;err="type";} else {strncpy(bleScreen.name,s,31);bleScreen.name[31]=0;bleScreen.saveConfig();} }
