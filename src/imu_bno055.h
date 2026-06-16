@@ -23,6 +23,11 @@
 //   Heading ggf. spaeter per Achsen-Remap (Reg 0x41/0x42) an die Einbaulage anpassen.
 static const float kBnoUpSign = 1.0f;
 
+// Heading-Konvention (mount-unabhaengig, tilt-kompensiert): welche Geraete-Achse zeigt in
+// Flugrichtung ("Vorne") + Offset. Per Geraete-Nord-Test einstellen. Erst-Annahme: Vorne = +Y.
+static const float kFwdX = 0.0f, kFwdY = 0.0f, kFwdZ = 1.0f;   // Vorne = Schirmnormale (Z): bleibt bei steilem Einbau waagrecht
+static const float kHdgOffset = 0.0f;   // Roh-Heading; Nord-Nullpunkt setzt der User ("NORDEN SETZEN" -> NVS)
+
 class ImuBno055 : public IMU {
 public:
     bool begin() override {
@@ -58,7 +63,13 @@ public:
 
         _s.accel_up      = kBnoUpSign * up;
         _s.accel_valid   = true;
-        _s.heading       = s16(eu,0)/16.0f;    // Grad [0..360)
+        // Tilt-kompensiertes Heading aus dem Quaternion (mount-unabhaengig, kein Gimbal-Lock bei
+        // schraeger Lage): Geraete-"Vorne"-Achse ins Erdframe drehen -> Azimut in der Horizontalen.
+        float fx = (1-2*(y*y+z*z))*kFwdX + 2*(x*y-w*z)*kFwdY + 2*(x*z+w*y)*kFwdZ;
+        float fy = 2*(x*y+w*z)*kFwdX + (1-2*(x*x+z*z))*kFwdY + 2*(y*z-w*x)*kFwdZ;
+        float hdg = -atan2f(fy, fx) * 57.29578f + kHdgOffset;   // Vorzeichen: im Uhrzeigersinn steigend (N->O->S->W)
+        while (hdg < 0) hdg += 360.0f;  while (hdg >= 360.0f) hdg -= 360.0f;
+        _s.heading       = hdg;
         _s.heading_valid = true;
         float gx=s16(ac,0)/100.0f, gy=s16(ac,2)/100.0f, gz=s16(ac,4)/100.0f;
         _s.accel_g       = sqrtf(gx*gx + gy*gy + gz*gz) / 9.80665f;             // g

@@ -142,12 +142,14 @@ static IMU* g_imu = &imuNull;
 // Bias (accel_up-Offset) selbst geschaetzt. Tuning verfeinern wir im Flug (spaeter ggf. NVS).
 static float g_varioFuseTau   = 0.5f;    // 1/s: De-Drift aufs Baro (hoeher = naeher am Baro)
 static float g_varioFuseBiasK = 0.02f;   // 1/s: Bias-Nachfuehrung (frisst den accel_up-Offset), langsam
+static float g_northOffset    = 0.0f;    // Kompass-Nullpunkt (Grad), per "NORDEN SETZEN" gesetzt + in NVS
 
 // BNO055-Kalibrierprofil (22 Byte) in NVS. Beim Boot laden -> Sensor startet kalibriert;
 // der Bausatz-Kaeufer muss nicht bei jedem Einschalten neu kalibrieren.
 static bool imuCalLoad() {              // NVS -> BNO055
     Preferences p;
     if (!p.begin("imucal", true)) return false;
+    g_northOffset = p.getFloat("north", 0.0f);   // Kompass-Nullpunkt laden
     uint8_t buf[22];
     size_t n = p.getBytes("prof", buf, sizeof(buf));
     p.end();
@@ -538,8 +540,11 @@ static void feedGPS() {
     }
     // Heading: IMU-Fusion bevorzugt (auch im Stand gueltig); sonst GPS-Kurs (im Stand wertlos -> 0).
     { ImuSample s = g_imu->sample();
-      if (s.heading_valid)        live.heading = s.heading;
-      else if (live.speed < 2.0f) live.heading = 0; }
+      if (s.heading_valid) {
+          float h = s.heading - g_northOffset;            // Kompass-Nullpunkt abziehen
+          while (h < 0) h += 360.0f;  while (h >= 360.0f) h -= 360.0f;
+          live.heading = h;
+      } else if (live.speed < 2.0f) live.heading = 0; }
 }
 
 // === SETUP ===
@@ -1184,7 +1189,7 @@ void loop() {
         if (millis() - _qnhRef > 1500) {
             _qnhRef = millis();
             float pq = rawBMP581Pressure();
-            showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, pq), pq, g_imu->cal());
+            showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, pq), pq, g_imu->cal(), live.heading);
         }
     }
     Gesture g = touch.poll();
@@ -1304,13 +1309,13 @@ void loop() {
                 qnh_ref_alt += 10;
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
                 alt_calc.setQNH(qnh);
-                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal());
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading);
                 Serial.printf("[QNH] +10 → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
             } else if (qa == QNH_MINUS) {
                 qnh_ref_alt -= 10;
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
                 alt_calc.setQNH(qnh);
-                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal());
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading);
                 Serial.printf("[QNH] -10 → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
             } else if (qa == QNH_OK) {
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
@@ -1326,7 +1331,17 @@ void loop() {
                 drawHCenter(&ArialBold40, saved ? "GESPEICHERT" : "nicht ok", 0, 960, 305, fb);
                 epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
                 delay(1200);
-                showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, p), p, g_imu->cal());
+                showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, p), p, g_imu->cal(), live.heading);
+            } else if (qa == QNH_SETNORTH) {
+                g_northOffset = g_imu->sample().heading;    // aktuelle Roh-Richtung = Norden (0)
+                { Preferences pp; if (pp.begin("imucal", false)) { pp.putFloat("north", g_northOffset); pp.end(); } }
+                Serial.printf("[CAL] Norden gesetzt: Offset=%.0f\n", g_northOffset);
+                uint8_t *fb = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl);
+                drawHCenter(&ArialBold40, "NORDEN", 0, 960, 235, fb);
+                drawHCenter(&ArialBold40, "GESETZT", 0, 960, 305, fb);
+                epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+                delay(1000);
+                showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, p), p, g_imu->cal(), live.heading);
             }
         } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             currentScreen = SCR_MENU;
@@ -1341,7 +1356,7 @@ void loop() {
                 currentScreen = SCR_QNH;
                 float p = rawBMP581Pressure();
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
-                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal());
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading);
                 Serial.printf("[QNH] Screen: Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
             } else if (mi == MENU_BACKLIGHT) {
                 backlight_on = !backlight_on;

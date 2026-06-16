@@ -4,46 +4,39 @@
 enum MenuItem { MENU_NONE, MENU_QNH, MENU_BACKLIGHT, MENU_FLUGBUCH,
                 MENU_FUNK, MENU_KARTE, MENU_AUS };
 
-static const int MBTN=190, MGAP=30, MX0=165, MY0=75;
-static int mbX(int c){return MX0+c*(MBTN+MGAP);}
-static int mbY(int r){return MY0+r*(MBTN+MGAP);}
+// 2 Spalten x 3 Reihen, breite Kaesten -> Text passt locker rein.
+static const int MBW=410, MBH=125, MGX=40, MGY=20, MX0=50, MY0=90;
+static int mbX(int c){return MX0 + c*(MBW+MGX);}
+static int mbY(int r){return MY0 + r*(MBH+MGY);}
 
-static void drawMBtn(int c, int r, const char *label, const char *label2,
-                     const char *info, uint8_t *fb) {
+static void drawMBtn(int c, int r, const char *label, const char *info, uint8_t *fb) {
     int x = mbX(c), y = mbY(r);
-    uiBox(x, y, MBTN, MBTN, fb);
-
-    if (label2) {
-        // Zweizeilig: beide ArialBold24, mehr Abstand, vertikal zentriert
-        drawHCenter(&ArialBold24, label,  x, MBTN, y + 72, fb);
-        drawHCenter(&ArialBold24, label2, x, MBTN, y + 120, fb);
-    } else if (info) {
-        // Label oben, Info unten
-        drawHCenter(&ArialBold24, label, x, MBTN, y + 80, fb);
-        drawHCenter(&ArialBold16, info, x, MBTN, y + 120, fb);
-    } else {
-        // Nur Label, voll zentriert
-        drawBoxCenter(&ArialBold24, label, x, y, MBTN, MBTN, fb);
+    uiBox(x, y, MBW, MBH, fb);
+    if (info) {                                          // Label + kleine Info, mittig als Block
+        drawHCenter(&ArialBold24, label, x, MBW, y + MBH/2 - 6, fb);
+        drawHCenter(&ArialBold16, info,  x, MBW, y + MBH/2 + 28, fb);
+    } else {                                             // nur Label, voll zentriert
+        drawBoxCenter(&ArialBold24, label, x, y, MBW, MBH, fb);
     }
 }
 
 static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc,
                            enum EpdDrawMode mode = MODE_DU) {
+    (void)qnh; (void)fc;
     uint8_t *fb = epd_hl_get_framebuffer(hl);
     epd_hl_set_all_white(hl);
-    char buf[32];
 
-    drawHCenter(&ArialBold28, "MENU", 0, 960, 55, fb);
+    drawHCenter(&ArialBold28, "MENU", 0, 960, 48, fb);
+    uiHLine(40, 66, 880, fb);
 
-    snprintf(buf, 32, "%.0f hPa", qnh);
-    drawMBtn(0, 0, "QNH", NULL, buf, fb);
-    drawMBtn(1, 0, "LICHT", NULL, bl ? "AN" : "AUS", fb);
-    drawMBtn(2, 0, "FLUG", "BUCH", NULL, fb);
-    drawMBtn(0, 1, "FUNK", NULL, "WLAN/BLE", fb);
-    drawMBtn(1, 1, "KARTE", NULL, NULL, fb);
-    drawMBtn(2, 1, "AUS", NULL, NULL, fb);
+    drawMBtn(0, 0, "SENSOR KALIB.", NULL, fb);
+    drawMBtn(1, 0, "LICHT", bl ? "AN" : "AUS", fb);
+    drawMBtn(0, 1, "FLUGBUCH", NULL, fb);
+    drawMBtn(1, 1, "FUNK", "WLAN/BLE", fb);
+    drawMBtn(0, 2, "KARTE", NULL, fb);
+    drawMBtn(1, 2, "AUS", NULL, fb);
 
-    drawHCenter(&ArialBold16, "Antippen | Wischen = zurueck", 0, 960, 530, fb);
+    drawHCenter(&ArialBold16, "Antippen  |  Wischen = zurueck", 0, 960, 525, fb);
 
     epd_poweron();
     epd_hl_update_screen(hl, mode, (int)epd_ambient_temperature());
@@ -53,10 +46,10 @@ static void showMenuScreen(EpdiyHighlevelState *hl, float qnh, bool bl, int fc,
 static MenuItem checkMenuTap(int tx, int ty) {
     MenuItem items[] = {MENU_QNH, MENU_BACKLIGHT, MENU_FLUGBUCH,
                         MENU_FUNK, MENU_KARTE, MENU_AUS};
-    int cols[] = {0,1,2,0,1,2}, rows[] = {0,0,0,1,1,1};
+    int cols[] = {0,1,0,1,0,1}, rows[] = {0,0,1,1,2,2};
     for (int i = 0; i < 6; i++) {
         int x = mbX(cols[i]), y = mbY(rows[i]);
-        if (tx >= x && tx < x+MBTN && ty >= y && ty < y+MBTN) return items[i];
+        if (tx >= x && tx < x+MBW && ty >= y && ty < y+MBH) return items[i];
     }
     return MENU_NONE;
 }
