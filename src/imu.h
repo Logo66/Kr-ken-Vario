@@ -19,6 +19,9 @@ struct ImuSample {
     bool  g_valid       = false;  // accel_g brauchbar?
 };
 
+// BNO055-Kalibrier-Status (je 0-3; 3 = voll kalibriert) — fuers Kalibrier-Menue im QNH-Screen.
+struct ImuCal { uint8_t sys=0, gyro=0, accel=0, mag=0; };
+
 class IMU {
 public:
     bool ok = false;                          // echter Sensor vorhanden + initialisiert
@@ -27,6 +30,11 @@ public:
     virtual void update() = 0;                // im Loop aufrufen; aktualisiert das letzte Sample
     virtual ImuSample sample() = 0;           // letztes Sample (Kopie)
     virtual const char* name() const = 0;     // Treibername (Log)
+
+    // Kalibrierung (sensor-spezifisch; Stub/Default: nichts zu kalibrieren).
+    virtual ImuCal cal() { return ImuCal{}; }                            // Kalibrier-Status (0-3)
+    virtual bool readCalProfile(uint8_t* buf22)        { return false; } // 22-Byte-Profil lesen (-> NVS)
+    virtual bool writeCalProfile(const uint8_t* buf22) { return false; } // Profil schreiben (aus NVS beim Boot)
 };
 
 // Null-Treiber = heutiger Stand (kein brauchbarer IMU). Liefert nichts Gueltiges,

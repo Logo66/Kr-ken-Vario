@@ -68,6 +68,28 @@ public:
     ImuSample sample() override { return _s; }
     const char* name() const override { return "BNO055"; }
 
+    ImuCal cal() override {
+        ImuCal c; uint8_t s;
+        if (rd(0x35, &s, 1)) {   // CALIB_STAT: [7:6]sys [5:4]gyro [3:2]accel [1:0]mag
+            c.sys=(s>>6)&3; c.gyro=(s>>4)&3; c.accel=(s>>2)&3; c.mag=s&3;
+        }
+        return c;
+    }
+    bool readCalProfile(uint8_t* buf) override {   // 22 Byte (0x55-0x6A) — nur im CONFIG-Mode lesbar
+        if (!ok) return false;
+        wr(0x3D, 0x00); delay(25);                 // OPR_MODE = CONFIG
+        bool okr = rd(0x55, buf, 22);
+        wr(0x3D, 0x0C); delay(25);                 // OPR_MODE = NDOF
+        return okr;
+    }
+    bool writeCalProfile(const uint8_t* buf) override {
+        if (!ok) return false;
+        wr(0x3D, 0x00); delay(25);                 // CONFIG
+        for (int i = 0; i < 22; i++) wr(0x55 + i, buf[i]);
+        wr(0x3D, 0x0C); delay(25);                 // NDOF
+        return true;
+    }
+
 private:
     uint8_t   _addr = 0x28;
     ImuSample _s;
