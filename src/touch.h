@@ -20,14 +20,18 @@ public:
     void init() {
         pinMode(GT911_INT_PIN, INPUT);
         _ready = false;
-        // Test-Read: GT911 erreichbar?
+        // GT911 kommt je nach INT-Pin-Zustand beim Reset auf 0x5D ODER 0x14 hoch -> beide probieren.
+        // (Product-ID-Register 0x8140 beginnt beim GT911 mit '9' -> als Plausi-Check.)
         uint8_t id[4];
-        if (gt911Read(0x8140, id, 4)) {
-            Serial.printf("[TOUCH] GT911 ID: %c%c%c%c\n", id[0],id[1],id[2],id[3]);
-            _ready = true;
-        } else {
-            Serial.println("[TOUCH] GT911 nicht erreichbar");
+        for (uint8_t a = 0; a < 2; a++) {
+            _addr = (a == 0) ? 0x5D : 0x14;
+            if (gt911Read(0x8140, id, 4) && id[0] == '9') {
+                Serial.printf("[TOUCH] GT911 ID: %c%c%c%c @0x%02X\n", id[0],id[1],id[2],id[3], _addr);
+                _ready = true;
+                break;
+            }
         }
+        if (!_ready) Serial.println("[TOUCH] GT911 nicht erreichbar (weder 0x5D noch 0x14)");
     }
 
     // Im Loop aufrufen — erkennt Gesten
@@ -130,6 +134,7 @@ public:
 
 private:
     bool _ready = false;
+    uint8_t _addr = GT911_ADDR;     // 0x5D oder 0x14 — per init() autodetektiert
     bool _touching = false;
     int _x0=0, _y0=0, _xlast=0, _ylast=0;
     unsigned long _t0=0;
@@ -140,13 +145,13 @@ private:
 
     bool gt911Read(uint16_t reg, uint8_t *buf, size_t len) {
         uint8_t regbuf[2] = {(uint8_t)(reg>>8), (uint8_t)(reg&0xFF)};
-        return i2c_master_write_read_device(I2C_NUM_0, GT911_ADDR,
+        return i2c_master_write_read_device(I2C_NUM_0, _addr,
                    regbuf, 2, buf, len, pdMS_TO_TICKS(50)) == ESP_OK;
     }
 
     void gt911Clear() {
         uint8_t data[3] = {0x81, 0x4E, 0x00};
-        i2c_master_write_to_device(I2C_NUM_0, GT911_ADDR,
+        i2c_master_write_to_device(I2C_NUM_0, _addr,
                                     data, 3, pdMS_TO_TICKS(50));
     }
 };
