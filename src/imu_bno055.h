@@ -31,9 +31,13 @@ static const float kHdgOffset = 0.0f;   // Roh-Heading; Nord-Nullpunkt setzt der
 class ImuBno055 : public IMU {
 public:
     bool begin() override {
-        if      (probe(0x28)) _addr = 0x28;
-        else if (probe(0x29)) _addr = 0x29;
-        else { ok = false; Serial.println("[BNO055] nicht gefunden (CHIP_ID != 0xA0 @0x28/0x29)"); return false; }
+        _addr = 0;                                          // BNO055 braucht nach Power-On ~650ms bis zur CHIP_ID:
+        for (int t = 0; t < 15 && _addr == 0; t++) {        // bis ~1.5s proben (robust gegen Boot-Race im setup)
+            if      (probe(0x28)) _addr = 0x28;
+            else if (probe(0x29)) _addr = 0x29;
+            else delay(100);
+        }
+        if (_addr == 0) { ok = false; Serial.println("[BNO055] nicht gefunden (CHIP_ID != 0xA0 @0x28/0x29)"); return false; }
 
         wr(0x3D, 0x00); delay(25);     // OPR_MODE = CONFIG
         wr(0x3F, 0x20); delay(700);    // SYS_TRIGGER = RST_SYS (Reset) -> ~650ms Reboot

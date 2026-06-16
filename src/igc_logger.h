@@ -36,6 +36,7 @@ public:
         f.println("HFDTMGPSDATUM:WGS84");
         f.printf("HFRFWFIRMWAREVERSION:%s\r\n", AURA_VERSION);
         f.println("HFFTYFRTYPE:KIE Engineering,Aura Kruecke");
+        f.println("I013638GFO");   // B-Record-Extension: Bytes 36-38 = G-Kraft (0.1g), Code GFO
         f.close();
 
         active = true; max_alt = baroAlt; start_alt = baroAlt; max_climb = 0;
@@ -46,7 +47,7 @@ public:
     }
 
     // jeden Loop aufrufen waehrend FLIGHT_FLYING (intern auf ~2s gedrosselt)
-    void logPoint(SDManager *sd, TinyGPSPlus &gps, float baroAlt, float vario) {
+    void logPoint(SDManager *sd, TinyGPSPlus &gps, float baroAlt, float vario, float &gSegMax) {
         if (!active || !sd || !sd->ok) return;
         if (_lastLog != 0 && millis() - _lastLog < 2000) return;
         _lastLog = millis();
@@ -66,10 +67,11 @@ public:
 
         File f = sd->openAppend(path);
         if (!f) return;
-        char b[64]; formatB(b, sizeof(b), gps, baroAlt);
+        char b[64]; formatB(b, sizeof(b), gps, baroAlt, gSegMax);
         f.println(b);
         f.close();
         pointCount++;
+        gSegMax = 0;   // G-Fenster fuer den naechsten Punkt zuruecksetzen
     }
 
     void end() {
@@ -81,7 +83,7 @@ public:
 private:
     unsigned long _lastLog = 0;
 
-    void formatB(char *out, int n, TinyGPSPlus &gps, float baroAlt) {
+    void formatB(char *out, int n, TinyGPSPlus &gps, float baroAlt, float gforce) {
         int hh=0, mi=0, ss=0;
         if (gps.time.isValid()) { hh=gps.time.hour(); mi=gps.time.minute(); ss=gps.time.second(); }
         double lat=0, lon=0; char fix='V';
@@ -93,8 +95,9 @@ private:
         int palt=(int)baroAlt; if(palt<0)palt=0; if(palt>99999)palt=99999;
         int galt = gps.altitude.isValid() ? (int)gps.altitude.meters() : 0;
         if(galt<0)galt=0; if(galt>99999)galt=99999;
-        // B HHMMSS DDMMmmmN DDDMMmmmE A PPPPP GGGGG
-        snprintf(out, n, "B%02d%02d%02d%02d%05d%c%03d%05d%c%c%05d%05d",
-                 hh, mi, ss, latd, latm, ns, lond, lonm, ew, fix, palt, galt);
+        int gff=(int)(gforce*10.0f); if(gff<0)gff=0; if(gff>999)gff=999;   // G in 0.1g -> Bytes 36-38 (I-Record GFO)
+        // B HHMMSS DDMMmmmN DDDMMmmmE A PPPPP GGGGG GGG(=G*10)
+        snprintf(out, n, "B%02d%02d%02d%02d%05d%c%03d%05d%c%c%05d%05d%03d",
+                 hh, mi, ss, latd, latm, ns, lond, lonm, ew, fix, palt, galt, gff);
     }
 };

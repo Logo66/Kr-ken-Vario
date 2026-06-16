@@ -4,9 +4,9 @@
 // Interface, nicht an einem konkreten Chip. Sensor-Wechsel (LSM6 -> BNO055 -> BNO085) ist
 // damit nur ein neuer Treiber; die Fusions-Logik + das Daempfungs-Tuning bleiben unberuehrt.
 //
-//   Heute aktiv: ImuNull (kein brauchbarer Sensor — LSM6 ist tot) -> alle *_valid = false
-//     -> Vario bleibt reines Baro, Heading bleibt GPS-Kurs. EXAKT das heutige Verhalten.
-//   Naechste Woche: ImuBno055 (imu_bno055.h) liefert accel_up + heading + accel_g echt.
+//   Heute aktiv: ImuBno055 (imu_bno055.h) — liefert accel_up + heading + accel_g echt.
+//     Fallback ImuNull (kein Sensor) -> alle *_valid=false -> Vario reines Baro, Heading GPS-Kurs.
+//     (Sensor-Wechsel ist damit nur ein neuer Treiber; die Fusion bleibt unberuehrt.)
 //   Spaeter: ImuBno085 — einfach ein weiterer Treiber hinter diesem Interface.
 #include <Arduino.h>
 

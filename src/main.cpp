@@ -5,7 +5,7 @@
 #include "pins.h"
 #include "version.h"
 #include <Adafruit_BMP5xx.h>
-#include <Adafruit_LSM6DSO32.h>
+// (Adafruit_LSM6DSO32 entfernt — LSM6 raus, BNO055 ist die IMU)
 #include <Adafruit_SHT4x.h>
 #include "PowersBQ25896.tpp"
 #include <TinyGPSPlus.h>
@@ -77,7 +77,7 @@ static const char* compass8(float brg) {
 #include "flugbuch.h"
 #include "igc_logger.h"
 #include "igc_server.h"
-#include "imu_logger.h"   // Roh-IMU mitloggen fuer den Testflug (HEILIG: nur Logging, nicht im Vario)
+// (imu_logger.h entfernt — LSM6 physisch durch BNO055 ersetzt; G kommt jetzt aus imu.h)
 #include "wind_estimator.h"   // Windschaetzung aus GPS-Kreisdrift (nur Anzeige/BLE, nicht im Vario)
 #include "buzzer.h"           // Arduino Modulino Buzzer (I2C 0x1E)
 #include <ArduinoJson.h>      // M2/M3: BLE-Konfig/Task-JSON
@@ -118,7 +118,6 @@ static BleScreen bleScreen;
 // --- Objekte ---
 static EpdiyHighlevelState hl;
 static Adafruit_BMP5xx bmp_a, bmp_b;
-static Adafruit_LSM6DSO32 lsm;
 static Adafruit_SHT4x sht;
 static PowersBQ25896 ppm;
 static Altitude alt_calc;
@@ -126,9 +125,9 @@ static TinyGPSPlus gps;
 static KalmanVario kf;
 
 // --- Zustand ---
-static bool bmpA_ok=false, bmpB_ok=false, lsm_ok=false, sht_ok=false, ppm_ok=false;
+static bool bmpA_ok=false, bmpB_ok=false, sht_ok=false, ppm_ok=false;
 
-// IMU-Abstraktion (imu.h): heute Null-Quelle (LSM6 tot) -> Vario reines Baro, Heading GPS-Kurs.
+// IMU-Abstraktion (imu.h): aktiv ist der BNO055 (g_imu) -> echtes accel_up + Heading + G.
 // Mit -DUSE_IMU_BNO055 zeigt 'g_imu' nach erfolgreichem begin() auf den BNO055-Treiber — sonst
 // ist NICHTS weiter zu aendern, Vario/Heading/G-Meter haengen schon an diesem Pointer.
 static ImuNull imuNull;
@@ -181,6 +180,7 @@ static bool imuCalSave() {              // BNO055 -> NVS
     return true;
 }
 static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im Flug
+static float g_logSegMax = 0;                  // G-Fenster-Max zwischen zwei IGC-Punkten (G pro B-Record)
 static CruiseData live = {};
 static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
 static uint8_t g_fanetAircraft = 1;   // FANET-Flugzeugtyp (1=Gleitschirm) — per App (fanet.aircraft)
@@ -445,27 +445,7 @@ static bool rawSHT45(float *temp, float *rh) {
     return true;
 }
 
-// === LSM6DSO32 Beschleunigung (raw I2C, 0x6A) ===
-static bool lsm6Init() {
-    uint8_t who = 0;
-    if (!rawI2C(ADDR_LSM6DSO32, 0x0F, &who, 1)) { Serial.println("[LSM6] keine Antwort"); return false; }
-    if (who != 0x6C) { Serial.printf("[LSM6] WHO_AM_I=0x%02X (erwartet 0x6C)\n", who); return false; }
-    uint8_t cfg[2] = { 0x10, 0x4C };   // CTRL1_XL: ODR 104 Hz, FS +-16 g
-    if (i2c_master_write_to_device(I2C_NUM_0, ADDR_LSM6DSO32, cfg, 2, pdMS_TO_TICKS(50)) != ESP_OK) {
-        Serial.println("[LSM6] config FAIL"); return false;
-    }
-    Serial.println("[LSM6] init OK (104 Hz, +-16 g)");
-    return true;
-}
-// Gesamt-Beschleunigung (Betrag) in g
-static float lsm6ReadG() {
-    uint8_t d[6];
-    if (!rawI2C(ADDR_LSM6DSO32, 0x28, d, 6)) return -1.0f;   // OUTX_L_A..OUTZ_H_A (auto-increment)
-    int16_t ax=(int16_t)(d[0]|(d[1]<<8)), ay=(int16_t)(d[2]|(d[3]<<8)), az=(int16_t)(d[4]|(d[5]<<8));
-    const float S = 0.488f/1000.0f;   // +-16 g: 0.488 mg/LSB -> g
-    float gx=ax*S, gy=ay*S, gz=az*S;
-    return sqrtf(gx*gx + gy*gy + gz*gz);
-}
+// (LSM6DSO32 entfernt — durch BNO055 ersetzt; G kommt jetzt aus g_imu, siehe imu.h)
 
 // === RTC (vor Wire.end) ===
 static uint8_t toBCD(int v) { return ((v/10)<<4)|(v%10); }
@@ -662,9 +642,7 @@ void setup() {
         Serial.printf("[QNH] raw P=%.0f — unplausibel, skip\n", p_cal);
     }
 
-    // LSM6DSO32 Beschleunigung in Betrieb nehmen (raw I2C, nach Wire.end)
-    lsm_ok = lsm6Init();
-    if (lsm_ok) imuLogConfig();   // Gyro + FIFO @104Hz fuer Roh-IMU-Logging (NICHT im Vario)
+    // (LSM6 + Roh-IMU-Logging entfernt — BNO055 ist jetzt die IMU-Quelle, G ueber g_imu)
 
     // IMU-Abstraktion hochfahren: BNO055 bevorzugt (wenn verbaut+kompiliert), sonst Null-Quelle.
 #if defined(USE_IMU_BNO055)
@@ -942,28 +920,16 @@ void loop() {
     bool flyingNow = (flight.state == FLIGHT_FLYING);
     varioSound.update(live.vario, soundMuted() || !flyingNow, g_sound.climb_threshold, g_sound.sink_alarm);
 
-    // G-Meter: BNO055-Betrag bevorzugt; sonst Legacy-LSM6 (faellt mit dem Sensor-Tausch weg)
+    // G-Meter: Betrag aus dem IMU (g_imu / BNO055) — einzige IMU-Quelle (imu.h).
     {
-        float gval = -1.0f;
         ImuSample imuG = g_imu->sample();
-        if (imuG.g_valid)  gval = imuG.accel_g;
-        else if (lsm_ok)   gval = lsm6ReadG();
-        if (gval >= 0) {
-            g_now = gval;
-            if (flight.state == FLIGHT_FLYING && gval > g_max_flight) g_max_flight = gval;
+        if (imuG.g_valid) {
+            g_now = imuG.accel_g;
+            if (flight.state == FLIGHT_FLYING) {
+                if (g_now > g_max_flight) g_max_flight = g_now;   // Spitze furs Flugbuch (Gmax)
+                if (g_now > g_logSegMax)  g_logSegMax  = g_now;   // Fenster-Max furs IGC (G pro B-Record)
+            }
         }
-    }
-
-    // === Roh-IMU MITLOGGEN (Testflug-Daten; HEILIG: nur loggen, NICHTS ins Vario) ===
-    if (lsm_ok) {
-        if (!imuOpen && live.gps_fix && gps.date.isValid()) {   // Log startet bei GPS-Fix (am Startplatz)
-            char p[48];
-            snprintf(p, sizeof(p), "/imu/%04d%02d%02d_%02d%02d.csv",
-                     gps.date.year(), gps.date.month(), gps.date.day(),
-                     gps.time.hour(), gps.time.minute());
-            imuLogStart(p);
-        }
-        imuLogTick(live.altitude, live.speed, (flight.state == FLIGHT_FLYING) ? 1 : 0);
     }
 
     // SHT45 raw read (alle 5s)
@@ -1033,10 +999,9 @@ void loop() {
           else                            Serial.println("[BMP581] 0x47 KEINE Antwort");
           if (rawI2C(0x46, 0x01, &id, 1)) Serial.printf("[BMP581] 0x46 CHIP_ID=0x%02X (soll 0x50)  <- Loetbruecke-Adresse!\n", id);
           else                            Serial.println("[BMP581] 0x46 keine Antwort");
-          if (rawI2C(0x6A, 0x0F, &id, 1)) Serial.printf("[LSM6]   0x6A WHO_AM_I=0x%02X (soll 0x6C)\n", id);
-          else                            Serial.println("[LSM6]   0x6A KEINE Antwort (Accel/Gyro defekt?)");
-          if (rawI2C(0x14, 0x00, &id, 1)) Serial.printf("[BMM350] 0x14 ID=0x%02X (Kompass)\n", id);
-          else                            Serial.println("[BMM350] 0x14 keine Antwort");
+          if (rawI2C(0x28, 0x00, &id, 1)) Serial.printf("[BNO055] 0x28 CHIP_ID=0x%02X (soll 0xA0)\n", id);
+          else                            Serial.println("[BNO055] 0x28 KEINE Antwort");
+          // (LSM6 0x6A + BMM350 0x14 entfernt — durch BNO055 ersetzt; 0x14 ist jetzt GT911/Touch)
         }
         // Buzzer-Beweis kommt jetzt als Start-Jingle beim Logo (setup) — nicht mehr hier.
 
@@ -1075,9 +1040,10 @@ void loop() {
                        gps_total_bytes);
         Serial.printf("[PERF] loopMax=%lums  heap=%lu  psram=%lu\n", g_loopMaxMs, (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getFreePsram());
         g_loopMaxMs = 0;
-        // Gyro-Plausibilitaet (Gate): im Stand a_z~9.8, g~0; dreht bei Drehung
-        Serial.printf("[IMU] a=%.2f,%.2f,%.2f m/s2  g=%.1f,%.1f,%.1f dps  log=%s\n",
-                       imuAx, imuAy, imuAz, imuGx, imuGy, imuGz, imuOpen ? "AN" : "aus");
+        ImuSample di = g_imu->sample();   // IMU-Diagnose (BNO055)
+        Serial.printf("[IMU] %s up=%+.2f hdg=%.0f g=%.2f v=%d%d%d\n",
+                       g_imu->name(), di.accel_up, di.heading, di.accel_g,
+                       di.accel_valid, di.heading_valid, di.g_valid);
     }
 
     // === FLUG-ERKENNUNG ===
@@ -1146,7 +1112,7 @@ void loop() {
 
     // Im Flug: IGC-Punkt loggen (intern auf ~2s gedrosselt)
     if (flight.state == FLIGHT_FLYING)
-        igc.logPoint(&sdcard, gps, live.altitude, live.vario);
+        igc.logPoint(&sdcard, gps, live.altitude, live.vario, g_logSegMax);
 
     // Start erkannt → IGC-Datei oeffnen + Meldung auf Display
     if (flight.justStarted()) {
@@ -1154,6 +1120,7 @@ void loop() {
           const char* pg = g_model["pilot"]["glider"].as<const char*>();
           igc.start(&sdcard, gps, live.altitude, (pn&&*pn)?pn:"Pilot", (pg&&*pg)?pg:"Paraglider"); }
         g_max_flight = 0;   // G-Spitze fuer diesen Flug zuruecksetzen
+        g_logSegMax  = 0;   // IGC-G-Fenster auch zuruecksetzen
         uint8_t *fb = epd_hl_get_framebuffer(&hl);
         epd_hl_set_all_white(&hl);
         // "START" oben gross, "ERKANNT" darunter, alles zentriert
@@ -1183,7 +1150,7 @@ void loop() {
         rec.max_alt        = (int16_t)igc.max_alt;
         rec.start_alt      = (int16_t)igc.start_alt;
         rec.max_climb      = (int16_t)(igc.max_climb * 100.0f);   // m/s ×100
-        rec.max_g          = (int16_t)(g_max_flight * 100.0f);   // LSM6 ×100 (z.B. 320 = 3.2g)
+        rec.max_g          = (int16_t)(g_max_flight * 100.0f);   // BNO055 ×100 (z.B. 320 = 3.2g)
         rec.track_dist_m   = (uint32_t)igc.track_dist_m;
         rec.straight_dist_m= (uint32_t)igc.straight_dist_m;
         rec.valid = true;
