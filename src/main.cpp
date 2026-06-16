@@ -135,6 +135,12 @@ static ImuNull imuNull;
 static ImuBno055 imuBno;
 #endif
 static IMU* g_imu = &imuNull;
+
+// Accel-gestuetztes Vario (komplementaer, nur mit BNO055): Inertial-Vario folgt der
+// Vertikalbeschleunigung (geringe Latenz), wird langsam aufs driftfreie Baro-Vario gezogen,
+// Bias (accel_up-Offset) selbst geschaetzt. Tuning verfeinern wir im Flug (spaeter ggf. NVS).
+static float g_varioFuseTau   = 0.5f;    // 1/s: De-Drift aufs Baro (hoeher = naeher am Baro)
+static float g_varioFuseBiasK = 0.02f;   // 1/s: Bias-Nachfuehrung (frisst den accel_up-Offset), langsam
 static float g_now = 1.0f, g_max_flight = 0;   // aktuelle G-Kraft / Spitze im Flug
 static CruiseData live = {};
 static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
@@ -854,14 +860,30 @@ void loop() {
     if (p > 10000 && p < 120000) {  // Plausibilitaet: 100-1200 hPa
         float alt = alt_calc.computeISA(p);
         ImuSample imuS = g_imu->sample();
-        kf.update(alt);                       // Baro-Update (heute die einzige Vario-Quelle)
-        if (imuS.accel_valid) {
-            // TODO BNO055: accel-gestuetzte Fusion — imuS.accel_up als Steuergroesse ins Kalman.
-            // Naht steht; Fusion + Tuning kommen mit dem echten Sensor (bewusst geparkt).
-        }
+        kf.update(alt);                       // Baro-Kalman: glatte Hoehe + driftfreies Baro-Vario
         live.altitude = kf.altitude;
-        live.vario = kf.vario;
-        vario_sum += kf.vario;
+        float vario = kf.vario;               // Default: reines Baro-Vario (ohne BNO055)
+        if (imuS.accel_valid) {
+            // Komplementaer: Inertial-Vario folgt der Vertikalbeschleunigung (geringe Latenz),
+            // wird langsam aufs Baro gezogen (kein Drift), Bias selbst geschaetzt.
+            static float v_in = 0, a_bias = 0; static unsigned long t0 = 0, tStart = 0;
+            unsigned long now = millis(); if (!tStart) tStart = now;
+            float dt = t0 ? (now - t0) / 1000.0f : 0.0f; t0 = now;
+            if (dt > 0.0f && dt < 0.5f) {
+                if (now - tStart < 2500) {                   // ZUPT: erste 2.5s Ruhe -> Bias = accel_up-Offset
+                    a_bias += 0.1f * (imuS.accel_up - a_bias);
+                    v_in = 0; vario = kf.vario;
+                } else {
+                    v_in   += (imuS.accel_up - a_bias) * dt; // Vertikalbeschleunigung integrieren
+                    float err = v_in - kf.vario;             // Drift ggue. driftfreiem Baro-Vario
+                    v_in   -= g_varioFuseTau   * err * dt;   // langsam aufs Baro ziehen (de-drift)
+                    a_bias += g_varioFuseBiasK * err * dt;   // Bias langsam nachfuehren (Temp-Drift)
+                    vario = v_in;
+                }
+            }
+        }
+        live.vario = vario;
+        vario_sum += vario;
         vario_count++;
         live.avg_seconds = g_avgWindowSec;                                  // Cruise zeigt das echte Fenster
         if (millis()-vario_window > (unsigned long)g_avgWindowSec*1000UL) {
