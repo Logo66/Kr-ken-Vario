@@ -243,10 +243,10 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     V(RMX+THW, R3T, R3B-R3T, fb);                    // Trenner Temp | Flugzeit
     drawHCenter(&ArialBold16,"TEMP",RMX,THW,310,fb);
     snprintf(buf,48,"%.1f %s",uTmp(d.temp),uTmpL());
-    drawHCenter(&ArialBold24,buf,RMX,THW,362,fb);
+    drawHCenter(&ArialBold24,buf,RMX,THW,378,fb);
     drawHCenter(&ArialBold16,"FLUGZEIT",RMX+THW,THW,310,fb);
     snprintf(buf,48,"%d:%02d", d.flight_sec/60, d.flight_sec%60);   // M:SS ab Start, friert bei Landung
-    drawHCenter(&ArialBold24,buf,RMX+THW,THW,362,fb);
+    drawHCenter(&ArialBold16,buf,RMX+THW,THW,378,fb);
 
     // === UNTERKANTE HAUPTBEREICH ===
     H(10,R3B,940,fb);
