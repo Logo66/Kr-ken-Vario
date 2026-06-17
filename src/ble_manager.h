@@ -89,7 +89,8 @@ public:
         // scheiterte (Android BOND_NONE). Verschluesselung + Bond fuer ALLE Chars = Phase-2-Haertung.
         NimBLEDevice::setSecurityAuth(false, false, false);          // kein Bond/MITM/SC
         NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);   // "Just Works" -> kein PIN/Passkey-Dialog
-        Serial.println("[BLE] offen (Phase 1) - kein Pairing/PIN noetig");
+        NimBLEDevice::deleteAllBonds();                              // alte Pairing-/Bond-Reste (z.B. vom Morgen) wegraeumen
+        Serial.println("[BLE] offen (Phase 1) - kein Pairing/PIN, alte Bonds geleert");
 
         // GATT Server
         NimBLEServer *server = NimBLEDevice::createServer();
