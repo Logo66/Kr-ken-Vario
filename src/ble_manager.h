@@ -3,6 +3,7 @@
 // Dienste: Vario-Daten live an Flight Buddy App
 // Name: "Aura Vario" (konfigurierbar), kein Pairing noetig
 #include <NimBLEDevice.h>
+#include <WiFi.h>            // fuer WLAN-aus, wenn der interne Heap fuer BLE knapp ist
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
@@ -60,8 +61,18 @@ public:
         size_t freeHeap = ESP.getFreeHeap();
         size_t largest  = ESP.getMaxAllocHeap();
         Serial.printf("[BLE] init-Check: heap frei=%u  groesster Block=%u\n", (unsigned)freeHeap, (unsigned)largest);
+        // Wenn knapp UND WLAN laeuft: WLAN opfern (BLE hat Vorrang fuers Fliegen; im Flug ist WLAN eh aus).
+        // Macht "BLE einschalten" zuverlaessig statt heap-/fragmentierungsabhaengig.
+        if (largest < 65000 && WiFi.getMode() != WIFI_MODE_NULL) {
+            Serial.println("[BLE] wenig Heap + WLAN an -> WLAN aus, um Platz fuer BLE zu schaffen");
+            WiFi.disconnect(true, false);
+            WiFi.mode(WIFI_OFF);
+            delay(200);
+            largest = ESP.getMaxAllocHeap();
+            Serial.printf("[BLE] nach WLAN-aus: groesster Block=%u\n", (unsigned)largest);
+        }
         if (largest < 42000) {
-            Serial.println("[BLE] ABBRUCH: zu wenig zusammenhaengender Heap fuer BLE (KEIN Crash). Tipp: WLAN aus, dann BLE.");
+            Serial.println("[BLE] ABBRUCH: zu wenig zusammenhaengender Heap fuer BLE (KEIN Crash, kein Reboot).");
             ok = false;
             return false;
         }
