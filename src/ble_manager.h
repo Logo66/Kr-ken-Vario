@@ -54,6 +54,17 @@ public:
     uint32_t pin = 1234;  // Default PIN, aenderbar
 
     bool init(const char *name = "Aura Vario") {
+        // BLE-Controller + NimBLE-Host brauchen einen grossen ZUSAMMENHAENGENDEN internen Heap-Block.
+        // Bei zu wenig (z.B. WLAN frisst internen RAM) paniced NimBLEDevice::init() -> Reboot statt Fehler.
+        // Darum vorher pruefen: lieber sauber "AUS" lassen als das Geraet neu starten.
+        size_t freeHeap = ESP.getFreeHeap();
+        size_t largest  = ESP.getMaxAllocHeap();
+        Serial.printf("[BLE] init-Check: heap frei=%u  groesster Block=%u\n", (unsigned)freeHeap, (unsigned)largest);
+        if (largest < 42000) {
+            Serial.println("[BLE] ABBRUCH: zu wenig zusammenhaengender Heap fuer BLE (KEIN Crash). Tipp: WLAN aus, dann BLE.");
+            ok = false;
+            return false;
+        }
         strncpy(device_name, name, 31);
         device_name[31] = 0;
         if (!_cfgQ) _cfgQ = xQueueCreate(16, sizeof(BleCfgMsg)); else xQueueReset(_cfgQ);
@@ -119,7 +130,8 @@ public:
         adv->start();
 
         ok = true;
-        Serial.printf("[BLE] GATT Server '%s' gestartet\n", device_name);
+        Serial.printf("[BLE] GATT Server '%s' gestartet (internHeap nachher=%u)\n",
+                      device_name, (unsigned)ESP.getFreeHeap());
         return true;
     }
 
