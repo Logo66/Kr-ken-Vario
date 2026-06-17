@@ -185,6 +185,7 @@ static CruiseData live = {};
 static int g_avgWindowSec = 20;   // AVG-Fenster (s) — gemeinsam Cruise+Thermik, per App konfigurierbar (vario.avg_window_s)
 static uint8_t g_fanetAircraft = 1;   // FANET-Flugzeugtyp (1=Gleitschirm) — per App (fanet.aircraft)
 static char    g_fanetPilotName[32] = "";   // FANET-Name-Beacon (fanet.pilot_name)
+static uint8_t g_fanetGroundState = FANET_GND_WALKING;   // FANET Type-7 Boden-Status (SOS/Ride/Landed setzen ihn, Default Walking)
 static int g_windTest = -1;           // Windpfeil-Bench-Test: -1=aus, sonst Test-Richtung in Grad (0/45/.../315)
 static bool  g_warnAirspace = true;   // #3: Luftraum-Warnung an/aus (warn.airspace)
 static float g_warnBufV = 150.0f;     // #3: vertikaler Puffer in m (warn.buffer_v)
@@ -876,7 +877,7 @@ void loop() {
                 fanet.sendTracking(lastGoodLat, lastGoodLon, live.altitude,
                                    live.vario, live.speed, live.heading, g_fanetAircraft);
             else
-                fanet.sendGroundTracking(lastGoodLat, lastGoodLon, FANET_GND_WALKING);
+                fanet.sendGroundTracking(lastGoodLat, lastGoodLon, g_fanetGroundState);
         }
     }
     static unsigned long lastFanetName = 0;   // #4: Namens-Beacon ~alle 60s (Luft + Boden)
@@ -1126,6 +1127,7 @@ void loop() {
           igc.start(&sdcard, gps, live.altitude, (pn&&*pn)?pn:"Pilot", (pg&&*pg)?pg:"Paraglider"); }
         g_max_flight = 0;   // G-Spitze fuer diesen Flug zuruecksetzen
         g_logSegMax  = 0;   // IGC-G-Fenster auch zuruecksetzen
+        g_fanetGroundState = FANET_GND_WALKING;   // Boden-Status zuruecksetzen (frischer Flug)
         uint8_t *fb = epd_hl_get_framebuffer(&hl);
         epd_hl_set_all_white(&hl);
         // "START" oben gross, "ERKANNT" darunter, alles zentriert
@@ -1381,18 +1383,24 @@ void loop() {
             LandingChoice lc = checkLandingTap(touch.lastX(), touch.lastY());
             if (lc == LAND_OK) {
                 Serial.println("[LAND] Gut gelandet");
+                g_fanetGroundState = FANET_GND_LANDED_WELL;   // BurnAir: "sicher gelandet"-Icon (loescht auch versehentliches SOS)
+                if (lastGoodLat != 0) fanet.sendGroundTracking(lastGoodLat, lastGoodLon, g_fanetGroundState);
                 flight.reset();
                 currentScreen = SCR_CRUISE;
                 showCruiseScreen(&hl, live, MODE_DU);
                 lastDisplay = millis();
             } else if (lc == LAND_RIDE) {
+                g_fanetGroundState = FANET_GND_NEED_RIDE;   // BurnAir: "Need a ride"-Icon (bleibt bis Start)
                 char m[56]; snprintf(m, sizeof(m), "RIDE bitte %s %.4f,%.4f", g_fanetPilotName[0]?g_fanetPilotName:"Pilot", lastGoodLat, lastGoodLon);
                 bool sent = fanet.sendMessage(m); buzzerTone(2400,150); delay(180); buzzerTone(2400,150);
+                if (lastGoodLat != 0) fanet.sendGroundTracking(lastGoodLat, lastGoodLon, g_fanetGroundState);
                 Serial.printf("[LAND] Ride -> FANET %s: %s\n", sent?"gesendet":"(TX aus - Funk scharf schalten)", m);
             } else if (lc == LAND_HELP) {
                 g_fanetTxEnabled = true;   // #4: SOS armt FANET im Notfall (Gate D muss offen sein)
+                g_fanetGroundState = FANET_GND_DISTRESS;   // BurnAir: Notruf-Icon (bleibt bis Start oder "Gut gelandet")
                 char m[56]; snprintf(m, sizeof(m), "SOS HILFE %s %.4f,%.4f", g_fanetPilotName[0]?g_fanetPilotName:"Pilot", lastGoodLat, lastGoodLon);
                 bool sent = fanet.sendMessage(m); for(int b=0;b<3;b++){buzzerTone(2800,180);delay(220);}
+                if (lastGoodLat != 0) fanet.sendGroundTracking(lastGoodLat, lastGoodLon, g_fanetGroundState);
                 Serial.printf("[LAND] SOS -> FANET %s: %s\n", sent?"gesendet":"(Gate D zu)", m);
             }
         }
