@@ -516,7 +516,7 @@ static void feedGPS() {
         gps_total_bytes++;
     }
     live.sats = gps.satellites.value();
-    live.gps_fix = gps.location.isValid();
+    live.gps_fix = gps.location.isValid() && gps.location.age() < 4000;   // nur FRISCHER Fix gilt -> bit0=0 bei Fix-Verlust (sonst sendet die App eine stale Position als gueltig)
     if(gps.location.isUpdated()) {
         float raw_spd = gps.speed.kmph();
         live.speed = (raw_spd < 3.0f) ? 0 : raw_spd;  // GPS-Rauschen filtern
