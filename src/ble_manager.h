@@ -84,11 +84,12 @@ public:
         NimBLEDevice::setPower(ESP_PWR_LVL_P6);
         NimBLEDevice::setMTU(247);   // groesseres MTU fuer Task-Chunks (M3); Lese-Chars unberuehrt
 
-        // Sicherheit: PIN-Pairing erforderlich
-        NimBLEDevice::setSecurityAuth(true, true, true);  // Bond, MITM, SC
-        NimBLEDevice::setSecurityPasskey(pin);
-        NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
-        Serial.printf("[BLE] PIN: %06lu\n", pin);
+        // Phase 1 (Vertrag §8): die Chars sind OFFEN -> KEIN Pairing/Bonding. Mit Pairing loeste das OS
+        // einen Passkey-Dialog aus, der mit nicht-persistenten NimBLE-Bonds als "falscher PIN/Passkey"
+        // scheiterte (Android BOND_NONE). Verschluesselung + Bond fuer ALLE Chars = Phase-2-Haertung.
+        NimBLEDevice::setSecurityAuth(false, false, false);          // kein Bond/MITM/SC
+        NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);   // "Just Works" -> kein PIN/Passkey-Dialog
+        Serial.println("[BLE] offen (Phase 1) - kein Pairing/PIN noetig");
 
         // GATT Server
         NimBLEServer *server = NimBLEDevice::createServer();

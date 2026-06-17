@@ -970,10 +970,11 @@ void loop() {
     // Uhr | Sat | FANET | Buddy | Batterie  (Buddy-Kreis = Verbindung zum Buddy-Server)
     statusBarSet(live.rtc_hour, live.rtc_min, live.sats, fanet.pilot_count,
                  /*Buddy-Server-Verbindung*/ deviceServerOk, live.bat_pct,
-                 /*BLE-Client verbunden*/ ble.connected,
+                 /*BLE an (advertised)*/ ble.ok,
                  /*WLAN verbunden*/ WiFi.status() == WL_CONNECTED,
                  /*Luftraum-Warnung aus*/ !g_warnAirspace,
-                 /*Hindernis-Warnung aus*/ !g_warnObstacle);
+                 /*Hindernis-Warnung aus*/ !g_warnObstacle,
+                 /*Handy verbunden*/ ble.connected);
 
     // K5: Tile-Fenster nachladen, wenn Position > 7 km vom geladenen Zentrum (Karte folgt Bewegung)
     static unsigned long lastReloadChk = 0;
