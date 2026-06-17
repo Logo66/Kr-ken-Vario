@@ -75,19 +75,10 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     // === EINHEITLICHE STATUSLEISTE (Uhr | Sat | FANET | Buddy | Server | Batterie) ===
     drawStatusBar(fb);
 
-    // Thermik-Kontext: Dauer + Hoehengewinn (linke Spalte, unter der Statusleiste)
-    if (d.thermal_start_ms) {
-        unsigned long ts = (millis()-d.thermal_start_ms)/1000;
-        snprintf(buf,48,"THERMIK %d:%02d    +%.0f m",(int)(ts/60),(int)(ts%60), d.gained);
-    } else {
-        snprintf(buf,48,"THERMIK --");   // keine aktive Thermik (kein Dauer-Timer am Boden)
-    }
-    drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 82, fb);
-    uiHLine(10, 92, TH_LEFT_W-10, fb);
-
     // === LINKE SPALTE: 3 GLEICH GROSSE FELDER (Label oben + Wert mittig, ausgemittet) ===
+    // (Thermik-Zeit-Zeile entfernt — Flugzeit steht jetzt auf dem Cruise-Screen.)
     const int LCOL_W = TH_LEFT_W;                  // 350
-    const int F_TOP = 98, F_H = 126;               // unter Statusleiste+Thermik-Zeile: 3 Felder 98-224-350-476
+    const int F_TOP = 60, F_H = 126;               // direkt unter der Statusleiste: 3 Felder 60-186-312-438
     struct { const char *lbl; char val[24]; } fld[3];
     char avglbl[20]; snprintf(avglbl, 20, "AVG CLIMB %ds", d.avg_seconds);   // gleiches Fenster wie Cruise
     snprintf(fld[0].val, 24, "%+.1f m/s", d.vario_avg); fld[0].lbl = avglbl;

@@ -18,6 +18,7 @@
 #include "arialbold40.h"
 #include "arialbold32.h"
 #include "arialbold28.h"
+#include "arialbold24.h"
 #include "arialbold16.h"
 #include "ui_utils.h"          // gemeinsame Statusleiste (drawStatusBar)
 #include "units.h"             // Anzeige-Einheiten (alt/speed/temp)
@@ -26,7 +27,7 @@ struct CruiseData {
     float altitude, vario, vario_avg, speed, heading, glide;
     float qnh, delta_gnd, wind_speed, wind_dir, temp, dewpoint, humidity;
     int bat_pct; float bat_hours;
-    bool gps_fix; int sats, fanet_peers, avg_seconds;
+    bool gps_fix; int sats, fanet_peers, avg_seconds, flight_sec;
     int rtc_hour, rtc_min;  // Uhrzeit aus RTC
 };
 
@@ -237,11 +238,15 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     }
     // Divider
     V(RX+RHW,R3T,R3B-R3T,fb);
-    // Temp+Dew: Feld x632-950
+    // Feld x632-950 GETEILT: links TEMP, rechts FLUGZEIT (kleinere Schrift, je mittig in der Haelfte)
+    const int THW = RHW/2;                          // Halbbreite 159
+    V(RMX+THW, R3T, R3B-R3T, fb);                    // Trenner Temp | Flugzeit
+    drawHCenter(&ArialBold16,"TEMP",RMX,THW,310,fb);
     snprintf(buf,48,"%.1f %s",uTmp(d.temp),uTmpL());
-    T(&ArialBold28,buf,680,340,fb);
-    snprintf(buf,48,"Dew %+.0f C",d.dewpoint);
-    T(&ArialBold16,buf,680,370,fb);
+    drawHCenter(&ArialBold24,buf,RMX,THW,362,fb);
+    drawHCenter(&ArialBold16,"FLUGZEIT",RMX+THW,THW,310,fb);
+    snprintf(buf,48,"%d:%02d", d.flight_sec/60, d.flight_sec%60);   // M:SS ab Start, friert bei Landung
+    drawHCenter(&ArialBold24,buf,RMX+THW,THW,362,fb);
 
     // === UNTERKANTE HAUPTBEREICH ===
     H(10,R3B,940,fb);

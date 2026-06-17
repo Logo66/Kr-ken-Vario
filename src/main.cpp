@@ -1055,6 +1055,7 @@ void loop() {
 
     // === FLUG-ERKENNUNG ===
     flight.update(live.speed, live.vario, live.altitude, live.gps_fix, live.sats);
+    live.flight_sec = flight.flightDurationSec();   // Flugzeit: zaehlt ab Start-Erkennung, friert bei Landung
     taskTick();   // M4: aktiven Wegpunkt spiegeln + bei Erreichen weiterschalten
     aspWarnTick();   // #3: Luftraum-Innen-Check (nur im Flug)
     if (g_aspWarnIdx >= 0 && g_aspWarnIdx != g_aspWarnPrev) {   // Eintritt -> Alarm (Buzzer + 2.5s Warn-Screen)
