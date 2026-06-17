@@ -1569,6 +1569,10 @@ void loop() {
                        live.temp, live.dewpoint, live.bat_pct,
                        live.rtc_hour, live.rtc_min);
         thermal.data.avg_seconds = g_avgWindowSec;                          // Thermik zeigt dasselbe Fenster
+        // Thermik beenden, wenn laenger kein Steigen mehr -> sonst laeuft der Timer ewig (z.B. am Boden/im Auto).
+        static unsigned long lastClimbMs = 0;
+        if (live.vario_avg > 0.2f || lastClimbMs == 0) lastClimbMs = millis();
+        if (millis() - lastClimbMs > 25000) { thermal.stop(); lastClimbMs = 0; }
     }
 
     // Auto-Thermik bei Steigen

@@ -76,8 +76,12 @@ static void showThermalScreen(EpdiyHighlevelState *hl, const ThermalData &d,
     drawStatusBar(fb);
 
     // Thermik-Kontext: Dauer + Hoehengewinn (linke Spalte, unter der Statusleiste)
-    unsigned long ts = d.thermal_start_ms ? (millis()-d.thermal_start_ms)/1000 : 0;
-    snprintf(buf,48,"THERMIK %d:%02d    +%.0f m",(int)(ts/60),(int)(ts%60), d.gained);
+    if (d.thermal_start_ms) {
+        unsigned long ts = (millis()-d.thermal_start_ms)/1000;
+        snprintf(buf,48,"THERMIK %d:%02d    +%.0f m",(int)(ts/60),(int)(ts%60), d.gained);
+    } else {
+        snprintf(buf,48,"THERMIK --");   // keine aktive Thermik (kein Dauer-Timer am Boden)
+    }
     drawHCenter(&ArialBold16, buf, 0, TH_LEFT_W, 82, fb);
     uiHLine(10, 92, TH_LEFT_W-10, fb);
 

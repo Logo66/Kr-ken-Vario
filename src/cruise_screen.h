@@ -227,10 +227,13 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
         float wd=d.wind_dir; while(wd<0)wd+=360; while(wd>=360)wd-=360;
         int wc=((int)((wd+22.5f)/45.0f))&7;
         snprintf(buf,48,"%s %.0f km/h", WC[wc], d.wind_speed);
-        T(&ArialBold28,buf,388,360,fb);
-        windArrow(575, 335, wd, 18, fb);
+        int wv,hv; measureText(&ArialBold28, buf, &wv, &hv);
+        const int ARR=42;                                            // Pfeil + Abstand rechts vom Text
+        int sx = RX + (RHW - (wv+ARR))/2; if (sx < RX+8) sx = RX+8;   // Text+Pfeil als Block mittig im WIND-Feld -> laeuft nicht raus
+        T(&ArialBold28, buf, sx, 360, fb);
+        windArrow(sx + wv + 22, 350, wd, 15, fb);
     } else {
-        T(&ArialBold28,"-- km/h",388,360,fb);   // am Boden / noch kein Kreis: kein Schaetzwert
+        drawHCenter(&ArialBold28,"-- km/h",RX,RHW,360,fb);   // am Boden / noch kein Kreis: kein Schaetzwert
     }
     // Divider
     V(RX+RHW,R3T,R3B-R3T,fb);

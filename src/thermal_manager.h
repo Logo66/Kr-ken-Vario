@@ -20,7 +20,7 @@ public:
         _last_lon = 0;
     }
 
-    void stop() { active = false; }
+    void stop() { active = false; data.thermal_start_ms = 0; }   // Timer zuruecksetzen, sonst zeigt der Screen weiter hoch
 
     // Jeden Loop aufrufen mit aktuellen Daten
     void update(float lat, float lon, float heading, float speed_kmh,
