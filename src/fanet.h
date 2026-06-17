@@ -11,6 +11,16 @@
 #define FANET_TYPE_NAME     2
 #define FANET_TYPE_MESSAGE  3
 #define FANET_TYPE_SERVICE  4
+#define FANET_TYPE_GROUND   7   // Ground Tracking (Boden — Walking/Vehicle/Distress, eigenes Icon auf BurnAir)
+
+// FANET Type 7 Ground-States (oberes Nibble des Status-Bytes)
+#define FANET_GND_WALKING     1
+#define FANET_GND_VEHICLE     2
+#define FANET_GND_BIKE        3
+#define FANET_GND_NEED_RIDE   8
+#define FANET_GND_LANDED_WELL 9
+#define FANET_GND_NEED_HELP   13
+#define FANET_GND_DISTRESS    14
 
 // === FANET TX SAFETY GATE (Ticket D) =========================================
 // Sicherheits-Funk: die Kruecke sendet ihre Position an FREMDE Piloten in der Luft.
@@ -21,7 +31,8 @@
 // Rote Linie: lieber TX aus als TX falsch — falsche Position fuehrt fremde Piloten in die Irre.
 #define FANET_TX_ENABLED 1   // Gate D OFFEN (2026-06-13, nach Ivos Test-OK). DOPPEL-SICHERUNG bleibt: siehe g_fanetTxEnabled.
 // Live-TX nur wenn BEIDE an: Gate D (oben, compile) UND dieses Config-Flag (App/Menue: fanet.tx_enabled).
-// Default AUS -> Gate D offen heisst NICHT Dauerfunk. Plus: gesendet wird ohnehin nur IM FLUG.
+// Default AUS -> Gate D offen heisst NICHT Dauerfunk. Wenn scharf: im Flug Type 1 (Airborne),
+// am Boden Type 7 (Ground/Walking) — Boden-Tracking ist sicherheitsrelevant (Landout/Rueckweg).
 static bool g_fanetTxEnabled = false;
 static bool g_fanetOnline    = true;   // FANET Online-Tracking-Flag (fanet.online_tracking)
 
@@ -218,6 +229,26 @@ public:
         return 15;
     }
 
+    // === FANET Type 7 (Ground Tracking) Encoder — SPEC-KONFORM ===
+    // Referenz: 3s1d/fanet-stm32 protocol.txt. 11-Byte-Frame:
+    //   [0]Header(Type7) [1]Mfr [2-3]UID(LE) | Payload[0-6]:
+    //   0-5 Position (LE 2-compl, lat*93206 / lon*46603 — IDENTISCH zu Type 1),
+    //   6 Status: bits 7-4 = State (1=Walking, 9=Landed, 14=Distress...), bit 0 = Online-Tracking.
+    // Kein Speed/Climb/Heading (Boden) — Empfaenger (BurnAir) zeigt Boden-Icon nach State.
+    static int encodeGroundTracking(uint8_t *buf, uint8_t mfr, uint16_t uid,
+                                    float lat, float lon, uint8_t state, bool online) {
+        buf[0] = 0x07;                       // ext=0, forward=0, Type=7 (Ground Tracking)
+        buf[1] = mfr;
+        buf[2] = uid & 0xFF;
+        buf[3] = (uid >> 8) & 0xFF;
+        int32_t lat_i = (int32_t)lroundf(lat * 93206.0f);
+        int32_t lon_i = (int32_t)lroundf(lon * 46603.0f);
+        buf[4] = lat_i & 0xFF; buf[5] = (lat_i >> 8) & 0xFF; buf[6] = (lat_i >> 16) & 0xFF;
+        buf[7] = lon_i & 0xFF; buf[8] = (lon_i >> 8) & 0xFF; buf[9] = (lon_i >> 16) & 0xFF;
+        buf[10] = (uint8_t)(((state & 0x0F) << 4) | (online ? 0x01 : 0x00));
+        return 11;
+    }
+
     // Eindeutige Source-ID aus der ESP32-MAC (nie 0). Manufacturer 0xFC = experimental.
     static uint16_t txUid() {
         uint16_t id = (uint16_t)(ESP.getEfuseMac() & 0xFFFF);
@@ -254,6 +285,26 @@ public:
         }
         (void)n;
         return false;
+#endif
+    }
+
+    // Type 7 Ground-Tracking — am Boden senden (eigenes Boden-Icon auf BurnAir). Gleiche Doppel-Sicherung.
+    bool sendGroundTracking(float lat, float lon, uint8_t state) {
+        if (!ok) return false;
+        uint8_t buf[11];
+        int n = encodeGroundTracking(buf, 0xFC, txUid(), lat, lon, state, g_fanetOnline);
+#if FANET_TX_ENABLED
+        if (!g_fanetTxEnabled) {   // Gate D offen, aber Config-Flag aus -> nur encoden, KEIN Funk
+            static unsigned long lw=0;
+            if (millis()-lw > 30000) { lw=millis(); Serial.println("[FANET] Ground-TX bereit (Gate D offen), aber fanet.tx_enabled=false -> kein Funk"); }
+            (void)n; return false;
+        }
+        int st = radio.transmit(buf, n);
+        Serial.printf("[FANET] Ground-TX %s (state=%d)\n", st==RADIOLIB_ERR_NONE?"OK":"FAIL", st);
+        radio.startReceive();
+        return (st == RADIOLIB_ERR_NONE);
+#else
+        (void)n; return false;
 #endif
     }
 
@@ -312,6 +363,21 @@ public:
             Serial.printf("[FANET-TEST]  out: lat=%.5f lon=%.5f alt=%.0f clb=%+.1f spd=%.0f hdg=%.0f ac=%d  %s\n",
                           p.lat, p.lon, p.altitude, p.climb, p.speed, p.heading, p.aircraft, ok2 ? "PASS" : "FAIL");
             all = all && ok2;
+        }
+        // Type 7 (Ground): Position wie Type 1 + Status-Byte (State<<4 | Online)
+        {
+            uint8_t g[11];
+            encodeGroundTracking(g, 0xFC, 0x1234, 47.37694f, 8.94185f, FANET_GND_WALKING, true);
+            int32_t glat = g[4] | (g[5]<<8) | (g[6]<<16); if (glat & 0x800000) glat |= 0xFF000000;
+            float glatf = glat / 93206.0f;
+            uint8_t gstate = g[10] >> 4, gonline = g[10] & 1;
+            bool gok = g[0]==0x07 && fabsf(glatf - 47.37694f) < 0.0002f
+                    && gstate == FANET_GND_WALKING && gonline == 1;
+            Serial.print("[FANET-TEST] Ground HEX:");
+            for (int i=0;i<11;i++) Serial.printf(" %02X", g[i]);
+            Serial.printf("\n[FANET-TEST] Ground: type=0x%02X lat=%.5f state=%d online=%d  %s\n",
+                          g[0], glatf, gstate, gonline, gok ? "PASS" : "FAIL");
+            all = all && gok;
         }
         Serial.printf("[FANET-TEST] === %s ===\n", all ? "ALLE PASS — Encoder byte-genau" : "FAIL!");
     }

@@ -864,18 +864,23 @@ void loop() {
         }
     }
 
-    // FANET TX: nur im Flug senden (alle 5s)
-    // Am Boden: kein TX, nur RX (Duty-Cycle schonen)
+    // FANET TX (sicherheitsrelevant, nur wenn scharf): im Flug Type 1 (Airborne) alle 5s,
+    // am Boden Type 7 (Ground/Walking) alle 30s — BurnAir zeigt Boden-User mit eigenem Icon.
     static unsigned long lastFanetTx = 0;
-    if (fanet.ok && flight.state == FLIGHT_FLYING && millis() - lastFanetTx > 5000) {
-        lastFanetTx = millis();
-        if (lastGoodLat != 0) {
-            fanet.sendTracking(lastGoodLat, lastGoodLon, live.altitude,
-                               live.vario, live.speed, live.heading, g_fanetAircraft);
+    if (fanet.ok && lastGoodLat != 0) {
+        bool fanetFlying = (flight.state == FLIGHT_FLYING);
+        unsigned long fanetIv = fanetFlying ? 5000UL : 30000UL;
+        if (millis() - lastFanetTx > fanetIv) {
+            lastFanetTx = millis();
+            if (fanetFlying)
+                fanet.sendTracking(lastGoodLat, lastGoodLon, live.altitude,
+                                   live.vario, live.speed, live.heading, g_fanetAircraft);
+            else
+                fanet.sendGroundTracking(lastGoodLat, lastGoodLon, FANET_GND_WALKING);
         }
     }
-    static unsigned long lastFanetName = 0;   // #4: Namens-Beacon ~alle 60s im Flug
-    if (fanet.ok && flight.state == FLIGHT_FLYING && g_fanetPilotName[0] && millis()-lastFanetName > 60000) {
+    static unsigned long lastFanetName = 0;   // #4: Namens-Beacon ~alle 60s (Luft + Boden)
+    if (fanet.ok && g_fanetPilotName[0] && millis()-lastFanetName > 60000) {
         lastFanetName = millis(); fanet.sendName(g_fanetPilotName);
     }
 
