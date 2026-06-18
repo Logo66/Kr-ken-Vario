@@ -195,7 +195,7 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     V(DX,50,R3B-50,fb);
 
     // === REIHE 1: HOEHE (volle Breite x310-950, alles zentriert) ===
-    drawHCenter(&ArialBold16,"HOEHE MSL",RX,RW,72,fb);
+    drawHCenter(&ArialBold16,"HOEHE MSL",RX,RW,70,fb);
     snprintf(buf,48,"%.0f",uAlt(d.altitude));
     { int wv,hv,wm,hm; const char* ul=uAltL(); measureText(&ArialBold32,buf,&wv,&hv); measureText(&ArialBold28,ul,&wm,&hm);
       int gap=10, tot=wv+gap+wm, sx=RX+(RW-tot)/2;            // "489 m/ft" als Block mittig
@@ -205,14 +205,14 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     H(RX,R1B,RW,fb);
 
     // === REIHE 2: SPEED | GLIDE (y: 170-284, Werte zentriert + eine Stufe kleiner) ===
-    drawHCenter(&ArialBold16,"SPEED",RX,RHW,195,fb);
+    drawHCenter(&ArialBold16,"SPEED",RX,RHW,193,fb);
     snprintf(buf,48,"%.0f",uSpd(d.speed));
     { int ws,hs; measureText(&ArialBold32,buf,&ws,&hs); T(&ArialBold32,buf,RX+(RHW-ws)/2,250,fb); }
     drawHCenter(&ArialBold16,uSpdL(),RX,RHW,274,fb);
     // Divider
     V(RX+RHW,R2T,R2B-R2T,fb);
     // Glide: Feld x632-950
-    drawHCenter(&ArialBold16,"GLIDE",RMX,RHW,195,fb);
+    drawHCenter(&ArialBold16,"GLIDE",RMX,RHW,193,fb);
     if(d.vario<-0.1f&&d.speed>5.0f) snprintf(buf,48,"%.1f",d.glide);
     else if(d.vario>0.1f) snprintf(buf,48,"+++");
     else snprintf(buf,48,"---");
@@ -243,12 +243,12 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     V(RMX+THW, R3T, R3B-R3T, fb);                    // Trenner Temp | Flugzeit
     drawHCenter(&ArialBold16,"TEMP",RMX,THW,310,fb);
     snprintf(buf,48,"%.1f %s",uTmp(d.temp),uTmpL());
-    drawHCenter(&ArialBold24,buf,RMX,THW,366,fb);
+    drawHCenter(&ArialBold24,buf,RMX,THW,361,fb);
     snprintf(buf,48,"Tau %+.0f C",d.dewpoint);              // Taupunkt klein unter Temp
-    drawHCenter(&ArialBold16,buf,RMX,THW,394,fb);
+    drawHCenter(&ArialBold16,buf,RMX,THW,392,fb);
     drawHCenter(&ArialBold16,"FLUGZEIT",RMX+THW,THW,310,fb);
     snprintf(buf,48,"%d:%02d", d.flight_sec/60, d.flight_sec%60);   // M:SS ab Start, friert bei Landung
-    drawHCenter(&ArialBold24,buf,RMX+THW,THW,386,fb);      // gleiche Groesse wie Temp (ArialBold24), tiefer
+    drawHCenter(&ArialBold24,buf,RMX+THW,THW,361,fb);      // gleiche Groesse UND Hoehe wie Temp (ArialBold24)
 
     // === UNTERKANTE HAUPTBEREICH ===
     H(10,R3B,940,fb);
