@@ -221,7 +221,7 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
 
     // === REIHE 3: WIND | TEMP (y: 286-400) ===
     // Wind: Feld x310-628
-    T(&ArialBold16,"WIND",410,324,fb);
+    T(&ArialBold16,"WIND",410,310,fb);
     // Richtung VOR den Wert: "N 4 km/h" (nur wenn im Flug geschaetzt, >1 km/h) + Pfeil.
     if (d.wind_speed > 1.0f) {
         static const char* WC[]={"N","NO","O","SO","S","SW","W","NW"};
@@ -241,12 +241,12 @@ static void showCruiseScreen(EpdiyHighlevelState *hl, const CruiseData &d,
     // Feld x632-950 GETEILT: links TEMP, rechts FLUGZEIT (kleinere Schrift, je mittig in der Haelfte)
     const int THW = RHW/2;                          // Halbbreite 159
     V(RMX+THW, R3T, R3B-R3T, fb);                    // Trenner Temp | Flugzeit
-    drawHCenter(&ArialBold16,"TEMP",RMX,THW,324,fb);
+    drawHCenter(&ArialBold16,"TEMP",RMX,THW,310,fb);
     snprintf(buf,48,"%.1f %s",uTmp(d.temp),uTmpL());
     drawHCenter(&ArialBold24,buf,RMX,THW,366,fb);
     snprintf(buf,48,"Tau %+.0f C",d.dewpoint);              // Taupunkt klein unter Temp
     drawHCenter(&ArialBold16,buf,RMX,THW,394,fb);
-    drawHCenter(&ArialBold16,"FLUGZEIT",RMX+THW,THW,324,fb);
+    drawHCenter(&ArialBold16,"FLUGZEIT",RMX+THW,THW,310,fb);
     snprintf(buf,48,"%d:%02d", d.flight_sec/60, d.flight_sec%60);   // M:SS ab Start, friert bei Landung
     drawHCenter(&ArialBold24,buf,RMX+THW,THW,386,fb);      // gleiche Groesse wie Temp (ArialBold24), tiefer
 
