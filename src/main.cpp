@@ -517,6 +517,13 @@ static void feedGPS() {
     }
     live.sats = gps.satellites.value();
     live.gps_fix = gps.location.isValid() && gps.location.age() < 4000;   // nur FRISCHER Fix gilt -> bit0=0 bei Fix-Verlust (sonst sendet die App eine stale Position als gueltig)
+    // GPS-Position JEDEN Loop merken. Vorher wurde lastGoodLat NUR in updateGoalData() (= nur auf dem
+    // Goal-Screen) gesetzt -> auf Cruise/Map fror die Position ein: App-Tracking, FANET, Luftraum- und
+    // Hindernis-Warnungen liefen alle mit eingefrorener Position (Steigen=Baro/Tempo=Doppler liefen weiter).
+    if (gps.location.isValid() && gps.location.lat() != 0) {
+        lastGoodLat = gps.location.lat();
+        lastGoodLon = gps.location.lng();
+    }
     if(gps.location.isUpdated()) {
         float raw_spd = gps.speed.kmph();
         live.speed = (raw_spd < 3.0f) ? 0 : raw_spd;  // GPS-Rauschen filtern
@@ -1039,10 +1046,10 @@ void loop() {
     // Serial alle 5s
     if (millis()-lastPrint >= 5000) {
         lastPrint = millis();
-        Serial.printf("[%02d:%02d] V=%+.1f Alt=%.0f GPS:%s s=%d G=%.2f ok=%lu fail=%lu bytes=%lu\n",
+        Serial.printf("[%02d:%02d] V=%+.1f Alt=%.0f GPS:%s s=%d pos=%.5f,%.5f G=%.2f ok=%lu fail=%lu bytes=%lu\n",
                        live.rtc_hour, live.rtc_min,
                        live.vario, live.altitude,
-                       live.gps_fix?"FIX":"---", live.sats, g_now,
+                       live.gps_fix?"FIX":"---", live.sats, lastGoodLat, lastGoodLon, g_now,
                        gps.passedChecksum(), gps.failedChecksum(),
                        gps_total_bytes);
         Serial.printf("[PERF] loopMax=%lums  heap=%lu  psram=%lu\n", g_loopMaxMs, (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getFreePsram());
