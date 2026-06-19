@@ -1379,7 +1379,14 @@ void loop() {
                 Serial.println("[MENU] Karte Overlays");
             } else if (mi == MENU_AUS) {
                 Serial.println("[MENU] Ausschalten → Credits");
-                showCreditsAndShutdown(&hl);  // Kommt nicht zurueck
+                showCreditsAndShutdown(&hl);  // zeigt Credits, kommt jetzt zurueck
+                // Ship-Mode: BQ25896 trennt den Akku-Pfad (BATFET aus) -> 0 Verbrauch, auch die Sensor-LEDs.
+                // Aufwecken per PWR-Taste oder USB. Greift NUR auf Akku (mit USB bleibt BATFET an).
+                Serial.println("[PWR] Ship-Mode (BATFET aus)");
+                if (ppm_ok) { delay(50); ppm.shutdown(); delay(300); }
+                // Fallback (USB steckt -> shutdown() greift nicht): Deep-Sleep wie bisher, Wake auf BOOT (GPIO0).
+                esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+                esp_deep_sleep_start();
             }
         } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             currentScreen = SCR_CRUISE;

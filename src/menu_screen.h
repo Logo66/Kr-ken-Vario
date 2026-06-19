@@ -66,6 +66,6 @@ static void showCreditsAndShutdown(EpdiyHighlevelState *hl) {
     epd_poweron(); epd_hl_update_screen(hl, MODE_GC16, 20); epd_poweroff();
     delay(7000);
     epd_poweron(); epd_clear(); epd_poweroff(); delay(500);
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
-    esp_deep_sleep_start();
+    // Power-Off (Ship-Mode) macht der Aufrufer in main.cpp (MENU_AUS) -- braucht den BQ25896 (ppm),
+    // der hier nicht erreichbar ist (menu_screen.h wird vor der ppm-Deklaration inkludiert).
 }
