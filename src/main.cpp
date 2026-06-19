@@ -562,6 +562,7 @@ void setup() {
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL, I2C_FREQ_HZ);
 
     ppm_ok = ppm.init(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, ADDR_BQ25896);
+    if (ppm_ok) ppm.enableMeasure();   // BQ25896-ADC kontinuierlich -> getBattVoltage() liefert echte Werte (sonst 0 = faelschlich "leer")
     sht_ok = sht.begin(&Wire);
     delay(50);
     bmpA_ok = bmp_a.begin(ADDR_BMP581_PRIMARY, &Wire);
@@ -1046,6 +1047,7 @@ void loop() {
     // Serial alle 5s
     if (millis()-lastPrint >= 5000) {
         lastPrint = millis();
+        readBattery();   // Akku-SoC frisch nachziehen (ADC laeuft jetzt kontinuierlich)
         Serial.printf("[%02d:%02d] V=%+.1f Alt=%.0f GPS:%s s=%d pos=%.5f,%.5f G=%.2f ok=%lu fail=%lu bytes=%lu\n",
                        live.rtc_hour, live.rtc_min,
                        live.vario, live.altitude,
@@ -1451,11 +1453,14 @@ void loop() {
         if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             // Karussell: Cruise → Thermal → Goal → Map → Cruise
             Screen prevScr = currentScreen;
-            if (currentScreen==SCR_CRUISE) currentScreen = SCR_THERMAL;
-            else if (currentScreen==SCR_THERMAL) currentScreen = SCR_GOAL;
-            else if (currentScreen==SCR_GOAL) currentScreen = SCR_MAP;
-            else if (currentScreen==SCR_MAP) currentScreen = SCR_XSECTION;
-            else currentScreen = SCR_CRUISE;
+            // Bidirektionales Karussell: LINKS = vorwaerts, RECHTS = rueckwaerts (natuerlich)
+            static const Screen carousel[] = {SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_XSECTION};
+            const int CAR_N = 5;
+            int ci = 0;
+            for (int i = 0; i < CAR_N; i++) if (carousel[i] == currentScreen) { ci = i; break; }
+            if (g == GEST_SWIPE_LEFT) ci = (ci + 1) % CAR_N;          // links -> vorwaerts
+            else                      ci = (ci + CAR_N - 1) % CAR_N;  // rechts -> rueckwaerts
+            currentScreen = carousel[ci];
             Serial.printf("[SWIPE] → %d\n", currentScreen);
             bool fromMap = (prevScr == SCR_MAP || prevScr == SCR_XSECTION);  // schweren Screen verlassen -> GC16
             if (currentScreen==SCR_CRUISE) {
