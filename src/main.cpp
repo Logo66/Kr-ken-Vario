@@ -562,7 +562,6 @@ void setup() {
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL, I2C_FREQ_HZ);
 
     ppm_ok = ppm.init(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, ADDR_BQ25896);
-    if (ppm_ok) ppm.enableMeasure();   // BQ25896-ADC kontinuierlich -> getBattVoltage() liefert echte Werte (sonst 0 = faelschlich "leer")
     sht_ok = sht.begin(&Wire);
     delay(50);
     bmpA_ok = bmp_a.begin(ADDR_BMP581_PRIMARY, &Wire);
@@ -1047,7 +1046,6 @@ void loop() {
     // Serial alle 5s
     if (millis()-lastPrint >= 5000) {
         lastPrint = millis();
-        readBattery();   // Akku-SoC frisch nachziehen (ADC laeuft jetzt kontinuierlich)
         Serial.printf("[%02d:%02d] V=%+.1f Alt=%.0f GPS:%s s=%d pos=%.5f,%.5f G=%.2f ok=%lu fail=%lu bytes=%lu\n",
                        live.rtc_hour, live.rtc_min,
                        live.vario, live.altitude,
