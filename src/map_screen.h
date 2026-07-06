@@ -193,25 +193,6 @@ static void drawTiles(double lat, double lon, int zoom, uint8_t *fb) {
     }
 }
 
-// === Tile-Cache: Framebuffer-Kopie nach Tile-Rendering ===
-static uint8_t *tileCacheFb = nullptr;  // PSRAM, 259200 Bytes
-
-static void cacheTiles(uint8_t *fb) {
-    int fb_size = epd_width() / 2 * epd_height();
-    if (!tileCacheFb) {
-        tileCacheFb = (uint8_t*)heap_caps_malloc(fb_size, MALLOC_CAP_SPIRAM);
-        if (!tileCacheFb) { Serial.println("[MAP] Cache alloc FAIL"); return; }
-    }
-    memcpy(tileCacheFb, fb, fb_size);
-}
-
-static void restoreTiles(uint8_t *fb) {
-    if (tileCacheFb) {
-        int fb_size = epd_width() / 2 * epd_height();
-        memcpy(fb, tileCacheFb, fb_size);
-    }
-}
-
 // === Track-Buffer (letzte 200 GPS-Positionen) ===
 static const int TRACK_MAX = 200;
 struct TrackPoint { double lat, lon; };
@@ -610,58 +591,9 @@ static void showMapScreen(EpdiyHighlevelState *hl, const MapData &d) {
     uiFill(pcx-36, ccy2-3, 72, 6, fb);   // Horizontal fett
     uiFill(pcx-3, ccy2-36, 6, 72, fb);   // Vertikal fett
 
-    // Tile-Framebuffer cachen fuer 1Hz Overlay-Updates
-    cacheTiles(fb);
-
     // === RENDER ===
     epd_poweron();
     epd_hl_update_screen(hl, MODE_GC16, (int)epd_ambient_temperature());
-    epd_poweroff();
-}
-
-// === 1Hz Overlay-Update (nur Pilot + Track + Statusbar, KEINE Tiles) ===
-static void updateMapOverlay(EpdiyHighlevelState *hl, const MapData &d) {
-    uint8_t *fb = epd_hl_get_framebuffer(hl);
-    // Gecachte Tiles wiederherstellen (statt alles loeschen)
-    if (tileCacheFb) {
-        restoreTiles(fb);
-    } else {
-        epd_hl_set_all_white(hl);
-    }
-    char buf[32];
-
-    // === EINHEITLICHE STATUSLEISTE (Uhr | Sat | FANET | Buddy | Server | Batterie) ===
-    drawStatusBar(fb);
-
-    // Kein Rahmen — Karte edge-to-edge
-
-    // Luftraeume
-    if (d.lat != 0 && d.lon != 0 && airspace_count > 0 && g_layerAirspace)
-        drawAirspaces(d.lat, d.lon, mapZoomIdx, fb);
-
-    // Track
-    if (d.lat != 0 && d.lon != 0 && g_layerTrack)
-        drawTrack(d.lat, d.lon, mapZoomIdx, fb);
-
-    // Pilot-Marker mit weissem Halo
-    uiFill(MAP_PILOT_X-30, MAP_PILOT_Y-30, 60, 60, fb, 0xFF);
-    drawCircle(MAP_PILOT_X, MAP_PILOT_Y, 30, fb);
-    mapTri(MAP_PILOT_X, MAP_PILOT_Y, d.heading, 52, 38, fb);
-
-    // Info-Leiste unten (identisch wie showMapScreen)
-    uiFill(MAP_CLIP_X+2, MAP_CLIP_Y+MAP_CLIP_H-26, MAP_CLIP_W-4, 24, fb, 0xFF);
-    int bar_y = MAP_CLIP_Y+MAP_CLIP_H-14;
-    uiHLine(20, bar_y, 80, fb, 3);
-    uiVLine(20, bar_y-5, 10, fb, 2);
-    uiVLine(98, bar_y-5, 10, fb, 2);
-    drawText(&ArialBold16, ZOOM_LABEL[mapZoomIdx], 104, bar_y+5, fb);
-    if (d.lat != 0) {
-        snprintf(buf,32,"%.3fN %.3fE  %.0fm", d.lat, d.lon, d.altitude);
-        drawText(&ArialBold16, buf, 300, bar_y+5, fb);
-    }
-
-    epd_poweron();
-    epd_hl_update_screen(hl, MODE_DU, (int)epd_ambient_temperature());
     epd_poweroff();
 }
 

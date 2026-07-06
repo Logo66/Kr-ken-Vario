@@ -110,9 +110,8 @@ static BleScreen bleScreen;
 #include "kalman_vario.h"
 #include "imu.h"
 #include <Preferences.h>
-#if defined(USE_IMU_BNO055)
-#include "imu_bno055.h"
-#endif
+#include "imu_bno055.h"   // selbst-gated per -DUSE_IMU_BNO055
+#include "imu_bno085.h"   // selbst-gated per -DUSE_IMU_BNO085
 #include "esp_sleep.h"
 
 // --- Objekte ---
@@ -125,13 +124,16 @@ static TinyGPSPlus gps;
 static KalmanVario kf;
 
 // --- Zustand ---
-static bool bmpA_ok=false, bmpB_ok=false, sht_ok=false, ppm_ok=false;
+static bool bmpA_ok=false, bmpB_ok=false, sht_ok=false, ppm_ok=false, buzzer_ok=false;
 
-// IMU-Abstraktion (imu.h): aktiv ist der BNO055 (g_imu) -> echtes accel_up + Heading + G.
-// Mit -DUSE_IMU_BNO055 zeigt 'g_imu' nach erfolgreichem begin() auf den BNO055-Treiber — sonst
-// ist NICHTS weiter zu aendern, Vario/Heading/G-Meter haengen schon an diesem Pointer.
+// IMU-Abstraktion (imu.h): aktiv ist der per Build-Flag gewaehlte Treiber (g_imu) -> echtes
+// accel_up + Heading + G. -DUSE_IMU_BNO085 (neue Boards) oder -DUSE_IMU_BNO055 (alt). Nach
+// erfolgreichem begin() zeigt 'g_imu' darauf — sonst Null-Quelle. Vario/Heading/G-Meter haengen
+// schon an diesem Pointer, mehr ist beim Sensor-Wechsel nicht zu aendern.
 static ImuNull imuNull;
-#if defined(USE_IMU_BNO055)
+#if defined(USE_IMU_BNO085)
+static ImuBno085 imuBno;
+#elif defined(USE_IMU_BNO055)
 static ImuBno055 imuBno;
 #endif
 static IMU* g_imu = &imuNull;
@@ -161,6 +163,9 @@ static bool imuCalLoad() {              // NVS -> BNO055
     Preferences p;
     if (!p.begin("imucal", true)) return false;
     g_northOffset = p.getFloat("north", 0.0f);   // Kompass-Nullpunkt laden
+    { float qc[4] = { p.getFloat("nq0",1.0f), p.getFloat("nq1",0.0f),
+                      p.getFloat("nq2",0.0f), p.getFloat("nq3",0.0f) };
+      g_imu->setNorthRef(qc); }                  // Tilt-Referenz (NORDEN-Lage) wiederherstellen
     uint8_t buf[22];
     size_t n = p.getBytes("prof", buf, sizeof(buf));
     p.end();
@@ -208,6 +213,7 @@ static unsigned long lastPrint=0, lastDisplay=0;
 // Screen-Manager
 enum Screen { SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_XSECTION, SCR_MENU, SCR_LANDING, SCR_QNH, SCR_FLUGBUCH, SCR_FUNK, SCR_WIFI, SCR_OVERLAY, SCR_BLE, SCR_SOUND, SCR_BUDDY, SCR_FANETCHAT };
 static Screen currentScreen = SCR_CRUISE;
+static bool   thermalAuto   = false;   // SCR_THERMAL per Auto-Erkennung betreten? -> dann auch automatisch zurueck auf Cruise
 static bool backlight_on = false;
 
 // === updateGoalData (braucht gps + live, daher hier nach den Variablen) ===
@@ -473,15 +479,21 @@ static void setupRTC() {
     live.rtc_hour=ch; live.rtc_min=cm;
 }
 
-// BQ25896 Batterie-SoC aus Spannung
+// Batterie-SoC vom BQ27220 Fuel-Gauge (roh I2C 0x55 — NICHT ppm/Wire! Wire ist nach Boot zu, epdiy haelt
+// den I2C-Treiber; roh + 50ms-Timeout = kein Bus-Freeze wie beim ppm-Read). SoC=0x2C (%), Voltage=0x08 (mV).
 static void readBattery() {
-    if (!ppm_ok) return;
-    float v = ppm.getBattVoltage()/1000.0f;
-    int soc = (int)((v-3.3f)/(4.2f-3.3f)*100.0f);
-    if(soc>100)soc=100; if(soc<0)soc=0;
-    live.bat_pct=soc;
-    live.bat_hours=(1500.0f*soc/100.0f)/40.0f;
-    Serial.printf("[BAT] %.2fV → %d%%\n", v, soc);
+    uint8_t d[2];
+    int soc = -1, mv = -1;
+    if (rawI2C(ADDR_BQ27220, 0x2C, d, 2)) soc = d[0] | (d[1] << 8);   // StateOfCharge (%)
+    if (rawI2C(ADDR_BQ27220, 0x08, d, 2)) mv  = d[0] | (d[1] << 8);   // Voltage (mV)
+    int pct;
+    if      (soc >= 0 && soc <= 100)  pct = soc;                                          // Fuel-Gauge direkt
+    else if (mv > 2500 && mv < 4400)  pct = (int)((mv/1000.0f - 3.3f)/(4.2f-3.3f)*100.0f); // Fallback aus Spannung
+    else                              return;                                             // nichts Plausibles -> bat_pct unveraendert
+    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    live.bat_pct = pct;
+    live.bat_hours = (1500.0f * pct / 100.0f) / 40.0f;
+    Serial.printf("[BAT] BQ27220 soc=%d%% v=%dmV -> %d%%\n", soc, mv, pct);
 }
 
 // GPS Power via PCA9535
@@ -652,10 +664,10 @@ void setup() {
 
     // (LSM6 + Roh-IMU-Logging entfernt — BNO055 ist jetzt die IMU-Quelle, G ueber g_imu)
 
-    // IMU-Abstraktion hochfahren: BNO055 bevorzugt (wenn verbaut+kompiliert), sonst Null-Quelle.
-#if defined(USE_IMU_BNO055)
+    // IMU-Abstraktion hochfahren: gewaehlter Treiber (wenn verbaut+kompiliert), sonst Null-Quelle.
+#if defined(USE_IMU_BNO085) || defined(USE_IMU_BNO055)
     if (imuBno.begin()) g_imu = &imuBno;
-    else Serial.println("[IMU] BNO055 nicht gefunden -> Null-Quelle (Baro/GPS)");
+    else Serial.println("[IMU] Sensor nicht gefunden -> Null-Quelle (Baro/GPS)");
 #endif
     Serial.printf("[IMU] Quelle: %s\n", g_imu->name());
     imuCalLoad();   // gespeichertes Kalibrierprofil (falls vorhanden) in den BNO055 schreiben
@@ -710,7 +722,22 @@ void setup() {
 
     // Splash → Cruise → nach 15s Thermik-Demo
     showBootSplash(&hl, AURA_VERSION);  // Einziger GC16 beim Boot (Graustufen-Logo)
-    buzzerStartup();                    // Start-Jingle spielt, WAEHREND das Logo steht -> beide gleich lang
+    buzzer_ok = buzzerProbe();
+    if (!bmpA_ok || !sht_ok || !g_imu->ok) {
+        // Boot-Check: externer I2C-Bus (Schalter) aus? -> klare Warnung statt still kein Vario / Freeze
+        uint8_t *fbw = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl);
+        drawHCenter(&ArialBold40, "SENSOREN AUS?", 0, 960, 120, fbw);
+        drawHCenter(&ArialBold24, "externen I2C-Schalter pruefen", 0, 960, 175, fbw);
+        char lw[48];
+        snprintf(lw, sizeof(lw), "Baro (BMP581):   %s", bmpA_ok   ? "OK" : "FEHLT"); drawHCenter(&ArialBold28, lw, 0, 960, 265, fbw);
+        snprintf(lw, sizeof(lw), "Temp (SHT45):    %s", sht_ok    ? "OK" : "FEHLT"); drawHCenter(&ArialBold28, lw, 0, 960, 315, fbw);
+        snprintf(lw, sizeof(lw), "IMU (BNO085):    %s", g_imu->ok ? "OK" : "FEHLT"); drawHCenter(&ArialBold28, lw, 0, 960, 365, fbw);
+        snprintf(lw, sizeof(lw), "Ton (Buzzer):    %s", buzzer_ok ? "OK" : "FEHLT"); drawHCenter(&ArialBold28, lw, 0, 960, 415, fbw);
+        drawHCenter(&ArialBold16, "weiter in 4 s", 0, 960, 480, fbw);
+        epd_poweron(); epd_hl_update_screen(&hl, MODE_GC16, (int)epd_ambient_temperature()); epd_poweroff();
+        delay(4000);
+    }
+    if (buzzer_ok) buzzerStartup(); else delay(1500);                    // Start-Jingle spielt, WAEHREND das Logo steht -> beide gleich lang
     showCruiseScreen(&hl, live, MODE_DU);  // Kein zweiter Flash
     Serial.println("READY — Cruise aktiv, Thermik-Demo in 15s");
 }
@@ -816,6 +843,29 @@ static void processConfigWrite(const uint8_t *data, size_t len) {
     JsonDocument doc;
     DeserializationError e = deserializeJson(doc, data, len);
     if (e) { ble.notifyCfg("{\"ack\":\"error\",\"ok\":false,\"err\":\"json\"}"); Serial.println("[CFG] JSON-Fehler"); return; }
+    // Sprach-Screen-Wechsel (APP-VOICE-SCREEN-1): {"cmd":"screen","screen":"<key>"} ueber …0006.
+    // Nur Screen-Wechsel, nichts Sicherheitskritisches. 6 Keys 1:1 mit @App abgestimmt.
+    const char *cmd = doc["cmd"] | "";
+    if (!strcmp(cmd, "screen")) {
+        const char *scr = doc["screen"] | "";
+        Screen tgt = currentScreen; bool known = true;
+        if      (!strcmp(scr, "cruise"))   tgt = SCR_CRUISE;
+        else if (!strcmp(scr, "thermal"))  tgt = SCR_THERMAL;
+        else if (!strcmp(scr, "goal"))     tgt = SCR_GOAL;
+        else if (!strcmp(scr, "map"))      tgt = SCR_MAP;
+        else if (!strcmp(scr, "xsection")) tgt = SCR_XSECTION;
+        else if (!strcmp(scr, "menu"))     tgt = SCR_MENU;
+        else known = false;
+        if (!known) { ble.notifyCfg("{\"ack\":\"screen\",\"ok\":false,\"err\":\"unknown_screen\"}"); return; }
+        currentScreen = tgt; thermalAuto = false;   // per Sprache gewaehlt -> kein Auto-Zurueck
+        if (tgt == SCR_MENU) showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
+        else                 drawFlightScreen(tgt, MODE_GC16);
+        lastDisplay = millis();
+        char sack[64]; snprintf(sack, sizeof(sack), "{\"ack\":\"screen\",\"ok\":true,\"screen\":\"%s\"}", scr);
+        ble.notifyCfg(sack);
+        Serial.printf("[CFG] screen -> %s\n", scr);
+        return;
+    }
     const char *kind = doc["kind"] | "";
     if (!strcmp(kind, "settings")) {
         char ack[160];
@@ -849,10 +899,10 @@ void loop() {
     updateClock();
 
     // BLE Notifications — Vario ~10 Hz, GPS 1 Hz, Umwelt 1x/Minute
-    static unsigned long lastBleVario=0, lastBleGps=0, lastBleEnv=0;
+    static unsigned long lastBleVario=0, lastBleGps=0, lastBleEnv=0, lastBleFanet=0;
     static bool blePrevConn = false;
     if (ble.ok) {
-        if (ble.connected && !blePrevConn) { lastBleVario=0; lastBleGps=0; lastBleEnv=0; }  // frisch verbunden -> sofort senden
+        if (ble.connected && !blePrevConn) { lastBleVario=0; lastBleGps=0; lastBleEnv=0; lastBleFanet=0; }  // frisch verbunden -> sofort senden
         blePrevConn = ble.connected;
         unsigned long now = millis();
         if (now - lastBleVario >= 100) {     // Vario/Hoehe ~10 Hz (fluessig fuers App-Vario)
@@ -870,7 +920,64 @@ void loop() {
             ble.updateEnv(live.temp, live.humidity, live.dewpoint, thermal.data.base_est,
                           live.wind_speed, live.wind_dir);
         }
+        // FANET-Objekte ans Handy fuers offene Live-Netz (Relay): aktive Piloten, ~alle 2s, <=7/Notify.
+        // no_track=1 (=!online) -> App MUSS verwerfen (FANET "Tracking aus"). Stationen = Phase 2.
+        if (ble.connected && fanet.ok && now - lastBleFanet >= 2000) {
+            lastBleFanet = now;
+            const int PER = 7;
+            uint8_t pkt[2 + PER * sizeof(BleFanetPilot)];
+            int n = 0, total = 0;
+            for (int i = 0; i < fanet.pilot_count; i++) {
+                const FanetPilot &fp = fanet.pilots[i];
+                if (now - fp.last_seen > 60000) continue;          // nur aktive (<60s gesehen)
+                BleFanetPilot bp;
+                bp.manufacturer = fp.manufacturer; bp.id = fp.id; bp.aircraft = fp.aircraft;
+                bp.no_track = fp.online ? 0 : 1;
+                bp.lat = fp.lat; bp.lon = fp.lon; bp.alt_m = fp.altitude;
+                bp.speed_kmh = fp.speed; bp.vz_ms = fp.climb; bp.heading_deg = fp.heading;
+                memcpy(pkt + 2 + n * sizeof(BleFanetPilot), &bp, sizeof(BleFanetPilot)); total++;
+                if (++n == PER) { pkt[0]=1; pkt[1]=(uint8_t)n; ble.notifyFanet(pkt, 2 + n*sizeof(BleFanetPilot)); n=0; }
+            }
+            if (n > 0) { pkt[0]=1; pkt[1]=(uint8_t)n; ble.notifyFanet(pkt, 2 + n*sizeof(BleFanetPilot)); }
+            if (total > 0) Serial.printf("[FANET-BLE] %d aktive Pilot(en) -> Char 0007\n", total);
+            // Wetterstationen (kind=4) — gleiche Char, 2-min-Fenster (Stationen senden seltener als Piloten)
+            const int SPER = 6;
+            uint8_t spkt[2 + SPER * sizeof(BleFanetStation)];
+            int sn = 0, stot = 0;
+            for (int i = 0; i < fanet.station_count; i++) {
+                const FanetStation &fs = fanet.stations[i];
+                if (now - fs.last_seen > 120000) continue;          // nur aktive (<2 min)
+                BleFanetStation bs;
+                bs.manufacturer = fs.manufacturer; bs.id = fs.id;
+                bs.lat = fs.lat; bs.lon = fs.lon;
+                bs.wind_speed_ms = fs.wind_speed / 3.6f; bs.wind_dir_deg = fs.wind_dir; bs.gust_ms = fs.wind_gust / 3.6f;
+                bs.temp_c = fs.temp; bs.humidity = fs.humidity;
+                memcpy(spkt + 2 + sn * sizeof(BleFanetStation), &bs, sizeof(BleFanetStation)); stot++;
+                if (++sn == SPER) { spkt[0]=4; spkt[1]=(uint8_t)sn; ble.notifyFanet(spkt, 2 + sn*sizeof(BleFanetStation)); sn=0; }
+            }
+            if (sn > 0) { spkt[0]=4; spkt[1]=(uint8_t)sn; ble.notifyFanet(spkt, 2 + sn*sizeof(BleFanetStation)); }
+            if (stot > 0) Serial.printf("[FANET-BLE] %d Station(en) -> Char 0007\n", stot);
+            // Namen (kind=2) — Piloten mit bekanntem FANET-Namen (aus Type 2)
+            const int NPER = 7;
+            uint8_t npkt[2 + NPER * sizeof(BleFanetName)];
+            int nn = 0, ntot = 0;
+            for (int i = 0; i < fanet.pilot_count; i++) {
+                const FanetPilot &fp = fanet.pilots[i];
+                if (fp.name[0] == 0 || now - fp.last_seen > 60000) continue;   // nur benannte + aktive
+                BleFanetName bn;
+                bn.manufacturer = fp.manufacturer; bn.id = fp.id;
+                strncpy(bn.name, fp.name, sizeof(bn.name)); bn.name[sizeof(bn.name)-1] = 0;
+                memcpy(npkt + 2 + nn * sizeof(BleFanetName), &bn, sizeof(BleFanetName)); ntot++;
+                if (++nn == NPER) { npkt[0]=2; npkt[1]=(uint8_t)nn; ble.notifyFanet(npkt, 2 + nn*sizeof(BleFanetName)); nn=0; }
+            }
+            if (nn > 0) { npkt[0]=2; npkt[1]=(uint8_t)nn; ble.notifyFanet(npkt, 2 + nn*sizeof(BleFanetName)); }
+            if (ntot > 0) Serial.printf("[FANET-BLE] %d Name(n) -> Char 0007\n", ntot);
+        }
     }
+
+    // Akku-% vom Fuel-Gauge (BQ27220) — roh + bounded, alle 30s (NICHT ppm/Wire -> kein I2C-Freeze wie frueher).
+    static unsigned long lastBat = 0;
+    if (lastBat == 0 || millis() - lastBat >= 30000) { lastBat = millis(); readBattery(); }
 
     // FANET TX (sicherheitsrelevant, nur wenn scharf): im Flug Type 1 (Airborne) alle 5s,
     // am Boden Type 7 (Ground/Walking) alle 30s — BurnAir zeigt Boden-User mit eigenem Icon.
@@ -1074,9 +1181,9 @@ void loop() {
         drawHCenter(&ArialBold28, a.name, 0, 960, 255, wfb);
         snprintf(wb,64,"%s    %s - %s", airspaceClassStr(a.cls), a.lower, a.upper);
         drawHCenter(&ArialBold28, wb, 0, 960, 320, wfb);
-        epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+        epd_poweron(); epd_hl_update_screen(&hl, MODE_GC16, (int)epd_ambient_temperature()); epd_poweroff();
         delay(2500);
-        drawFlightScreen(currentScreen, MODE_DU);
+        drawFlightScreen(currentScreen, MODE_GC16);   // Warnung + Restore per GC16 -> kein Geister-Text
     }
     g_aspWarnPrev = g_aspWarnIdx;
 
@@ -1092,9 +1199,9 @@ void loop() {
         drawHCenter(&ArialBold28, g_obstWhat, 0, 960, 255, wfb);
         snprintf(wb,64,"%.0f m   %s", g_obstDist, compass8(g_obstBrg));
         drawHCenter(&ArialBold28, wb, 0, 960, 320, wfb);
-        epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+        epd_poweron(); epd_hl_update_screen(&hl, MODE_GC16, (int)epd_ambient_temperature()); epd_poweroff();
         delay(1400);
-        drawFlightScreen(currentScreen, MODE_DU);
+        drawFlightScreen(currentScreen, MODE_GC16);   // Warnung + Restore per GC16 -> kein Geister-Text
         g_obstLastAlarm = millis();
     } else if (g_obstLevel == 1 && g_obstPrevLevel == 0 && millis() - g_obstLastAlarm > 8000) {
         // AEUSSERE Kugel -> leiser Vorwarn-Chirp, KEIN Block-Screen (kein Gaggle-Spam)
@@ -1187,7 +1294,7 @@ void loop() {
         if (millis() - _qnhRef > 1500) {
             _qnhRef = millis();
             float pq = rawBMP581Pressure();
-            showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, pq), pq, g_imu->cal(), live.heading);
+            showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, pq), pq, g_imu->cal(), live.heading, gps.altitude.meters(), (int)gps.satellites.value(), gps.hdop.hdop(), gps.altitude.isValid());
         }
     }
     Gesture g = touch.poll();
@@ -1307,13 +1414,13 @@ void loop() {
                 qnh_ref_alt += 10;
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
                 alt_calc.setQNH(qnh);
-                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading);
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading, gps.altitude.meters(), (int)gps.satellites.value(), gps.hdop.hdop(), gps.altitude.isValid());
                 Serial.printf("[QNH] +10 → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
             } else if (qa == QNH_MINUS) {
                 qnh_ref_alt -= 10;
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
                 alt_calc.setQNH(qnh);
-                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading);
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading, gps.altitude.meters(), (int)gps.satellites.value(), gps.hdop.hdop(), gps.altitude.isValid());
                 Serial.printf("[QNH] -10 → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
             } else if (qa == QNH_OK) {
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
@@ -1322,6 +1429,38 @@ void loop() {
                 currentScreen = SCR_MENU;
                 showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count);
                 Serial.printf("[QNH] OK → Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
+            } else if (qa == QNH_GPS) {
+                // GPS-Hoehe als Baro-Kal uebernehmen — nur bei brauchbarem Fix, ~2.5s gemittelt.
+                if (!qnhGpsReady(gps.altitude.isValid(), gps.satellites.value(), gps.hdop.hdop())) {
+                    uint8_t *fb = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl);
+                    drawHCenter(&ArialBold40, "GPS NICHT BEREIT", 0, 960, 250, fb);
+                    drawHCenter(&ArialBold24, "mehr Sat / besseres HDOP noetig", 0, 960, 320, fb);
+                    epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+                    delay(1500);
+                } else {
+                    uint8_t *fb = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl);
+                    drawHCenter(&ArialBold40, "GPS-HOEHE MESSEN...", 0, 960, 270, fb);
+                    epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+                    double sum = 0; int n = 0; unsigned long t0 = millis();
+                    while (millis() - t0 < 2500) {                 // mitteln gegen GPS-Rauschen
+                        feedGPS();
+                        if (gps.altitude.isValid() && gps.altitude.age() < 1500) { sum += gps.altitude.meters(); n++; }
+                        delay(60);
+                    }
+                    float gAlt = (n > 0) ? (float)(sum / n) : (float)gps.altitude.meters();
+                    qnh_ref_alt = gAlt;
+                    float qnh = calcQnhFromAlt(qnh_ref_alt, p);
+                    alt_calc.setQNH(qnh);
+                    kf.init(alt_calc.computeISA(p));
+                    Serial.printf("[QNH] GPS-Kal: Alt=%.0f m (n=%d) QNH=%.1f\n", qnh_ref_alt, n, qnh);
+                    uint8_t *fb2 = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl);
+                    char cb[48]; snprintf(cb, sizeof(cb), "HOEHE = %.0f m", qnh_ref_alt);
+                    drawHCenter(&ArialBold40, "GPS UEBERNOMMEN", 0, 960, 250, fb2);
+                    drawHCenter(&ArialBold28, cb, 0, 960, 320, fb2);
+                    epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
+                    delay(1500);
+                }
+                showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, p), p, g_imu->cal(), live.heading, gps.altitude.meters(), (int)gps.satellites.value(), gps.hdop.hdop(), gps.altitude.isValid());
             } else if (qa == QNH_CALSAVE) {
                 bool saved = imuCalSave();
                 uint8_t *fb = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl);
@@ -1329,17 +1468,24 @@ void loop() {
                 drawHCenter(&ArialBold40, saved ? "GESPEICHERT" : "nicht ok", 0, 960, 305, fb);
                 epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
                 delay(1200);
-                showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, p), p, g_imu->cal(), live.heading);
+                showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, p), p, g_imu->cal(), live.heading, gps.altitude.meters(), (int)gps.satellites.value(), gps.hdop.hdop(), gps.altitude.isValid());
             } else if (qa == QNH_SETNORTH) {
-                g_northOffset = g_imu->sample().heading;    // aktuelle Roh-Richtung = Norden (0)
-                { Preferences pp; if (pp.begin("imucal", false)) { pp.putFloat("north", g_northOffset); pp.end(); } }
-                Serial.printf("[CAL] Norden gesetzt: Offset=%.0f\n", g_northOffset);
+                g_imu->captureNorth();                      // aktuelle Lage = Referenz (tilt-stabil)
+                g_northOffset = 0.0f;                       // Heading ist jetzt schon relativ dazu
+                { Preferences pp; if (pp.begin("imucal", false)) {
+                    float qc[4]; g_imu->getNorthRef(qc);
+                    pp.putFloat("north", 0.0f);
+                    pp.putFloat("nq0",qc[0]); pp.putFloat("nq1",qc[1]);
+                    pp.putFloat("nq2",qc[2]); pp.putFloat("nq3",qc[3]);
+                    pp.end();
+                } }
+                Serial.println("[CAL] Norden gesetzt (Tilt-Referenz gespeichert)");
                 uint8_t *fb = epd_hl_get_framebuffer(&hl); epd_hl_set_all_white(&hl);
                 drawHCenter(&ArialBold40, "NORDEN", 0, 960, 235, fb);
                 drawHCenter(&ArialBold40, "GESETZT", 0, 960, 305, fb);
                 epd_poweron(); epd_hl_update_screen(&hl, MODE_DU, (int)epd_ambient_temperature()); epd_poweroff();
                 delay(1000);
-                showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, p), p, g_imu->cal(), live.heading);
+                showQnhScreen(&hl, qnh_ref_alt, calcQnhFromAlt(qnh_ref_alt, p), p, g_imu->cal(), live.heading, gps.altitude.meters(), (int)gps.satellites.value(), gps.hdop.hdop(), gps.altitude.isValid());
             }
         } else if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             currentScreen = SCR_MENU;
@@ -1354,7 +1500,7 @@ void loop() {
                 currentScreen = SCR_QNH;
                 float p = rawBMP581Pressure();
                 float qnh = calcQnhFromAlt(qnh_ref_alt, p);
-                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading);
+                showQnhScreen(&hl, qnh_ref_alt, qnh, p, g_imu->cal(), live.heading, gps.altitude.meters(), (int)gps.satellites.value(), gps.hdop.hdop(), gps.altitude.isValid());
                 Serial.printf("[QNH] Screen: Alt=%.0f QNH=%.1f\n", qnh_ref_alt, qnh);
             } else if (mi == MENU_BACKLIGHT) {
                 backlight_on = !backlight_on;
@@ -1450,24 +1596,25 @@ void loop() {
         // Cruise/Thermik: Swipe = wechseln, Long-Tap = Menu
         if (g == GEST_SWIPE_LEFT || g == GEST_SWIPE_RIGHT) {
             // Karussell: Cruise → Thermal → Goal → Map → Cruise
-            Screen prevScr = currentScreen;
-            // Bidirektionales Karussell: LINKS = vorwaerts, RECHTS = rueckwaerts (natuerlich)
+            // Bidirektionales Karussell: RECHTS = vorwaerts, LINKS = rueckwaerts (natuerlich)
             static const Screen carousel[] = {SCR_CRUISE, SCR_THERMAL, SCR_GOAL, SCR_MAP, SCR_XSECTION};
             const int CAR_N = 5;
             int ci = 0;
             for (int i = 0; i < CAR_N; i++) if (carousel[i] == currentScreen) { ci = i; break; }
-            if (g == GEST_SWIPE_LEFT) ci = (ci + 1) % CAR_N;          // links -> vorwaerts
-            else                      ci = (ci + CAR_N - 1) % CAR_N;  // rechts -> rueckwaerts
-            currentScreen = carousel[ci];
+            if (g == GEST_SWIPE_RIGHT) ci = (ci + 1) % CAR_N;          // rechts -> vorwaerts
+            else                      ci = (ci + CAR_N - 1) % CAR_N;  // links -> rueckwaerts
+            currentScreen = carousel[ci]; thermalAuto = false;   // manuell gewaehlt -> kein Auto-Zurueck
             Serial.printf("[SWIPE] → %d\n", currentScreen);
-            bool fromMap = (prevScr == SCR_MAP || prevScr == SCR_XSECTION);  // schweren Screen verlassen -> GC16
+            // Jeder manuelle Screen-Wechsel = sauberer GC16-Vollrefresh -> kein DU-Ghosting beim
+            // Hin-und-Her-Wischen (v.a. auf aelteren/ghosting-anfaelligen Panels). DU bleibt nur
+            // fuer die 1-Hz-Live-Zahlen (mit periodischem GC16, siehe unten).
             if (currentScreen==SCR_CRUISE) {
-                showCruiseScreen(&hl, live, fromMap ? MODE_GC16 : MODE_DU);
+                showCruiseScreen(&hl, live, MODE_GC16);
             } else if (currentScreen==SCR_THERMAL) {
                 if (!thermal.active) thermal.start(live.altitude);
-                showThermalScreen(&hl, thermal.data, fromMap ? MODE_GC16 : MODE_DU);
+                showThermalScreen(&hl, thermal.data, MODE_GC16);
             } else if (currentScreen==SCR_GOAL) {
-                updateGoalData(); showGoalScreen(&hl, goalLive, fromMap ? MODE_GC16 : MODE_DU);
+                updateGoalData(); showGoalScreen(&hl, goalLive, MODE_GC16);
             } else if (currentScreen==SCR_MAP) {
                 MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,
                             live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,
@@ -1549,10 +1696,9 @@ void loop() {
             Serial.println("[SOUND] Ton-Menue geoeffnet (Home-Knopf kurz)");
         } else if (g == GEST_HOME_LONG) {
             // ... und LANG -> Hauptmenue (alle Menues an einem Ort, Ivo)
-            bool fromMapL = (currentScreen == SCR_MAP);
             currentScreen = SCR_MENU;
             Serial.println("[MENU] Geoeffnet (Home-Knopf lang)");
-            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count, fromMapL ? MODE_GC16 : MODE_DU);
+            showMenuScreen(&hl, alt_calc.getQNH()/100.0f, backlight_on, flugbuch.count, MODE_GC16);
             lastDisplay = millis();
         }
     }
@@ -1561,16 +1707,15 @@ void loop() {
     static bool btn_last = true;
     bool btn_now = digitalRead(0);
     if (!btn_now && btn_last && currentScreen != SCR_MENU && currentScreen != SCR_LANDING) {
-        Screen prevScrB = currentScreen;
+        thermalAuto = false;   // Knopf-Wechsel = manuell -> kein Auto-Zurueck
         if (currentScreen==SCR_CRUISE) currentScreen=SCR_THERMAL;
         else if (currentScreen==SCR_THERMAL) currentScreen=SCR_GOAL;
         else if (currentScreen==SCR_GOAL) currentScreen=SCR_MAP;
         else if (currentScreen==SCR_MAP) currentScreen=SCR_XSECTION;
         else currentScreen=SCR_CRUISE;
-        bool fromMapB = (prevScrB==SCR_MAP || prevScrB==SCR_XSECTION);
-        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl,live,fromMapB?MODE_GC16:MODE_DU);
-        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl,thermal.data,fromMapB?MODE_GC16:MODE_DU); }
-        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl,goalLive,fromMapB?MODE_GC16:MODE_DU); }
+        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl,live,MODE_GC16);   // jeder Wechsel = GC16 (kein Ghosting)
+        else if (currentScreen==SCR_THERMAL) { if(!thermal.active)thermal.start(live.altitude); showThermalScreen(&hl,thermal.data,MODE_GC16); }
+        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl,goalLive,MODE_GC16); }
         else if (currentScreen==SCR_MAP) { MapData md={live.heading,lastGoodLat,lastGoodLon,live.altitude,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,false,live.gps_fix}; showMapScreen(&hl,md); }
         else if (currentScreen==SCR_XSECTION) { XSectionData xd={lastGoodLat,lastGoodLon,live.altitude,live.heading,live.speed,goalLive.gr_current,live.rtc_hour,live.rtc_min,live.sats,live.bat_pct,fanet.pilot_count,live.gps_fix}; showXSectionScreen(&hl,xd); }
         lastDisplay = millis();
@@ -1593,26 +1738,75 @@ void loop() {
         if (millis() - lastClimbMs > 25000) { thermal.stop(); lastClimbMs = 0; }
     }
 
-    // Auto-Thermik bei Steigen
-    static unsigned long climb_since = 0;
-    if (live.vario_avg > 0.5f && flight.state == FLIGHT_FLYING) {
-        if (!climb_since) climb_since = millis();
-        if (millis()-climb_since > 10000 && currentScreen==SCR_CRUISE) {
-            if (!thermal.active) thermal.start(live.altitude);
-            currentScreen = SCR_THERMAL;
-            showThermalScreen(&hl, thermal.data, MODE_DU);
-            lastDisplay = millis();
+    // Auto-Thermik: erst auf den Thermik-Screen, wenn der Pilot WIRKLICH kreist (>=2 volle Kreise)
+    // UND dabei >=50% der Kreiszeit steigt (vario>0). Steigen ohne Kreisen (Hangkante, gerader
+    // Delfin) loest NICHT aus; Spiralsturz (kreisen, aber meist sinken) auch nicht. Drehung wird
+    // aufsummiert (loop-raten-unabhaengig); "kreist gerade?" per 1-Hz-Drehrate (>8 Grad/s).
+    static float         thTurnAccum  = 0;     // aufsummierte Drehung [Grad], vorzeichenbehaftet
+    static float         thLastHdg    = -1;    // letztes Heading (-1 = noch nicht gesetzt)
+    static float         thHdgRef     = -1;    // Heading vor ~1 s (fuer die Drehrate)
+    static unsigned long thLastTurnMs = 0;     // letzte erkannte Drehung (>8 Grad/s)
+    static unsigned long thHdgRefMs   = 0;
+    static unsigned long thClimbMs    = 0;     // Zeit mit Steigen (vario>0) in dieser Kreis-Session
+    static unsigned long thTotalMs    = 0;     // gesamte Zeit dieser Kreis-Session
+    static unsigned long thLastMs     = 0;     // fuer dt
+    if (flight.state == FLIGHT_FLYING) {
+        unsigned long now = millis();
+        if (thLastHdg < 0) { thLastHdg = thHdgRef = live.heading; thLastMs = thHdgRefMs = thLastTurnMs = now; }
+        unsigned long dt = now - thLastMs; thLastMs = now;
+        if (dt > 1000) dt = 0;                 // grosse Luecke (z.B. Display-GC16) nicht mitzaehlen
+
+        float d = live.heading - thLastHdg;
+        while (d > 180.0f) d -= 360.0f;  while (d < -180.0f) d += 360.0f;  // kuerzeste Drehung -180..180
+        thLastHdg = live.heading;
+        thTurnAccum += d;                      // gleichsinniges Kreisen summiert sich; S-Schlag/gerade hebt sich ~auf
+        thTotalMs += dt;
+        if (live.vario > 0.0f) thClimbMs += dt;
+
+        if (now - thHdgRefMs >= 1000) {        // ~1-Hz-Drehraten-Check (unabhaengig von der Loop-Rate)
+            float dr = live.heading - thHdgRef;
+            while (dr > 180.0f) dr -= 360.0f;  while (dr < -180.0f) dr += 360.0f;
+            if (fabsf(dr) > 8.0f) thLastTurnMs = now;   // >8 Grad/s -> kreist gerade
+            thHdgRef = live.heading; thHdgRefMs = now;
         }
-    } else { climb_since = 0; }
+        if (now - thLastTurnMs > 4000) { thTurnAccum = 0; thClimbMs = 0; thTotalMs = 0; }  // 4s kein Kreisen -> Reset
+
+        if (fabsf(thTurnAccum) >= 720.0f && thTotalMs > 0 && thClimbMs * 2 >= thTotalMs
+            && currentScreen == SCR_CRUISE) {              // 2 Kreise + >=50% der Zeit gestiegen
+            if (!thermal.active) thermal.start(live.altitude);
+            currentScreen = SCR_THERMAL; thermalAuto = true;
+            showThermalScreen(&hl, thermal.data, MODE_GC16);   // Auto-Eintritt sauber (kein Cruise-Ghosting)
+            lastDisplay = now;
+            thTurnAccum = 0; thClimbMs = 0; thTotalMs = 0;
+        }
+
+        // Auto-zurueck: nach Auto-Thermik wieder geradeaus (>12 s kein Kreisen) -> Cruise.
+        // Nur wenn der Thermik-Screen AUTOMATISCH kam (manuell hingewischt bleibt stehen).
+        if (currentScreen == SCR_THERMAL && thermalAuto && now - thLastTurnMs > 12000) {
+            currentScreen = SCR_CRUISE; thermalAuto = false;
+            showCruiseScreen(&hl, live, MODE_GC16);   // sauberer Voll-Refresh beim Auto-Zurueck (sonst DU-Ghosting/halbverwaschen)
+            lastDisplay = now;
+        }
+    } else { thTurnAccum = 0; thLastHdg = -1; thHdgRef = -1; thLastTurnMs = 0; thHdgRefMs = 0; thClimbMs = 0; thTotalMs = 0; }
 
     // 1 Hz Display Refresh (Flug-Screens — KARTE NICHT, sonst Ghosting durch DU-Overlay)
+    // ANTI-GHOSTING: MODE_DU ist schnell, hinterlaesst aber Restschatten. OHNE periodischen
+    // GC16-Voll-Refresh wird der Screen ueber die Minuten "wischiwaschi" — genau der Effekt
+    // seit dem 1-Hz-Refresh (38a24d8): Boot-Splash sauber (GC16), danach nur noch DU.
+    // Fix: alle ANTIGHOST_S Sekunden EIN sauberer GC16 statt DU. Disziplinierter Takt,
+    // KEIN reaktives GC16<->DU-Gejage. ANTIGHOST_S bei Bedarf anpassen (kleiner = sauberer,
+    // aber mehr Voll-Blitze; groesser = ruhiger, aber mehr Restschatten).
     if ((currentScreen==SCR_CRUISE || currentScreen==SCR_THERMAL ||
          currentScreen==SCR_GOAL)
         && millis()-lastDisplay >= 1000) {
         lastDisplay = millis();
-        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, MODE_DU);
-        else if (currentScreen==SCR_THERMAL) showThermalScreen(&hl, thermal.data, MODE_DU);
-        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive, MODE_DU); }
+        static const unsigned long ANTIGHOST_S = 15;   // aelteres Panel ghostet mehr -> oefter putzen
+        static unsigned long lastGc16 = 0;
+        enum EpdDrawMode m = MODE_DU;
+        if (millis() - lastGc16 >= ANTIGHOST_S * 1000UL) { m = MODE_GC16; lastGc16 = millis(); }
+        if (currentScreen==SCR_CRUISE) showCruiseScreen(&hl, live, m);
+        else if (currentScreen==SCR_THERMAL) showThermalScreen(&hl, thermal.data, m);
+        else if (currentScreen==SCR_GOAL) { updateGoalData(); showGoalScreen(&hl, goalLive, m); }
     }
     // === KARTE: KEIN 1-Hz-Overlay (Ticket §5: kein Partial-Geschiebe -> kein Ghosting). ===
     // Karte wird sauber per GC16 nur bei Eintritt / Zoom / Re-Center gezeichnet (Touch-Handler oben).

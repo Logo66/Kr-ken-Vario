@@ -113,10 +113,7 @@ PAD_NETS = {
     "U1": {"1": "+3V3", "2": "I2C_SCL", "3": "GND", "4": "I2C_SDA",
            "5": "+3V3", "6": "+3V3", "7": None, "8": "GND", "9": "GND", "10": "+3V3"},
     "C1": {"1": "+3V3", "2": "GND"},
-    "U2": {"1": "+3V3", "2": "I2C_SCL", "3": "GND", "4": "I2C_SDA",
-           "5": "GND", "6": "+3V3", "7": None, "8": "GND", "9": "GND", "10": "+3V3"},
-    "C2": {"1": "+3V3", "2": "GND"},
-    "U3": {"1": "GND", "2": None, "3": None, "4": "INT_LSM",
+    "U3": {"1": "GND", "2": None, "3": None, "4": None,
            "5": "+3V3", "6": "GND", "7": "GND", "8": "+3V3",
            "9": None, "10": None, "11": None, "12": "+3V3",
            "13": "I2C_SCL", "14": "I2C_SDA"},
@@ -124,7 +121,7 @@ PAD_NETS = {
     "U4": {"1": "GND", "2": "GND", "3": "+3V3", "4": "BOOTN_N",
            "5": "GND", "6": "GND", "7": "GND", "8": "GND",
            "9": "CAP_BNO", "10": "GND", "11": "RST_BNO", "12": "GND",
-           "13": "GND", "14": "INT_BNO", "15": None, "16": None,
+           "13": "GND", "14": None, "15": None, "16": None,
            "17": "GND", "18": "+3V3", "19": "I2C_SCL", "20": "I2C_SDA",
            "21": "GND", "22": "GND", "23": "GND", "24": "GND",
            "25": "GND", "26": "GND", "27": None, "28": "+3V3"},
@@ -141,46 +138,41 @@ PAD_NETS = {
 PLACEMENT = [
     ("J1",  fp_lib("Connector_JST"),
             "JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal",
-            8.0, 2.0, 180.0, "Qwiic"),
+            15.0, 28.0, 0.0, "Qwiic"),
 
     ("R1",  fp_lib("Resistor_SMD"), "R_0402_1005Metric",
-            12.0, 6.5, 90.0, "4.7k"),
+            12.0, 23.5, 90.0, "4.7k"),
     ("R2",  fp_lib("Resistor_SMD"), "R_0402_1005Metric",
-            14.5, 6.5, 90.0, "4.7k"),
+            14.5, 23.5, 90.0, "4.7k"),
     ("C6",  fp_lib("Capacitor_SMD"), "C_0805_2012Metric",
-            18.0, 6.5, 90.0, "10u"),
+            17.5, 23.5, 90.0, "10u"),
 
     ("U1",  CUSTOM_FP, "BMP581_LGA-10_2x2mm",
-            10.0, 11.5, 0.0, "BMP581"),
+            5.5, 4.0, 0.0, "BMP581"),
     ("C1",  fp_lib("Capacitor_SMD"), "C_0402_1005Metric",
-            14.0, 11.5, 90.0, "100n"),
-
-    ("U2",  CUSTOM_FP, "BMP581_LGA-10_2x2mm",
-            10.0, 16.5, 0.0, "BMP581"),
-    ("C2",  fp_lib("Capacitor_SMD"), "C_0402_1005Metric",
-            14.0, 16.5, 90.0, "100n"),
+            5.5, 7.5, 90.0, "100n"),
 
     ("U3",  fp_lib("Package_LGA"), "Bosch_LGA-14_3x2.5mm_P0.5mm",
-            10.0, 21.5, 0.0, "LSM6DSO32"),
+            14.5, 13.5, 0.0, "LSM6DSO32"),
     ("C3",  fp_lib("Capacitor_SMD"), "C_0402_1005Metric",
-            14.0, 21.5, 90.0, "100n"),
+            18.0, 13.5, 90.0, "100n"),
 
     ("U4",  fp_lib("Package_LGA"), "LGA-28_5.2x3.8mm_P0.5mm",
-            17.5, 28.0, 0.0, "BNO085"),
+            14.5, 18.5, 0.0, "BNO085"),
     ("C4",  fp_lib("Capacitor_SMD"), "C_0402_1005Metric",
-            24.0, 26.0, 90.0, "100n"),
+            21.0, 17.0, 90.0, "100n"),
     ("C7",  fp_lib("Capacitor_SMD"), "C_0402_1005Metric",
-            24.0, 30.0, 90.0, "100n"),
+            21.0, 20.0, 90.0, "100n"),
     ("R3",  fp_lib("Resistor_SMD"), "R_0402_1005Metric",
-            26.5, 26.0, 90.0, "10k"),
+            24.0, 17.0, 90.0, "10k"),
     ("R4",  fp_lib("Resistor_SMD"), "R_0402_1005Metric",
-            29.0, 26.0, 90.0, "10k"),
+            26.0, 17.0, 90.0, "10k"),
 
     ("U5",  fp_lib("Sensor_Humidity"),
             "Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad",
-            6.0, 32.0, 0.0, "SHT40"),
+            9.5, 4.0, 0.0, "SHT45"),
     ("C5",  fp_lib("Capacitor_SMD"), "C_0402_1005Metric",
-            10.0, 32.0, 90.0, "100n"),
+            9.5, 7.5, 90.0, "100n"),
 
 ]
 
@@ -215,8 +207,8 @@ def generate():
         nets[name] = ni
     print(f"  Created {len(nets)} nets")
 
-    # ----- Board outline 35x35mm -----
-    BW, BH = 35.0, 35.0
+    # ----- Board outline 30x30mm -----
+    BW, BH = 30.0, 30.0
     for (x1, y1), (x2, y2) in [((0,0),(BW,0)), ((BW,0),(BW,BH)),
                                  ((BW,BH),(0,BH)), ((0,BH),(0,0))]:
         seg = pcbnew.PCB_SHAPE(board)
@@ -225,6 +217,19 @@ def generate():
         seg.SetLayer(pcbnew.Edge_Cuts); seg.SetWidth(MM(0.05))
         board.Add(seg)
     print(f"  Board outline: {BW}x{BH}mm")
+
+    # Gefraeste Sensor-Insel fuer Druck + Feuchte/Temperatur:
+    # U-foermiger Edge.Cuts-Schlitz, oben an der Boardkante offen.
+    # Inselbereich ungefaehr x=2..12.5mm, y=0..9mm.
+    for (x1, y1), (x2, y2) in [((2.0,0.0),(2.0,9.0)),
+                               ((2.0,9.0),(12.5,9.0)),
+                               ((12.5,9.0),(12.5,0.0))]:
+        slot = pcbnew.PCB_SHAPE(board)
+        slot.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        slot.SetStart(vec(x1, y1)); slot.SetEnd(vec(x2, y2))
+        slot.SetLayer(pcbnew.Edge_Cuts); slot.SetWidth(MM(0.35))
+        board.Add(slot)
+    print("  Sensor island milling: U-slot around BMP581 + SHT45")
 
     # ----- Place components -----
     footprints = {}

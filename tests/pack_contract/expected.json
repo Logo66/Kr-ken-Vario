@@ -1,0 +1,97 @@
+{
+  "_meta": {
+    "ticket": "Pack-Format-Vertrag abgleichen (2026-06-09)",
+    "spec": "docs/comp/PACK-FORMAT-CONTRACT-V1.md",
+    "purpose": "Soll-Werte fuer Schritt-D-Vergleich: Kruecke-C++-Reader liest contract_test_v1.pack und muss diese Werte byte-genau reproduzieren."
+  },
+  "file": {
+    "name": "contract_test_v1.pack",
+    "byte_size": 102,
+    "sha256": "ad76a6671e70f32a67878a3416b55eb176b2577f3c7177270462652013c9f704"
+  },
+  "header": {
+    "magic": "AURA",
+    "version": 1,
+    "region_id": "contract",
+    "region_id_bytes_hex": "636f6e74726163740000000000000000",
+    "tile_size_1_100deg": 5,
+    "tile_count": 1
+  },
+  "tiles": [
+    {
+      "tile_lat0_1e7": 473700000,
+      "tile_lon0_1e7": 89400000,
+      "tile_lat0_deg": 47.37,
+      "tile_lon0_deg": 8.94,
+      "n_contours": 2,
+      "n_peaks": 1,
+      "n_airspace": 0,
+      "n_obstacles": 0,
+      "contours": [
+        {
+          "height_m": 1000,
+          "flag": 0,
+          "n_points": 4,
+          "deltas": [
+            [
+              100,
+              200
+            ],
+            [
+              500,
+              200
+            ],
+            [
+              500,
+              600
+            ],
+            [
+              100,
+              600
+            ]
+          ],
+          "first_reconstructed_lat": 47.371,
+          "first_reconstructed_lon": 8.942,
+          "last_reconstructed_lat": 47.371,
+          "last_reconstructed_lon": 8.946
+        },
+        {
+          "height_m": 1100,
+          "flag": 1,
+          "n_points": 3,
+          "deltas": [
+            [
+              600,
+              100
+            ],
+            [
+              800,
+              300
+            ],
+            [
+              600,
+              500
+            ]
+          ],
+          "first_reconstructed_lat": 47.376,
+          "first_reconstructed_lon": 8.941,
+          "last_reconstructed_lat": 47.376,
+          "last_reconstructed_lon": 8.945
+        }
+      ],
+      "peaks": [
+        {
+          "dlat": 694,
+          "dlon": 185,
+          "height_m": 1133,
+          "rank": 0,
+          "name": "Hörnli",
+          "name_utf8_bytes_hex": "48c3b6726e6c69",
+          "name_len": 7,
+          "reconstructed_lat": 47.37694,
+          "reconstructed_lon": 8.94185
+        }
+      ]
+    }
+  ]
+}

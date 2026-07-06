@@ -42,13 +42,14 @@ struct FanetPilot {
     float lat, lon, altitude, climb, speed, heading;
     uint8_t aircraft;
     bool online;
+    char name[24];          // FANET Type-2 Name (leer wenn keiner gefunkt wurde)
     unsigned long last_seen;
 };
 
 struct FanetStation {
     uint8_t manufacturer;
     uint16_t id;
-    float lat, lon, wind_speed, wind_dir, temp, humidity;
+    float lat, lon, wind_speed, wind_dir, wind_gust, temp, humidity, pressure;   // wind in km/h
     unsigned long last_seen;
 };
 
@@ -159,6 +160,14 @@ public:
                 // Eigene TX-Echos ignorieren (Mfr 0xFC)
                 if ((type == FANET_TYPE_TRACKING || type == 7) && len >= 11 && mfr != 0xFC) {
                     parseTracking(buf+4, len-4, mfr, uid);
+                }
+                // Type 4 = Service/Wetterstation -> stations[] (fuers BLE-Relay, kind=4)
+                if (type == 4 && len >= 11 && mfr != 0xFC) {
+                    parseService(buf+4, len-4, mfr, uid);
+                }
+                // Type 2 = Name -> bekannten Piloten benennen (fuers BLE-Relay, kind=2)
+                if (type == 2 && len > 4 && mfr != 0xFC) {
+                    parseName(buf+4, len-4, mfr, uid);
                 }
                 // Type 3 = Text-Nachricht (Pilot-zu-Pilot). [4]=Subheader, Text ab [5].
                 if (type == 3 && mfr != 0xFC && len > 5) {
@@ -387,8 +396,8 @@ private:
     static volatile bool _received;
     static void onReceive() { _received = true; }
 
-    // Voll-Decoder (alle Felder) — NUR fuer den Selbsttest. Der LIVE-RX-Pfad nutzt
-    // parseTracking() unten und bleibt unveraendert (HEILIG: RX unangetastet).
+    // Voll-Decoder (alle Felder) — fuer den Selbsttest. parseTracking() unten decodiert die
+    // Vollfelder fuers BLE-Relay jetzt selbst mit; der EMPFANG/Funk-ISR bleibt unangetastet.
     static void decodeTracking(const uint8_t *buf, int len, FanetPilot *p) {
         if (len < 15) return;
         p->manufacturer = buf[1];
@@ -429,12 +438,88 @@ private:
         p.lon = lon_raw / 46603.0f;
         p.last_seen = millis();
 
+        // Vollfelder fuers BLE-Relay (offenes Live-Netz) — reines Parsen des schon empfangenen
+        // Frames, Empfang/Funk-ISR unberuehrt. Type 1 (Airborne, payload>=11) -> Alt/Aircraft/
+        // Online/Speed/Climb/Heading; Type 7 (Ground, payload==7) -> nur Online-Bit.
+        if (len >= 11) {
+            uint16_t w = data[6] | (data[7] << 8);
+            int alt = w & 0x07FF; if (w & 0x0800) alt *= 4;     // AltScaling 4x
+            p.altitude = alt;
+            p.aircraft = (w >> 12) & 0x07;
+            p.online   = (w >> 15) & 0x01;
+            uint8_t sp = data[8];
+            int spv = sp & 0x7F; if (sp & 0x80) spv *= 5;
+            p.speed = spv * 0.5f;                               // km/h
+            uint8_t cb = data[9];
+            int clv = cb & 0x7F; if (clv & 0x40) clv -= 128;    // 7-bit 2-complement
+            if (cb & 0x80) clv *= 5;
+            p.climb = clv * 0.1f;                               // m/s
+            p.heading = data[10] * 360.0f / 256.0f;
+        } else {
+            p.online = data[6] & 0x01;                          // Type 7 (Ground): Online-Bit im Status-Byte
+        }
+
         for (int i = 0; i < pilot_count; i++) {
             if (pilots[i].manufacturer == mfr && pilots[i].id == uid) {
+                strncpy(p.name, pilots[i].name, sizeof(p.name)); p.name[sizeof(p.name)-1] = 0;  // Name ueber Tracking-Update behalten
                 pilots[i] = p; return;
             }
         }
         if (pilot_count < MAX_PILOTS) pilots[pilot_count++] = p;
+    }
+
+    // FANET Type 4 (Service/Wetter) -> stations[]. Spec: 3s1d/fanet-stm32 protocol.txt.
+    // Service-Header[0]: b7 iGate, b6 Temp(+1B 0.5C 2c), b5 Wind(+3B: hdg 360/256, speed+gust 0.2km/h bit7=x5),
+    //   b4 Humid(+1B *0.4%), b3 Baro(+2B LE raw/10+430 hPa), b1 SoC(+1B), b0 ExtHdr(+1B).
+    // Danach Position (6B, lat/lon wie Tracking), dann Felder in Bit-Reihenfolge b6..b3.
+    void parseService(uint8_t *data, int len, uint8_t mfr, uint16_t uid) {
+        if (len < 1) return;
+        uint8_t hdr = data[0];
+        if (!(hdr & 0x78)) return;                 // kein Wetter (nur iGate/Config/SoC) -> keine Station
+        int p = 1;
+        if (hdr & 0x01) p++;                        // Extended Header -> 1 Byte ueberspringen
+        if (len < p + 6) return;                    // Position (6B) noetig
+        int32_t lat_raw = data[p] | (data[p+1]<<8) | (data[p+2]<<16);
+        if (lat_raw & 0x800000) lat_raw |= 0xFF000000;
+        int32_t lon_raw = data[p+3] | (data[p+4]<<8) | (data[p+5]<<16);
+        if (lon_raw & 0x800000) lon_raw |= 0xFF000000;
+        p += 6;
+        FanetStation s = {};
+        s.manufacturer = mfr; s.id = uid;
+        s.lat = lat_raw / 93206.0f; s.lon = lon_raw / 46603.0f;
+        s.last_seen = millis();
+        if ((hdr & 0x40) && p < len) {              // b6 Temperatur (0.5C, 2-complement)
+            s.temp = (int8_t)data[p] * 0.5f; p++;
+        }
+        if ((hdr & 0x20) && p + 2 < len) {          // b5 Wind: Heading, Speed, Gust
+            s.wind_dir = data[p] * 360.0f / 256.0f;
+            uint8_t sp = data[p+1]; float spd = (sp & 0x7F) * 0.2f; if (sp & 0x80) spd *= 5.0f; s.wind_speed = spd;
+            uint8_t gu = data[p+2]; float gus = (gu & 0x7F) * 0.2f; if (gu & 0x80) gus *= 5.0f; s.wind_gust  = gus;
+            p += 3;
+        }
+        if ((hdr & 0x10) && p < len) {              // b4 Luftfeuchte (*0.4%)
+            s.humidity = data[p] * 0.4f; p++;
+        }
+        if ((hdr & 0x08) && p + 1 < len) {          // b3 Luftdruck (raw/10 + 430 hPa)
+            uint16_t bp = data[p] | (data[p+1]<<8); s.pressure = bp / 10.0f + 430.0f; p += 2;
+        }
+        for (int i = 0; i < station_count; i++) {
+            if (stations[i].manufacturer == mfr && stations[i].id == uid) { stations[i] = s; return; }
+        }
+        if (station_count < MAX_STATIONS) stations[station_count++] = s;
+    }
+
+    // FANET Type 2 (Name) -> benennt einen bekannten Piloten (mfr+id). Payload = ASCII-Name.
+    void parseName(uint8_t *data, int len, uint8_t mfr, uint16_t uid) {
+        if (len < 1) return;
+        for (int i = 0; i < pilot_count; i++) {
+            if (pilots[i].manufacturer == mfr && pilots[i].id == uid) {
+                int n = len; if (n > (int)sizeof(pilots[i].name) - 1) n = sizeof(pilots[i].name) - 1;
+                memcpy(pilots[i].name, data, n); pilots[i].name[n] = 0;
+                return;
+            }
+        }
+        // Pilot noch nicht bekannt (Name kam vor erstem Tracking) -> ignorieren; naechster Name nach Type-1 greift.
     }
 };
 

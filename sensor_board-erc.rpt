@@ -1,7 +1,10 @@
-ERC report (2026-05-24T10:08:55, Encoding UTF8)
+ERC report (2026-06-22T18:09:09, Encoding UTF8)
 Report includes: Errors, Warnings
 
 ***** Sheet /
+[isolated_pin_label]: Label connected to only one pin
+    ; warning
+    @(35.56 mm, 146.05 mm): Label 'INT_LSM'
 [pin_to_pin]: Pins vom Typ Bidirectional und Power output sind verbunden
     ; warning
     @(60.96 mm, 143.51 mm): Symbol U3 Pin 1 [SDO/SA0, Bidirectional, Line]
@@ -10,8 +13,11 @@ Report includes: Errors, Warnings
     ; warning
     @(60.96 mm, 146.05 mm): Symbol U3 Pin 12 [~{CS}, Bidirectional, Line]
     @(20.32 mm, 50.80 mm): Symbol #FLG01 Pin 1 [Power output, Line]
+[isolated_pin_label]: Label connected to only one pin
+    ; warning
+    @(77.47 mm, 187.96 mm): Label 'INT_BNO'
 
- ** ERC messages: 2  Errors 0  Warnings 2
+ ** ERC messages: 4  Errors 0  Warnings 4
 
  ** Ignored checks:
     - Global label only appears once in the schematic

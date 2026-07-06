@@ -1,0 +1,12 @@
+STEP load
+  loaded ok; tracks= 76 zones= 4
+STEP min-rules
+  ok
+STEP slot-neck
+  neck x=6.0..8.5 @ y=9 ok
+STEP clear-tracks
+  removed 76 tracks/vias
+STEP fill-zones SKIPPED (filler segfaults standalone; planes export from outline; final fill at SES stage)
+STEP save
+  saved C:\Users\Ivo\aura_kruecke\hardware\sensor_board\project\_route\sb_prep.kicad_pcb 159741 bytes
+DONE

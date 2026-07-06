@@ -1,0 +1,373 @@
+** Drc report for sensor_board.kicad_pcb **
+** Created on 2026-06-22T22:10:03 **
+** Report includes: Errors, Warnings **
+
+** Found 20 DRC violations **
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(12.5413 mm, 16.3373 mm): Track [I2C_SDA] on F.Cu, length 8.8942 mm
+    @(13.9901 mm, 23.4999 mm): Track [I2C_SCL] on F.Cu, length 7.4900 mm
+[invalid_outline]: Platine hat fehlerhaften Umriss (keine geschlossene Form)
+    Local override; error
+    @(2.0000 mm, 0.0000 mm): Segment on Edge.Cuts
+    @(0.0000 mm, 0.0000 mm): Segment on Edge.Cuts
+[invalid_outline]: Platine hat fehlerhaften Umriss (keine geschlossene Form)
+    Local override; error
+    @(12.5000 mm, 9.0000 mm): Segment on Edge.Cuts
+    @(2.0000 mm, 9.0000 mm): Segment on Edge.Cuts
+[track_dangling]: Track has unconnected end
+    Local override; warning
+    @(11.3432 mm, 26.9756 mm): Track [+3V3] on F.Cu, length 1.3848 mm
+[via_dangling]: Via is not connected or connected on only one layer
+    Local override; warning
+    @(10.3465 mm, 24.2787 mm): Via [+3V3] on F.Cu - B.Cu
+[track_dangling]: Track has unconnected end
+    Local override; warning
+    @(13.9901 mm, 23.4999 mm): Track [I2C_SCL] on F.Cu, length 7.4900 mm
+[track_dangling]: Track has unconnected end
+    Local override; warning
+    @(15.4967 mm, 25.6869 mm): Track [I2C_SCL] on F.Cu, length 0.7211 mm
+[track_dangling]: Track has unconnected end
+    Local override; warning
+    @(5.0000 mm, 22.9900 mm): Track [I2C_SDA] on F.Cu, length 7.0000 mm
+[isolated_copper]: Isolated copper fill
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on B.Cu, priority 0
+[isolated_copper]: Isolated copper fill
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on B.Cu, priority 0
+[isolated_copper]: Isolated copper fill
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on In1.Cu, priority 0
+[isolated_copper]: Isolated copper fill
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on In1.Cu, priority 0
+[isolated_copper]: Isolated copper fill
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on In1.Cu, priority 0
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(15.4967 mm, 17.2094 mm): Pad 6 [GND] of U3 on F.Cu
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; 1 Stege zu isolierter Insel verbunden)
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(15.9967 mm, 17.2094 mm): Pad 7 [GND] of U3 on F.Cu
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(10.2000 mm, 3.6000 mm): Pad 4 [GND] of U5 on F.Cu
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(13.2467 mm, 22.8594 mm): Pad 6 [GND] of U4 on F.Cu
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(14.2467 mm, 22.8594 mm): Pad 8 [GND] of U4 on F.Cu
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(17.2467 mm, 19.5344 mm): Pad 21 [GND] of U4 on F.Cu
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; warning
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(14.7467 mm, 19.5344 mm): Pad 26 [GND] of U4 on F.Cu
+
+** Found 36 unconnected pads **
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(5.1000 mm, 5.3023 mm): Track [+3V3] on F.Cu, length 0.4523 mm
+    @(6.3500 mm, 3.8000 mm): Pad 10 [+3V3] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(6.3500 mm, 3.8000 mm): Pad 10 [+3V3] of U1 on F.Cu
+    @(5.9000 mm, 3.1500 mm): Pad 1 [+3V3] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(9.5000 mm, 8.4001 mm): Track [+3V3] on F.Cu, length 0.4201 mm
+    @(10.2000 mm, 4.4000 mm): Pad 3 [+3V3] of U5 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(9.7694 mm, 8.6695 mm): Via [+3V3] on F.Cu - B.Cu
+    @(15.9967 mm, 15.8621 mm): Track [+3V3] on F.Cu, length 0.6777 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(10.3465 mm, 24.2787 mm): Via [+3V3] on F.Cu - B.Cu
+    @(4.0000 mm, 24.0000 mm): Pad 2 [+3V3] of J1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(12.7280 mm, 26.9756 mm): Track [+3V3] on F.Cu, length 0.3800 mm
+    @(15.3255 mm, 27.5611 mm): Via [+3V3] on F.Cu - B.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.1092 mm, 20.9469 mm): Pad 3 [+3V3] of U4 on F.Cu
+    @(14.1402 mm, 20.5006 mm): Track [+3V3] on F.Cu, length 0.5565 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.9967 mm, 17.2094 mm): Pad 5 [+3V3] of U3 on F.Cu
+    @(15.8717 mm, 15.9871 mm): Via [+3V3] on F.Cu - B.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.8717 mm, 15.9871 mm): Via [+3V3] on F.Cu - B.Cu
+    @(16.7592 mm, 16.9469 mm): Pad 8 [+3V3] of U3 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(17.8842 mm, 20.9469 mm): Pad 18 [+3V3] of U4 on F.Cu
+    @(19.0056 mm, 18.2489 mm): Via [+3V3] on F.Cu - B.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(24.9967 mm, 21.9901 mm): Track [+3V3] on F.Cu, length 1.7832 mm
+    @(21.9967 mm, 20.1769 mm): Pad 1 [+3V3] of C4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(5.9000 mm, 4.8500 mm): Pad 8 [GND] of U1 on F.Cu
+    @(6.3500 mm, 4.2000 mm): Pad 9 [GND] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(5.9000 mm, 4.8500 mm): Pad 8 [GND] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(6.3500 mm, 4.2000 mm): Pad 9 [GND] of U1 on F.Cu
+    @(5.1000 mm, 3.1500 mm): Pad 3 [GND] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(14.2342 mm, 15.4469 mm): Pad 1 [GND] of U3 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.1092 mm, 21.9469 mm): Pad 5 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.1092 mm, 21.9469 mm): Pad 5 [GND] of U4 on F.Cu
+    @(13.1092 mm, 20.4469 mm): Pad 2 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.2467 mm, 19.5344 mm): Pad 1 [GND] of U4 on F.Cu
+    @(13.1092 mm, 20.4469 mm): Pad 2 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.2467 mm, 22.8594 mm): Pad 8 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.2467 mm, 22.8594 mm): Pad 8 [GND] of U4 on F.Cu
+    @(15.2467 mm, 22.8594 mm): Pad 10 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.7467 mm, 19.5344 mm): Pad 26 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.7467 mm, 19.5344 mm): Pad 26 [GND] of U4 on F.Cu
+    @(13.2467 mm, 19.5344 mm): Pad 1 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.2467 mm, 22.8594 mm): Pad 10 [GND] of U4 on F.Cu
+    @(16.2467 mm, 22.8594 mm): Pad 12 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.4967 mm, 17.2094 mm): Pad 6 [GND] of U3 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.4967 mm, 17.2094 mm): Pad 6 [GND] of U3 on F.Cu
+    @(14.2342 mm, 15.4469 mm): Pad 1 [GND] of U3 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(16.7467 mm, 22.8594 mm): Pad 13 [GND] of U4 on F.Cu
+    @(16.2467 mm, 22.8594 mm): Pad 12 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(16.7467 mm, 22.8594 mm): Pad 13 [GND] of U4 on F.Cu
+    @(17.8842 mm, 21.4469 mm): Pad 17 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(16.7467 mm, 22.8594 mm): Pad 13 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(17.2467 mm, 19.5344 mm): Pad 21 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(8.8000 mm, 4.4000 mm): Pad 2 [I2C_SCL] of U5 on F.Cu
+    @(5.5000 mm, 3.1500 mm): Pad 2 [I2C_SCL] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(8.8000 mm, 4.4000 mm): Pad 2 [I2C_SCL] of U5 on F.Cu
+    @(16.7823 mm, 14.6202 mm): Track [I2C_SCL] on F.Cu, length 1.2856 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.7194 mm, 25.6869 mm): Track [I2C_SCL] on F.Cu, length 0.2227 mm
+    @(13.9901 mm, 23.4999 mm): Track [I2C_SCL] on F.Cu, length 7.4900 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(4.6500 mm, 3.8000 mm): Track [I2C_SDA] on F.Cu, length 0.2795 mm
+    @(8.8000 mm, 3.6000 mm): Pad 1 [I2C_SDA] of U5 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(12.5413 mm, 16.3373 mm): Track [I2C_SDA] on F.Cu, length 8.8942 mm
+    @(5.0000 mm, 22.9900 mm): Track [I2C_SDA] on F.Cu, length 7.0000 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(17.7467 mm, 19.5344 mm): Pad 20 [I2C_SDA] of U4 on F.Cu
+    @(14.9967 mm, 15.1844 mm): Track [I2C_SDA] on F.Cu, length 0.5642 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.7467 mm, 22.8594 mm): Pad 9 [CAP_BNO] of U4 on F.Cu
+    @(21.9967 mm, 23.1769 mm): Pad 1 [CAP_BNO] of C7 on F.Cu
+
+** Found 46 Footprint errors **
+[footprint_symbol_mismatch]: C_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Capacitor_SMD:C_0402_1005Metric) überein.
+    Local override; warning
+    @(5.5000 mm, 7.5000 mm): Footprint C1
+[footprint_symbol_mismatch]: C_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Capacitor_SMD:C_0402_1005Metric) überein.
+    Local override; warning
+    @(18.9967 mm, 16.1969 mm): Footprint C3
+[footprint_symbol_mismatch]: C_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Capacitor_SMD:C_0402_1005Metric) überein.
+    Local override; warning
+    @(21.9967 mm, 19.6969 mm): Footprint C4
+[footprint_symbol_mismatch]: C_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Capacitor_SMD:C_0402_1005Metric) überein.
+    Local override; warning
+    @(9.5000 mm, 7.5000 mm): Footprint C5
+[footprint_symbol_mismatch]: C_0805_2012Metric stimmt nicht mit dem Footprint des Symbols (Capacitor_SMD:C_0805_2012Metric) überein.
+    Local override; warning
+    @(18.4967 mm, 26.1969 mm): Footprint C6
+[footprint_symbol_mismatch]: C_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Capacitor_SMD:C_0402_1005Metric) überein.
+    Local override; warning
+    @(21.9967 mm, 22.6969 mm): Footprint C7
+[net_conflict]: Das Pad-Netz (CAP_BNO) stimmt nicht mit dem im Schaltplan (/CAP_BNO) angegebenen Netz überein.
+    Local override; warning
+    @(21.9967 mm, 23.1769 mm): Pad 1 [CAP_BNO] of C7 on F.Cu
+[footprint_symbol_mismatch]: JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal stimmt nicht mit dem Footprint des Symbols (Connector_JST:JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal) überein.
+    Local override; warning
+    @(4.5000 mm, 26.0000 mm): Footprint J1
+[net_conflict]: Das Pad-Netz (I2C_SDA) stimmt nicht mit dem im Schaltplan (/I2C_SDA) angegebenen Netz überein.
+    Local override; warning
+    @(5.0000 mm, 24.0000 mm): Pad 3 [I2C_SDA] of J1 on F.Cu
+[net_conflict]: Das Pad-Netz (I2C_SCL) stimmt nicht mit dem im Schaltplan (/I2C_SCL) angegebenen Netz überein.
+    Local override; warning
+    @(6.0000 mm, 24.0000 mm): Pad 4 [I2C_SCL] of J1 on F.Cu
+[net_conflict]: Kein entsprechender Pin im Schaltplan gefunden.
+    Local override; warning
+    @(1.7000 mm, 27.8750 mm): Pad MP [GND] of J1 on F.Cu
+[net_conflict]: Kein entsprechender Pin im Schaltplan gefunden.
+    Local override; warning
+    @(7.3000 mm, 27.8750 mm): Pad MP [GND] of J1 on F.Cu
+[footprint_symbol_mismatch]: R_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Resistor_SMD:R_0402_1005Metric) überein.
+    Local override; warning
+    @(12.9967 mm, 26.1969 mm): Footprint R1
+[net_conflict]: Das Pad-Netz (I2C_SDA) stimmt nicht mit dem im Schaltplan (/I2C_SDA) angegebenen Netz überein.
+    Local override; warning
+    @(12.9967 mm, 25.6869 mm): Pad 2 [I2C_SDA] of R1 on F.Cu
+[footprint_symbol_mismatch]: R_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Resistor_SMD:R_0402_1005Metric) überein.
+    Local override; warning
+    @(15.4967 mm, 26.1969 mm): Footprint R2
+[net_conflict]: Das Pad-Netz (I2C_SCL) stimmt nicht mit dem im Schaltplan (/I2C_SCL) angegebenen Netz überein.
+    Local override; warning
+    @(15.4967 mm, 25.6869 mm): Pad 2 [I2C_SCL] of R2 on F.Cu
+[footprint_symbol_mismatch]: R_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Resistor_SMD:R_0402_1005Metric) überein.
+    Local override; warning
+    @(24.9967 mm, 19.6969 mm): Footprint R3
+[net_conflict]: Das Pad-Netz (BOOTN_N) stimmt nicht mit dem im Schaltplan (/BOOTN_N) angegebenen Netz überein.
+    Local override; warning
+    @(24.9967 mm, 19.1869 mm): Pad 2 [BOOTN_N] of R3 on F.Cu
+[footprint_symbol_mismatch]: R_0402_1005Metric stimmt nicht mit dem Footprint des Symbols (Resistor_SMD:R_0402_1005Metric) überein.
+    Local override; warning
+    @(26.9967 mm, 19.6969 mm): Footprint R4
+[net_conflict]: Das Pad-Netz (RST_BNO) stimmt nicht mit dem im Schaltplan (/RST_BNO) angegebenen Netz überein.
+    Local override; warning
+    @(26.9967 mm, 19.1869 mm): Pad 2 [RST_BNO] of R4 on F.Cu
+[footprint_symbol_mismatch]: BMP581_LGA-10_2x2mm stimmt nicht mit dem Footprint des Symbols (aura_sensors:BMP581_LGA-10_2x2mm) überein.
+    Local override; warning
+    @(5.5000 mm, 4.0000 mm): Footprint U1
+[net_conflict]: Das Pad-Netz (I2C_SCL) stimmt nicht mit dem im Schaltplan (/I2C_SCL) angegebenen Netz überein.
+    Local override; warning
+    @(5.5000 mm, 3.1500 mm): Pad 2 [I2C_SCL] of U1 on F.Cu
+[net_conflict]: Das Pad-Netz (I2C_SDA) stimmt nicht mit dem im Schaltplan (/I2C_SDA) angegebenen Netz überein.
+    Local override; warning
+    @(4.6500 mm, 3.8000 mm): Pad 4 [I2C_SDA] of U1 on F.Cu
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U1-INT-Pad7))
+    Local override; warning
+    @(5.5000 mm, 4.8500 mm): Pad 7 [<no net>] of U1 on F.Cu
+[footprint_symbol_mismatch]: Bosch_LGA-14_3x2.5mm_P0.5mm stimmt nicht mit dem Footprint des Symbols (Package_LGA:Bosch_LGA-14_3x2.5mm_P0.5mm) überein.
+    Local override; warning
+    @(15.4967 mm, 16.1969 mm): Footprint U3
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U3-SDx-Pad2))
+    Local override; warning
+    @(14.2342 mm, 15.9469 mm): Pad 2 [<no net>] of U3 on F.Cu
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U3-SCx-Pad3))
+    Local override; warning
+    @(14.2342 mm, 16.4469 mm): Pad 3 [<no net>] of U3 on F.Cu
+[net_conflict]: Das Pad-Netz (INT_LSM) stimmt nicht mit dem im Schaltplan (/INT_LSM) angegebenen Netz überein.
+    Local override; warning
+    @(14.2342 mm, 16.9469 mm): Pad 4 [INT_LSM] of U3 on F.Cu
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U3-INT2-Pad9))
+    Local override; warning
+    @(16.7592 mm, 16.4469 mm): Pad 9 [<no net>] of U3 on F.Cu
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U3-OCS_Aux-Pad10))
+    Local override; warning
+    @(16.7592 mm, 15.9469 mm): Pad 10 [<no net>] of U3 on F.Cu
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U3-SDO_Aux-Pad11))
+    Local override; warning
+    @(16.7592 mm, 15.4469 mm): Pad 11 [<no net>] of U3 on F.Cu
+[net_conflict]: Das Pad-Netz (I2C_SCL) stimmt nicht mit dem im Schaltplan (/I2C_SCL) angegebenen Netz überein.
+    Local override; warning
+    @(15.4967 mm, 15.1844 mm): Pad 13 [I2C_SCL] of U3 on F.Cu
+[net_conflict]: Das Pad-Netz (I2C_SDA) stimmt nicht mit dem im Schaltplan (/I2C_SDA) angegebenen Netz überein.
+    Local override; warning
+    @(14.9967 mm, 15.1844 mm): Pad 14 [I2C_SDA] of U3 on F.Cu
+[footprint_symbol_mismatch]: LGA-28_5.2x3.8mm_P0.5mm stimmt nicht mit dem Footprint des Symbols (Package_LGA:LGA-28_5.2x3.8mm_P0.5mm) überein.
+    Local override; warning
+    @(15.4967 mm, 21.1969 mm): Footprint U4
+[net_conflict]: Das Pad-Netz (BOOTN_N) stimmt nicht mit dem im Schaltplan (/BOOTN_N) angegebenen Netz überein.
+    Local override; warning
+    @(13.1092 mm, 21.4469 mm): Pad 4 [BOOTN_N] of U4 on F.Cu
+[net_conflict]: Das Pad-Netz (CAP_BNO) stimmt nicht mit dem im Schaltplan (/CAP_BNO) angegebenen Netz überein.
+    Local override; warning
+    @(14.7467 mm, 22.8594 mm): Pad 9 [CAP_BNO] of U4 on F.Cu
+[net_conflict]: Das Pad-Netz (RST_BNO) stimmt nicht mit dem im Schaltplan (/RST_BNO) angegebenen Netz überein.
+    Local override; warning
+    @(15.7467 mm, 22.8594 mm): Pad 11 [RST_BNO] of U4 on F.Cu
+[net_conflict]: Das Pad-Netz (INT_BNO) stimmt nicht mit dem im Schaltplan (/INT_BNO) angegebenen Netz überein.
+    Local override; warning
+    @(17.2467 mm, 22.8594 mm): Pad 14 [INT_BNO] of U4 on F.Cu
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U4-S_SCL-Pad15))
+    Local override; warning
+    @(17.7467 mm, 22.8594 mm): Pad 15 [<no net>] of U4 on F.Cu
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U4-S_SDA-Pad16))
+    Local override; warning
+    @(17.8842 mm, 21.9469 mm): Pad 16 [<no net>] of U4 on F.Cu
+[net_conflict]: Das Pad-Netz (I2C_SCL) stimmt nicht mit dem im Schaltplan (/I2C_SCL) angegebenen Netz überein.
+    Local override; warning
+    @(17.8842 mm, 20.4469 mm): Pad 19 [I2C_SCL] of U4 on F.Cu
+[net_conflict]: Das Pad-Netz (I2C_SDA) stimmt nicht mit dem im Schaltplan (/I2C_SDA) angegebenen Netz überein.
+    Local override; warning
+    @(17.7467 mm, 19.5344 mm): Pad 20 [I2C_SDA] of U4 on F.Cu
+[net_conflict]: Pad fehlt Netz gemäß Schaltplan (unconnected-(U4-XIN32-Pad27))
+    Local override; warning
+    @(14.2467 mm, 19.5344 mm): Pad 27 [<no net>] of U4 on F.Cu
+[footprint_symbol_mismatch]: Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad stimmt nicht mit dem Footprint des Symbols (Sensor_Humidity:Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad) überein.
+    Local override; warning
+    @(9.5000 mm, 4.0000 mm): Footprint U5
+[net_conflict]: Das Pad-Netz (I2C_SDA) stimmt nicht mit dem im Schaltplan (/I2C_SDA) angegebenen Netz überein.
+    Local override; warning
+    @(8.8000 mm, 3.6000 mm): Pad 1 [I2C_SDA] of U5 on F.Cu
+[net_conflict]: Das Pad-Netz (I2C_SCL) stimmt nicht mit dem im Schaltplan (/I2C_SCL) angegebenen Netz überein.
+    Local override; warning
+    @(8.8000 mm, 4.4000 mm): Pad 2 [I2C_SCL] of U5 on F.Cu
+
+** Ignored checks **
+    - Board edge clearance violation
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - PTH inside courtyard
+    - NPTH inside courtyard
+    - Footprint component type doesn't match footprint pads
+
+** End of Report **

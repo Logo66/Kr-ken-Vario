@@ -22,3 +22,5 @@ hardware/sensor_board/project/test_zone*
 hardware/sensor_board/project/temp-*
 hardware/reference/
 hardware/sensor_board/lib/SparkFun-KiCad-Libraries/
+
+.tmp.driveupload/

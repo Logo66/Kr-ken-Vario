@@ -1,0 +1,4 @@
+fanout vias added: 29
+skipped (no free spot): 5 ['U4.7[GND]', 'U4.13[GND]', 'U4.21[GND]', 'U4.26[GND]', 'U4.28[+3V3]']
+gnd stitch vias: 23
+saved C:\Users\Ivo\aura_kruecke\hardware\sensor_board\project\_route\sb_fanout_prep.kicad_pcb 173030 bytes

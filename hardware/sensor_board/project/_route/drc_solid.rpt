@@ -1,0 +1,130 @@
+** Drc report for sb_solid_routed.kicad_pcb **
+** Created on 2026-06-22T23:47:28 **
+** Report includes: Errors **
+
+** Found 0 DRC violations **
+
+** Found 28 unconnected pads **
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(4.6500 mm, 4.2000 mm): Pad 5 [+3V3] of U1 on F.Cu
+    @(5.1000 mm, 4.8500 mm): Pad 6 [+3V3] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(5.1000 mm, 4.8500 mm): Pad 6 [+3V3] of U1 on F.Cu
+    @(6.3500 mm, 3.8000 mm): Pad 10 [+3V3] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(5.1000 mm, 4.8500 mm): Pad 6 [+3V3] of U1 on F.Cu
+    @(5.5000 mm, 8.3072 mm): Track [+3V3] on F.Cu, length 0.3272 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(5.9000 mm, 3.1500 mm): Pad 1 [+3V3] of U1 on F.Cu
+    @(6.3500 mm, 3.8000 mm): Pad 10 [+3V3] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(10.2000 mm, 4.4000 mm): Pad 3 [+3V3] of U5 on F.Cu
+    @(9.5000 mm, 9.5617 mm): Track [+3V3] on F.Cu, length 1.5817 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(5.9000 mm, 4.8500 mm): Pad 8 [GND] of U1 on F.Cu
+    @(6.3500 mm, 4.2000 mm): Pad 9 [GND] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(5.9000 mm, 4.8500 mm): Pad 8 [GND] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(6.3500 mm, 4.2000 mm): Pad 9 [GND] of U1 on F.Cu
+    @(5.1000 mm, 3.1500 mm): Pad 3 [GND] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.1092 mm, 21.9469 mm): Pad 5 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.2467 mm, 19.5344 mm): Pad 1 [GND] of U4 on F.Cu
+    @(13.1092 mm, 20.4469 mm): Pad 2 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.2467 mm, 22.8594 mm): Pad 8 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.2467 mm, 22.8594 mm): Pad 8 [GND] of U4 on F.Cu
+    @(15.2467 mm, 22.8594 mm): Pad 10 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.7467 mm, 19.5344 mm): Pad 26 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.7467 mm, 19.5344 mm): Pad 26 [GND] of U4 on F.Cu
+    @(13.2467 mm, 19.5344 mm): Pad 1 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.2467 mm, 22.8594 mm): Pad 10 [GND] of U4 on F.Cu
+    @(16.2467 mm, 22.8594 mm): Pad 12 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.4967 mm, 17.2094 mm): Pad 6 [GND] of U3 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.4967 mm, 17.2094 mm): Pad 6 [GND] of U3 on F.Cu
+    @(14.2342 mm, 15.4469 mm): Pad 1 [GND] of U3 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.9967 mm, 17.2094 mm): Pad 7 [GND] of U3 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(16.7467 mm, 22.8594 mm): Pad 13 [GND] of U4 on F.Cu
+    @(16.2467 mm, 22.8594 mm): Pad 12 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(16.7467 mm, 22.8594 mm): Pad 13 [GND] of U4 on F.Cu
+    @(17.8842 mm, 21.4469 mm): Pad 17 [GND] of U4 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(16.7467 mm, 22.8594 mm): Pad 13 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(17.2467 mm, 19.5344 mm): Pad 21 [GND] of U4 on F.Cu
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+    @(0.3000 mm, 0.3000 mm): Zone [GND] on F.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(8.8000 mm, 4.4000 mm): Pad 2 [I2C_SCL] of U5 on F.Cu
+    @(5.5000 mm, 3.1500 mm): Pad 2 [I2C_SCL] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(8.8000 mm, 4.4000 mm): Pad 2 [I2C_SCL] of U5 on F.Cu
+    @(16.7946 mm, 14.5452 mm): Track [I2C_SCL] on F.Cu, length 1.2979 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(17.8842 mm, 20.4469 mm): Track [I2C_SCL] on F.Cu, length 0.6392 mm
+    @(13.8098 mm, 24.0000 mm): Track [I2C_SCL] on F.Cu, length 2.3856 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(8.8000 mm, 3.6000 mm): Pad 1 [I2C_SDA] of U5 on F.Cu
+    @(4.6500 mm, 3.8000 mm): Pad 4 [I2C_SDA] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(8.8000 mm, 3.6000 mm): Pad 1 [I2C_SDA] of U5 on F.Cu
+    @(14.0109 mm, 14.5452 mm): Track [I2C_SDA] on F.Cu, length 12.7433 mm
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Footprint component type doesn't match footprint pads
+
+** End of Report **

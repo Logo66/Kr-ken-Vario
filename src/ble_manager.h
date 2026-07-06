@@ -14,6 +14,7 @@
 #define AURA_STATUS_UUID     "4155524F-0001-0001-0001-000000000004"
 #define AURA_ENV_UUID        "4155524F-0001-0001-0001-000000000005"
 #define AURA_CFG_UUID        "4155524F-0001-0001-0001-000000000006"  // M2/M3: Write(verschluesselt)+Notify
+#define AURA_FANET_UUID      "4155524F-0001-0001-0001-000000000007"  // empfangene FANET-Objekte (Piloten/Stationen) ans Handy -> offenes Live-Netz
 
 // Vario-Daten (20 Bytes, passt in 1 BLE Notification)
 struct __attribute__((packed)) BleVarioData {
@@ -41,6 +42,29 @@ struct __attribute__((packed)) BleEnvData {
     float base_est;    // m Wolkenbasis-Schaetzung (beim Kurbeln)
     float wind_speed;  // km/h
     float wind_dir;    // Grad, woher der Wind kommt (0 bis erster Kreis geschaetzt)
+};
+
+// Ein empfangener FANET-Pilot (29 B, packed) — Notify-Char …0007. no_track=1 -> Tracking AUS, NICHT relayen.
+struct __attribute__((packed)) BleFanetPilot {
+    uint8_t  manufacturer;
+    uint16_t id;
+    uint8_t  aircraft;
+    uint8_t  no_track;
+    float    lat, lon, alt_m, speed_kmh, vz_ms, heading_deg;
+};
+
+// Eine empfangene FANET-Wetterstation (Type 4) — Notify-Char …0007, kind=4. Wind/Gust in m/s.
+struct __attribute__((packed)) BleFanetStation {
+    uint8_t  manufacturer;
+    uint16_t id;
+    float    lat, lon, wind_speed_ms, wind_dir_deg, gust_ms, temp_c, humidity;
+};
+
+// Name eines empfangenen FANET-Piloten (Type 2) — Notify-Char …0007, kind=2.
+struct __attribute__((packed)) BleFanetName {
+    uint8_t  manufacturer;
+    uint16_t id;
+    char     name[24];
 };
 
 // Eine eingehende BLE-Schreibnachricht (ein Write = ein Settings-KV oder ein Task-Chunk).
@@ -133,6 +157,12 @@ public:
         );
         _cfgChar->setCallbacks(new CfgCB(this));
 
+        // FANET-Objekte (Read + Notify): empfangene Piloten/Stationen fuers App-Relay (offenes Live-Netz)
+        _fanetChar = svc->createCharacteristic(
+            AURA_FANET_UUID,
+            NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
+        );
+
         svc->start();
 
         // Advertising
@@ -187,6 +217,13 @@ public:
         _envChar->notify();
     }
 
+    // FANET-Objekte senden (…0007): main.cpp baut die Payload [u8 kind][u8 count][records].
+    void notifyFanet(const uint8_t *data, size_t len) {
+        if (!ok || !connected || !_fanetChar || len == 0) return;
+        _fanetChar->setValue(data, len);
+        _fanetChar->notify();
+    }
+
     // === M2/M3: BLE-Schreibweg (Konfig + Task) ===
     // Eingehende Writes liegen in der Queue; main.cpp leert sie im Loop (kein SD/JSON im BLE-Callback).
     bool cfgPending() { return _cfgQ && uxQueueMessagesWaiting(_cfgQ) > 0; }
@@ -218,6 +255,7 @@ private:
     NimBLECharacteristic *_statusChar = nullptr;
     NimBLECharacteristic *_envChar = nullptr;
     NimBLECharacteristic *_cfgChar = nullptr;
+    NimBLECharacteristic *_fanetChar = nullptr;
     QueueHandle_t _cfgQ = nullptr;
 
     class ServerCB : public NimBLEServerCallbacks {

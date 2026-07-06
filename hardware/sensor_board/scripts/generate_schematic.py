@@ -771,29 +771,12 @@ def generate_v2():
             "2": (0, 3.81),
         }, {"1": "+3V3", "2": "GND"})
 
-    # --- U2: BMP581 #2 (addr 0x46, SDO=GND) ---
-    add_comp_with_labels("U2", "aura_sensors:BMP581", "BMP581",
-        "aura_sensors:BMP581_LGA-10_2x2mm",
-        50.8, 109.22, BMP581_PINS,
-        {"1_VDDIO": "+3V3", "2_SCL": "I2C_SCL", "3_GND": "GND",
-         "4_SDA": "I2C_SDA", "5_SDO_ADDR": "GND",
-         "6_CSB": "+3V3", "7_INT": None, "8_GND": "GND",
-         "9_GND": "GND", "10_VDD": "+3V3"})
-
-    # --- C2: U2 decoupling ---
-    add_comp_with_labels("C2", "Device:C", "100n",
-        "Capacitor_SMD:C_0402_1005Metric",
-        73.66, 109.22, {
-            "1": (0, -3.81),
-            "2": (0, 3.81),
-        }, {"1": "+3V3", "2": "GND"})
-
     # --- U3: LSM6DSO32 (addr 0x6A, SDO=GND) ---
     add_comp_with_labels("U3", "SparkFun-Sensor:LSM6DSOX", "LSM6DSO32",
         "Package_LGA:Bosch_LGA-14_3x2.5mm_P0.5mm",
         50.8, 147.32, LSM_PINS,
         {"1_SDO_SA0": "GND", "2_SDx": None, "3_SCx": None,
-         "4_INT1": "INT_LSM", "5_VDDIO": "+3V3", "6_GND": "GND",
+         "4_INT1": None, "5_VDDIO": "+3V3", "6_GND": "GND",
          "8_VDD": "+3V3", "9_INT2": None, "10_OCS": None,
          "11_SDO_AUX": None, "12_CS": "+3V3",
          "13_SCL": "I2C_SCL", "14_SDA": "I2C_SDA"})
@@ -823,7 +806,7 @@ def generate_v2():
             "10_CLKSEL0": "GND",  # use internal oscillator
             "11_RSTN": "RST_BNO",
             "12_GND": "GND", "13_GND": "GND",
-            "14_HINTN": "INT_BNO",
+            "14_HINTN": None,
             "15_SSCL": None,    # secondary I2C unused
             "16_SSDA": None,
             "17_HSA0": "GND",   # I2C address bit: 0 -> 0x4A
@@ -911,8 +894,8 @@ def generate_v2():
     # CAP is at pin 9, which is currently NC. Let me connect it.
     # Actually, CAP needs a 100nF capacitor. Let me add it.
 
-    # --- U5: SHT40 ---
-    add_comp_with_labels("U5", "Sensor_Humidity:SHT4x", "SHT40",
+    # --- U5: SHT45 ---
+    add_comp_with_labels("U5", "Sensor_Humidity:SHT4x", "SHT45",
         "Sensor_Humidity:Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad",
         50.8, 259.08, SHT4X_PINS,
         {"1_SDA": "I2C_SDA", "2_SCL": "I2C_SCL",
@@ -925,19 +908,6 @@ def generate_v2():
             "1": (0, -3.81),
             "2": (0, 3.81),
         }, {"1": "+3V3", "2": "GND"})
-
-    # --- J2: 2x3 Pin Header ---
-    # Conn_02x03_Odd_Even pins:
-    # Pin 1: (-5.08, -2.54), Pin 2: (5.08, -2.54)
-    # Pin 3: (-5.08, 0),     Pin 4: (5.08, 0)
-    # Pin 5: (-5.08, 2.54),  Pin 6: (5.08, 2.54)
-    # Moved J2 to y=269.24 to avoid wire endpoint collision with U5 at y=259.08
-    # (J2 pin 2 and U5 pin 2 wires both ended at (38.1, 256.54), merging INT_LSM into I2C_SCL)
-    add_comp_with_labels("J2", "Connector_Generic:Conn_02x03_Odd_Even", "INT_HDR",
-        "Connector_PinHeader_1.27mm:PinHeader_2x03_P1.27mm_Vertical",
-        25.4, 269.24, CONN6_PINS,
-        {"1": "INT_BNO", "2": "INT_LSM", "3": "RST_BNO",
-         "4": "GND", "5": "+3V3", "6": None})
 
     # ============================================================
     # ASSEMBLE SCHEMATIC

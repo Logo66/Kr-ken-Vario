@@ -17,6 +17,12 @@ static void buzzerTone(uint32_t freq, uint32_t dur_ms) {
 
 static void buzzerStop() { buzzerTone(0, 0); }
 
+// Piezo (Modulino 0x1E) am Bus? Harmloser Stopp-Write; true = ACK. Fuer Boot-Check (externer I2C-Schalter).
+static bool buzzerProbe() {
+    uint8_t b[8] = {0,0,0,0, 0,0,0,0};
+    return i2c_master_write_to_device(I2C_NUM_0, BUZZER_ADDR, b, 8, pdMS_TO_TICKS(50)) == ESP_OK;
+}
+
 // START-JINGLE — langsamer, geerdeter E-BLUES ueber das ganze Frequenzband (nicht giftig).
 // Bogen: warmer tiefer Grundton -> bluesiger Aufstieg (mit Blue Note) -> hoerbare Antwort
 // oben im lauten Band -> Aufloesung zurueck nach unten auf den langen Grundton (sicher geerdet).

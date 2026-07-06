@@ -1,0 +1,82 @@
+** Drc report for sb_hand_routed.kicad_pcb **
+** Created on 2026-06-23T12:21:49 **
+** Report includes: Errors **
+
+** Found 11 DRC violations **
+[clearance]: Freiraum-Verstoß ( Freiraum 0.1000 mm; tatsächlich 0.0965 mm)
+    Local override; error
+    @(4.6000 mm, 3.8000 mm): Track [I2C_SDA] on F.Cu, length 3.4059 mm
+    @(6.3500 mm, 4.2000 mm): Track [GND] on F.Cu, length 0.5000 mm
+[hole_clearance]: Loch-Freiraum-Verstoß (Einschränkungen aus Platinenkonfiguration zu Löchern Freiraum 0.2500 mm; tatsächlich 0.2250 mm)
+    Rule: Einschränkungen aus Platinenkonfiguration zu Löchern; error
+    @(18.4809 mm, 20.8844 mm): Via [+3V3] on F.Cu - B.Cu
+    @(18.4809 mm, 21.5094 mm): Via [GND] on F.Cu - B.Cu
+[hole_clearance]: Loch-Freiraum-Verstoß (Einschränkungen aus Platinenkonfiguration zu Löchern Freiraum 0.2500 mm; tatsächlich 0.2321 mm)
+    Rule: Einschränkungen aus Platinenkonfiguration zu Löchern; error
+    @(14.7467 mm, 22.8594 mm): Pad 9 [CAP_BNO] of U4 on F.Cu
+    @(15.1575 mm, 23.4527 mm): Via [GND] on F.Cu - B.Cu
+[shorting_items]: Elemente, die zwei Netze kurzschließen (Netze I2C_SDA und +3V3)
+    Local override; error
+    @(4.6000 mm, 3.8000 mm): Track [I2C_SDA] on F.Cu, length 3.4059 mm
+    @(6.3500 mm, 3.8000 mm): Track [+3V3] on F.Cu, length 0.5000 mm
+[hole_clearance]: Loch-Freiraum-Verstoß (Einschränkungen aus Platinenkonfiguration zu Löchern Freiraum 0.2500 mm; tatsächlich 0.2290 mm)
+    Rule: Einschränkungen aus Platinenkonfiguration zu Löchern; error
+    @(6.8367 mm, 4.3145 mm): Via [GND] on F.Cu - B.Cu
+    @(6.8367 mm, 3.6855 mm): Via [+3V3] on F.Cu - B.Cu
+[clearance]: Freiraum-Verstoß ( Freiraum 0.1000 mm; tatsächlich 0.0636 mm)
+    Local override; error
+    @(4.6000 mm, 3.8000 mm): Track [I2C_SDA] on F.Cu, length 3.4059 mm
+    @(6.3500 mm, 4.2000 mm): Pad 9 [GND] of U1 on F.Cu
+[shorting_items]: Elemente, die zwei Netze kurzschließen (Netze I2C_SDA und +3V3)
+    Local override; error
+    @(8.8000 mm, 3.6000 mm): Track [I2C_SDA] on F.Cu, length 12.0017 mm
+    @(13.0000 mm, 13.0000 mm): Via [+3V3] on F.Cu - B.Cu
+[shorting_items]: Elemente, die zwei Netze kurzschließen (Netze I2C_SDA und +3V3)
+    Local override; error
+    @(4.6000 mm, 3.8000 mm): Track [I2C_SDA] on F.Cu, length 3.4059 mm
+    @(6.8367 mm, 3.6855 mm): Via [+3V3] on F.Cu - B.Cu
+[hole_clearance]: Loch-Freiraum-Verstoß (Einschränkungen aus Platinenkonfiguration zu Löchern Freiraum 0.2500 mm; tatsächlich 0.2321 mm)
+    Rule: Einschränkungen aus Platinenkonfiguration zu Löchern; error
+    @(14.7467 mm, 22.8594 mm): Pad 9 [CAP_BNO] of U4 on F.Cu
+    @(15.1575 mm, 23.4527 mm): Via [GND] on F.Cu - B.Cu
+[solder_mask_bridge]: Vorderseitige Lötstoppöffnung über Elementen mit verschiedenen Netzen
+    Rule: Mindestbreite der Lötstoppmaske aus Platinenkonfiguration; error
+    @(4.6000 mm, 3.8000 mm): Track [I2C_SDA] on F.Cu, length 3.4059 mm
+    @(6.3500 mm, 3.8000 mm): Pad 10 [+3V3] of U1 on F.Cu
+[solder_mask_bridge]: Vorderseitige Lötstoppöffnung über Elementen mit verschiedenen Netzen
+    Rule: Mindestbreite der Lötstoppmaske aus Platinenkonfiguration; error
+    @(8.8000 mm, 3.6000 mm): Track [I2C_SDA] on F.Cu, length 12.0017 mm
+    @(8.8000 mm, 4.4000 mm): Pad 2 [I2C_SCL] of U5 on F.Cu
+
+** Found 5 unconnected pads **
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.7467 mm, 19.5344 mm): Pad 28 [+3V3] of U4 on F.Cu
+    @(13.1092 mm, 20.9469 mm): Track [+3V3] on F.Cu, length 0.8000 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(8.8000 mm, 4.4000 mm): Pad 2 [I2C_SCL] of U5 on F.Cu
+    @(5.5000 mm, 3.1500 mm): Pad 2 [I2C_SCL] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.4967 mm, 15.1844 mm): Pad 13 [I2C_SCL] of U3 on F.Cu
+    @(18.0593 mm, 20.2718 mm): Track [I2C_SCL] on F.Cu, length 0.6317 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(15.4967 mm, 15.1844 mm): Pad 13 [I2C_SCL] of U3 on F.Cu
+    @(8.8000 mm, 4.4000 mm): Pad 2 [I2C_SCL] of U5 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(4.6000 mm, 3.8000 mm): Track [I2C_SDA] on F.Cu, length 3.4059 mm
+    @(8.8000 mm, 3.6000 mm): Track [I2C_SDA] on F.Cu, length 12.0017 mm
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Footprint component type doesn't match footprint pads
+
+** End of Report **

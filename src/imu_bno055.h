@@ -23,10 +23,9 @@
 //   Heading ggf. spaeter per Achsen-Remap (Reg 0x41/0x42) an die Einbaulage anpassen.
 static const float kBnoUpSign = 1.0f;
 
-// Heading-Konvention (mount-unabhaengig, tilt-kompensiert): welche Geraete-Achse zeigt in
-// Flugrichtung ("Vorne") + Offset. Per Geraete-Nord-Test einstellen. Erst-Annahme: Vorne = +Y.
-static const float kFwdX = 0.0f, kFwdY = 0.0f, kFwdZ = 1.0f;   // Vorne = Schirmnormale (Z): bleibt bei steilem Einbau waagrecht
-static const float kHdgOffset = 0.0f;   // Roh-Heading; Nord-Nullpunkt setzt der User ("NORDEN SETZEN" -> NVS)
+// Heading ist jetzt mount-unabhaengig (Drehung um die Welt-Hochachse relativ zur NORDEN-Lage,
+// siehe imu.h) -> keine "Vorne"-Achse mehr noetig; nur die Drehrichtung ggf. umkehren.
+static const float kBnoHdgSign = 1.0f;   // +1 = im Uhrzeigersinn steigend; bei Bedarf -1 (vor Ort)
 
 class ImuBno055 : public IMU {
 public:
@@ -67,13 +66,10 @@ public:
 
         _s.accel_up      = kBnoUpSign * up;
         _s.accel_valid   = true;
-        // Tilt-kompensiertes Heading aus dem Quaternion (mount-unabhaengig, kein Gimbal-Lock bei
-        // schraeger Lage): Geraete-"Vorne"-Achse ins Erdframe drehen -> Azimut in der Horizontalen.
-        float fx = (1-2*(y*y+z*z))*kFwdX + 2*(x*y-w*z)*kFwdY + 2*(x*z+w*y)*kFwdZ;
-        float fy = 2*(x*y+w*z)*kFwdX + (1-2*(x*x+z*z))*kFwdY + 2*(y*z-w*x)*kFwdZ;
-        float hdg = -atan2f(fy, fx) * 57.29578f + kHdgOffset;   // Vorzeichen: im Uhrzeigersinn steigend (N->O->S->W)
-        while (hdg < 0) hdg += 360.0f;  while (hdg >= 360.0f) hdg -= 360.0f;
-        _s.heading       = hdg;
+        _qw=w; _qx=x; _qy=y; _qz=z;                 // Quaternion fuer captureNorth merken
+        // Tilt-stabiles Heading: Drehung um die Welt-Hochachse relativ zur NORDEN-Referenz
+        // (_qcal). Mount-unabhaengig, pitch/roll-invariant -> KEIN Sprung beim Kippen.
+        _s.heading       = imuHeadingDeg(w, x, y, z, _qcal, kBnoHdgSign);
         _s.heading_valid = true;
         float gx=s16(ac,0)/100.0f, gy=s16(ac,2)/100.0f, gz=s16(ac,4)/100.0f;
         _s.accel_g       = sqrtf(gx*gx + gy*gy + gz*gz) / 9.80665f;             // g
@@ -82,6 +78,11 @@ public:
 
     ImuSample sample() override { return _s; }
     const char* name() const override { return "BNO055"; }
+
+    void captureNorth() override {                 // "NORDEN SETZEN": aktuelle Lage = Referenz
+        _qcal[0]=_qw; _qcal[1]=_qx; _qcal[2]=_qy; _qcal[3]=_qz;
+        _s.heading = imuHeadingDeg(_qw,_qx,_qy,_qz,_qcal,kBnoHdgSign);   // sofort 0
+    }
 
     ImuCal cal() override {
         ImuCal c; uint8_t s;
@@ -108,6 +109,7 @@ public:
 private:
     uint8_t   _addr = 0x28;
     ImuSample _s;
+    float _qw=1, _qx=0, _qy=0, _qz=0;   // letztes Quaternion (fuer captureNorth)
 
     static int16_t s16(const uint8_t* b, int i) { return (int16_t)(b[i] | (b[i+1] << 8)); }
     bool wr(uint8_t reg, uint8_t val) {

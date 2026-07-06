@@ -9,6 +9,20 @@
 //     (Sensor-Wechsel ist damit nur ein neuer Treiber; die Fusion bleibt unberuehrt.)
 //   Spaeter: ImuBno085 — einfach ein weiterer Treiber hinter diesem Interface.
 #include <Arduino.h>
+#include <math.h>
+
+// Tilt-stabiles Heading (mount-unabhaengig): Drehung um die WELT-Hochachse (Schwerkraft) relativ
+// zur "NORDEN SETZEN"-Lage. Swing-Twist um Welt-Z von qrel = q (x) conj(qcal). pitch/roll-invariant
+// -> KEIN Sprung beim Kippen (Singularitaet erst bei ~senkrechtem Nicken, im Flug nie). Liefert
+// 0..360 Grad; 'sign' kehrt bei Bedarf die Drehrichtung um (im Uhrzeigersinn steigend, vor Ort pruefen).
+static inline float imuHeadingDeg(float w, float x, float y, float z, const float qc[4], float sign) {
+    float cw=qc[0], cx=-qc[1], cy=-qc[2], cz=-qc[3];   // conj(qcal)
+    float rw = w*cw - x*cx - y*cy - z*cz;              // Realteil von q (x) conj(qcal)
+    float rz = w*cz + x*cy - y*cx + z*cw;              // k-Anteil (Drehung um Welt-Z)
+    float h  = sign * 2.0f * atan2f(rz, rw) * 57.29578f;
+    while (h < 0) h += 360.0f;  while (h >= 360.0f) h -= 360.0f;
+    return h;
+}
 
 struct ImuSample {
     float accel_up      = 0;      // welt-bezogene Vertikalbeschleunigung [m/s^2], schwerkraftbereinigt, + = aufwaerts
@@ -35,6 +49,15 @@ public:
     virtual ImuCal cal() { return ImuCal{}; }                            // Kalibrier-Status (0-3)
     virtual bool readCalProfile(uint8_t* buf22)        { return false; } // 22-Byte-Profil lesen (-> NVS)
     virtual bool writeCalProfile(const uint8_t* buf22) { return false; } // Profil schreiben (aus NVS beim Boot)
+
+    // Heading-Nullpunkt / Tilt-Referenz ("NORDEN SETZEN"). Der Treiber merkt sich die aktuelle
+    // Lage als Referenz-Quaternion (_qcal); das Heading ist danach die Drehung um die Welt-
+    // Hochachse relativ dazu (tilt-stabil, siehe imuHeadingDeg). get/set fuer die NVS-Persistenz.
+    virtual void captureNorth() {}                                       // aktuelle Lage = Referenz (0 Grad)
+    bool getNorthRef(float q[4]) const { q[0]=_qcal[0]; q[1]=_qcal[1]; q[2]=_qcal[2]; q[3]=_qcal[3]; return true; }
+    void setNorthRef(const float q[4]) { for (int i=0;i<4;i++) _qcal[i]=q[i]; }
+protected:
+    float _qcal[4] = {1,0,0,0};   // Referenz-Quaternion (Identitaet bis "NORDEN SETZEN")
 };
 
 // Null-Treiber = heutiger Stand (kein brauchbarer IMU). Liefert nichts Gueltiges,

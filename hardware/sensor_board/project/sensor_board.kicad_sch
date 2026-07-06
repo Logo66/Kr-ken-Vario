@@ -2,7 +2,7 @@
   (version 20231120)
   (generator "aura_gen")
   (generator_version "1.0")
-  (uuid "43a4d944-0562-448e-8648-0c446ad34f94")
+  (uuid "f9d52ee8-33a9-4124-b22a-46b8852261aa")
   (paper "A3")
 
   (lib_symbols
@@ -1776,13 +1776,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "553c0818-2e90-4764-a8f6-95e1b5bfecc1")
+      (uuid "59b2e54d-1c4c-4fca-9fbb-944d46aa77a9")
       (property "Reference" "J1" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "Qwiic" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Connector_JST:JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "J1")
             (unit 1)
           )
@@ -1792,7 +1792,7 @@
 
     (wire
       (pts (xy 20.32 48.26) (xy 15.24 48.26))
-      (uuid "f4201d31-c920-4609-92d2-d263a114f8b9")
+      (uuid "c7a280ba-9bc3-4123-94a3-92a6dba84d61")
     )
 
     (symbol
@@ -1803,13 +1803,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "db595a11-ac1f-4bc9-a9f2-aa11ca5d1da0")
+      (uuid "d7697050-d5eb-4b50-bc7b-2f7c179e1a47")
       (property "Reference" "#PWR001" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR001")
             (unit 1)
           )
@@ -1819,7 +1819,7 @@
 
     (wire
       (pts (xy 20.32 50.8) (xy 15.24 50.8))
-      (uuid "fed7021c-ab05-4b1c-b2d4-4ad7ade01479")
+      (uuid "e2178bdc-f55b-4c8d-b600-3b85476d6c84")
     )
 
     (symbol
@@ -1830,13 +1830,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "ad80e22a-16a4-4b5f-b40d-fec8be40736e")
+      (uuid "3b2719a7-d8e1-4a19-ae4d-8724cdab40fd")
       (property "Reference" "#PWR002" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR002")
             (unit 1)
           )
@@ -1846,24 +1846,24 @@
 
     (wire
       (pts (xy 20.32 53.34) (xy 15.24 53.34))
-      (uuid "a9751a0f-593a-4169-bffd-e5617c778310")
+      (uuid "68f9c37a-e3bd-46ea-b2be-17a8dd4cf586")
     )
 
     (label "I2C_SDA"
       (at 15.24 53.34 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "a5ec8b82-cc78-442e-a9c0-6bfed88214b1")
+      (uuid "e9f9265c-63cd-472e-a8a1-cba64a3c6971")
     )
 
     (wire
       (pts (xy 20.32 55.88) (xy 15.24 55.88))
-      (uuid "7a28c822-ee66-451c-a18d-79973e3f1845")
+      (uuid "d7ed5ee5-0077-499d-9e82-a249abcda4d2")
     )
 
     (label "I2C_SCL"
       (at 15.24 55.88 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "534efc27-c15b-4d5a-9688-05a0a40d3110")
+      (uuid "2ddfa25c-efec-49f2-a966-cb10702be11f")
     )
 
     (symbol
@@ -1874,13 +1874,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "11513ed0-93c5-4e27-989e-a6c5b3ae559b")
+      (uuid "617b7561-9d51-46d6-b9f6-52149e2e36d7")
       (property "Reference" "#FLG01" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "PWR_FLAG" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#FLG01")
             (unit 1)
           )
@@ -1896,13 +1896,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "ef23d039-7d74-4710-9ade-c88e6a6c3fd7")
+      (uuid "c8c499bb-a4f9-4afc-a51e-afeccfd77e30")
       (property "Reference" "#FLG02" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "PWR_FLAG" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#FLG02")
             (unit 1)
           )
@@ -1918,13 +1918,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "98bb248f-126d-461a-a846-fc43d98f9fab")
+      (uuid "51926c32-94a6-4185-a581-91058d2263da")
       (property "Reference" "R1" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "4.7k" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Resistor_SMD:R_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "R1")
             (unit 1)
           )
@@ -1934,7 +1934,7 @@
 
     (wire
       (pts (xy 55.88 34.29) (xy 55.88 29.21))
-      (uuid "6d98730c-720c-4f90-846e-33b36e52625c")
+      (uuid "cfee0607-ec14-41b3-95d5-886bdc68a683")
     )
 
     (symbol
@@ -1945,13 +1945,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "2952fbae-e703-4c7c-8685-6909a9c49587")
+      (uuid "36c3dbdf-adb3-45ac-b53f-d071e53deb8e")
       (property "Reference" "#PWR003" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR003")
             (unit 1)
           )
@@ -1961,13 +1961,13 @@
 
     (wire
       (pts (xy 55.88 41.91) (xy 55.88 46.99))
-      (uuid "1844774f-a553-4831-b78f-17c727a03d73")
+      (uuid "175073da-69b0-4e26-a968-e7c94efef66d")
     )
 
     (label "I2C_SDA"
       (at 55.88 46.99 270)
       (effects (font (size 1.27 1.27)))
-      (uuid "6137bd01-5387-4d8d-a1a5-c43e1629d0e7")
+      (uuid "0b041d92-8d77-4ce9-ad4b-ec78c05c5b56")
     )
 
     (symbol
@@ -1978,13 +1978,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "53d3f6fc-1b31-4faf-bdb9-1ad63027ec97")
+      (uuid "a82d11d4-796a-47ca-a2cf-ada0346fcc1a")
       (property "Reference" "R2" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "4.7k" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Resistor_SMD:R_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "R2")
             (unit 1)
           )
@@ -1994,7 +1994,7 @@
 
     (wire
       (pts (xy 63.5 34.29) (xy 63.5 29.21))
-      (uuid "3edf8fc4-c498-4bc1-ae28-370128bdd374")
+      (uuid "4a0045cb-fc50-43c6-895c-075ff4142f6f")
     )
 
     (symbol
@@ -2005,13 +2005,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "2e6b5871-45f6-4814-a05c-143e10674f9d")
+      (uuid "89096313-c48d-4849-bbbd-ce22b08d3862")
       (property "Reference" "#PWR004" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR004")
             (unit 1)
           )
@@ -2021,13 +2021,13 @@
 
     (wire
       (pts (xy 63.5 41.91) (xy 63.5 46.99))
-      (uuid "a0ebda0b-3af7-4387-b4c5-cc1970a7f29c")
+      (uuid "c67eebc8-4042-4d3c-8497-279610c9e34a")
     )
 
     (label "I2C_SCL"
       (at 63.5 46.99 270)
       (effects (font (size 1.27 1.27)))
-      (uuid "4fe9b003-9bc1-459f-aac3-d37440cfdbd2")
+      (uuid "cfca524a-6640-4bf7-9f62-48b6d7cafde4")
     )
 
     (symbol
@@ -2038,13 +2038,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "11a0d1d6-804f-4e82-885a-e8b9ca4737a6")
+      (uuid "5fec2775-da20-4fa5-9505-07d42e270002")
       (property "Reference" "C6" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "10u" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Capacitor_SMD:C_0805_2012Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "C6")
             (unit 1)
           )
@@ -2054,7 +2054,7 @@
 
     (wire
       (pts (xy 73.66 34.29) (xy 73.66 29.21))
-      (uuid "6f2012ff-59f1-4237-854a-b903ba52ad76")
+      (uuid "ca27d971-1f8a-4fa6-91b5-263d6e4a5cf0")
     )
 
     (symbol
@@ -2065,13 +2065,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "cc585450-cbc9-488f-9a43-84f8b048d488")
+      (uuid "914bcef4-8773-4feb-9dfb-acbe88756cd0")
       (property "Reference" "#PWR005" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR005")
             (unit 1)
           )
@@ -2081,7 +2081,7 @@
 
     (wire
       (pts (xy 73.66 41.91) (xy 73.66 46.99))
-      (uuid "b8ddaadc-8753-4c7d-8324-545cb1440178")
+      (uuid "eae3a80b-572c-4e08-b444-2da29b55976a")
     )
 
     (symbol
@@ -2092,13 +2092,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "3825ab84-44df-46b8-971d-4d6dbe0e4141")
+      (uuid "5add79b8-1db5-4245-a2e9-a28e7b42f65c")
       (property "Reference" "#PWR006" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR006")
             (unit 1)
           )
@@ -2114,13 +2114,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "cb2a4af0-2316-4489-ba7e-9b0ce08cc3be")
+      (uuid "97d30936-a21e-41ff-a652-4fde3940ff0a")
       (property "Reference" "U1" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "BMP581" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "aura_sensors:BMP581_LGA-10_2x2mm" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "U1")
             (unit 1)
           )
@@ -2130,7 +2130,7 @@
 
     (wire
       (pts (xy 53.34 66.04) (xy 53.34 60.96))
-      (uuid "08952b82-11f9-4bad-8712-4ca8b229cdf1")
+      (uuid "4ad0bdb8-e4fd-4c40-b6f4-cf7b03e0a053")
     )
 
     (symbol
@@ -2141,13 +2141,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "52116a63-c78a-4e11-b7d2-a5f842b2d30d")
+      (uuid "3fe59dbc-d136-475f-b48b-997bf6fcc8d0")
       (property "Reference" "#PWR007" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR007")
             (unit 1)
           )
@@ -2157,18 +2157,18 @@
 
     (wire
       (pts (xy 41.91 73.66) (xy 36.83 73.66))
-      (uuid "8eb2fcf5-39f4-4d62-9e3d-b00ec1babd16")
+      (uuid "9164ae7b-964f-416d-bc7d-0398464dbc5f")
     )
 
     (label "I2C_SCL"
       (at 36.83 73.66 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "3d161190-a489-4aa1-af70-c6cad8244649")
+      (uuid "920880e1-bf7b-4ff3-82c5-b383d743eed7")
     )
 
     (wire
       (pts (xy 50.8 86.36) (xy 50.8 91.44))
-      (uuid "a85f3ae6-4034-4879-9b8d-d1bce0df6a22")
+      (uuid "82616168-97cf-4d63-88e1-5f8119bb560e")
     )
 
     (symbol
@@ -2179,13 +2179,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "bad22141-184c-435e-8643-6d6bd2ac317a")
+      (uuid "efac1b09-dca3-4a04-8f6b-f9f32ebf22b3")
       (property "Reference" "#PWR008" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR008")
             (unit 1)
           )
@@ -2195,18 +2195,18 @@
 
     (wire
       (pts (xy 41.91 71.12) (xy 36.83 71.12))
-      (uuid "14337338-b1d3-4980-a886-32d12befdd3e")
+      (uuid "3394ab86-0cc9-474e-8b65-b680f7eee560")
     )
 
     (label "I2C_SDA"
       (at 36.83 71.12 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "8f22c528-0aec-4a3f-a468-9e7d1a8d2947")
+      (uuid "68412206-5c13-4fbe-9833-ecef0143beb0")
     )
 
     (wire
       (pts (xy 41.91 76.2) (xy 36.83 76.2))
-      (uuid "38068aaf-5cf8-4548-a3b0-473622943f3b")
+      (uuid "baa11f98-9077-48a4-ada5-8b8e33c3fc17")
     )
 
     (symbol
@@ -2217,13 +2217,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "0c79195c-eaab-46a6-bff8-d7d429f40dc8")
+      (uuid "0cf949c5-2a77-4d5a-9697-dc89ea9c80b9")
       (property "Reference" "#PWR009" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR009")
             (unit 1)
           )
@@ -2233,7 +2233,7 @@
 
     (wire
       (pts (xy 41.91 78.74) (xy 36.83 78.74))
-      (uuid "5967ab29-8486-4959-93a7-202593405718")
+      (uuid "30ee0965-5c1c-4284-8d79-db9b5c39e6f1")
     )
 
     (symbol
@@ -2244,13 +2244,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "526012b5-7b58-4041-92b6-ca13a86eaec0")
+      (uuid "c3ec024d-d4cd-4da6-a423-ae9178688ea9")
       (property "Reference" "#PWR010" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR010")
             (unit 1)
           )
@@ -2258,11 +2258,11 @@
       )
     )
 
-    (no_connect (at 59.69 71.12) (uuid "c0970364-ac32-43f8-9936-005c9b0615a4"))
+    (no_connect (at 59.69 71.12) (uuid "b410cca6-d3ba-45ff-bcdc-03f22ad8a504"))
 
     (wire
       (pts (xy 53.34 86.36) (xy 53.34 91.44))
-      (uuid "701aea4b-86c4-4979-adb3-86f7951530be")
+      (uuid "d9505332-f42f-4d7b-a1da-6f676c314ab1")
     )
 
     (symbol
@@ -2273,13 +2273,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "bc9fc1db-3602-4cfe-bac9-e65934fa2e4f")
+      (uuid "e69ebe94-8d00-48d4-9cff-a10ebd5c7de2")
       (property "Reference" "#PWR011" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR011")
             (unit 1)
           )
@@ -2289,7 +2289,7 @@
 
     (wire
       (pts (xy 55.88 86.36) (xy 60.96 86.36))
-      (uuid "31ac5db8-185c-4442-a83f-0ac72202a48b")
+      (uuid "1a312053-6bf8-46db-b084-71a155a9f4be")
     )
 
     (symbol
@@ -2300,13 +2300,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "383d5634-842b-433a-a169-04e42c5b0893")
+      (uuid "2cfe73c9-ec0e-4e05-a835-d8f948cbb67a")
       (property "Reference" "#PWR012" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR012")
             (unit 1)
           )
@@ -2316,7 +2316,7 @@
 
     (wire
       (pts (xy 48.26 66.04) (xy 48.26 60.96))
-      (uuid "87340f53-2ac1-4d82-bd4b-1aa0f5e62e63")
+      (uuid "2130b959-c906-45f9-aa76-5aeb54b96a13")
     )
 
     (symbol
@@ -2327,13 +2327,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "0ec4e827-8800-4c97-8a04-e1233d2b91a6")
+      (uuid "d7231bc6-f607-4147-8a7a-370f84ee6261")
       (property "Reference" "#PWR013" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR013")
             (unit 1)
           )
@@ -2349,13 +2349,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "7b5b73a9-0d2f-40eb-8e0d-8cdc5a1b7fe5")
+      (uuid "495b4e3a-5409-4a55-9735-31dfb714b7cc")
       (property "Reference" "C1" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "100n" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "C1")
             (unit 1)
           )
@@ -2365,7 +2365,7 @@
 
     (wire
       (pts (xy 73.66 72.39) (xy 73.66 67.31))
-      (uuid "8742878d-51b2-4593-8aeb-4d7a32607432")
+      (uuid "aac4daf4-c4a6-4f7b-95e9-ab30a9611d02")
     )
 
     (symbol
@@ -2376,13 +2376,13 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "3bfc3105-c9f4-44a0-b7e4-dbfb4fbc5cac")
+      (uuid "8dd18fe0-bb0f-4238-b5f3-02d62501a5fd")
       (property "Reference" "#PWR014" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR014")
             (unit 1)
           )
@@ -2392,7 +2392,7 @@
 
     (wire
       (pts (xy 73.66 80.01) (xy 73.66 85.09))
-      (uuid "c057e992-dabd-4fbd-8180-dc56be1fcc1f")
+      (uuid "7c8081c4-b352-43c6-97a2-9326493c8b7e")
     )
 
     (symbol
@@ -2403,325 +2403,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "673d73ed-65a0-4716-856b-17feb9a2c821")
+      (uuid "e268997c-c9f3-437c-b11c-b4b205737a38")
       (property "Reference" "#PWR015" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "#PWR015")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (symbol
-      (lib_id "aura_sensors:BMP581")
-      (at 50.8 109.22 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom yes)
-      (on_board yes)
-      (dnp no)
-      (uuid "46135a0e-dfe5-4c4c-9def-670123c9b6a3")
-      (property "Reference" "U2" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "BMP581" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "aura_sensors:BMP581_LGA-10_2x2mm" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "U2")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 53.34 99.06) (xy 53.34 93.98))
-      (uuid "74ee0e59-7c32-47d9-96d4-979f55153993")
-    )
-
-    (symbol
-      (lib_id "power:+3V3")
-      (at 53.34 93.98 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "5671ec84-b8a2-466a-91e7-9329b0e02fee")
-      (property "Reference" "#PWR016" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR016")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 41.91 106.68) (xy 36.83 106.68))
-      (uuid "1fa73cf5-77f5-4bbd-bb39-abd887873b7c")
-    )
-
-    (label "I2C_SCL"
-      (at 36.83 106.68 180)
-      (effects (font (size 1.27 1.27)))
-      (uuid "ab8f9a49-3de3-4361-8fb0-5aab323e9a3a")
-    )
-
-    (wire
-      (pts (xy 50.8 119.38) (xy 50.8 124.46))
-      (uuid "25c30073-de73-481b-a353-8d078134ddb0")
-    )
-
-    (symbol
-      (lib_id "power:GND")
-      (at 50.8 124.46 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "3341cab1-9f3d-4bbd-af58-8810f3521839")
-      (property "Reference" "#PWR017" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR017")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 41.91 104.14) (xy 36.83 104.14))
-      (uuid "4cadf34f-736b-46bd-8659-6918cd8e4928")
-    )
-
-    (label "I2C_SDA"
-      (at 36.83 104.14 180)
-      (effects (font (size 1.27 1.27)))
-      (uuid "63d6e8b2-85a4-4056-a3a5-9e4597c19f7e")
-    )
-
-    (wire
-      (pts (xy 41.91 109.22) (xy 36.83 109.22))
-      (uuid "077d9ad1-4609-4685-a9d8-0148c196d2a6")
-    )
-
-    (symbol
-      (lib_id "power:GND")
-      (at 36.83 109.22 270)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "8362c199-efca-4362-b8e5-c5463a0624ae")
-      (property "Reference" "#PWR018" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR018")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 41.91 111.76) (xy 36.83 111.76))
-      (uuid "107d7c31-1301-46a8-95b6-42b96ac48804")
-    )
-
-    (symbol
-      (lib_id "power:+3V3")
-      (at 36.83 111.76 90)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "d48a0593-5796-4b2d-85c7-00890c088a10")
-      (property "Reference" "#PWR019" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR019")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (no_connect (at 59.69 104.14) (uuid "34fcc4c2-0417-4afd-a636-31b977aee45f"))
-
-    (wire
-      (pts (xy 53.34 119.38) (xy 53.34 124.46))
-      (uuid "6461cc60-2cfc-4bb3-88c4-6ec44d66bbaa")
-    )
-
-    (symbol
-      (lib_id "power:GND")
-      (at 53.34 124.46 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "da50a3f8-3ca3-41fe-bfcf-7355ce783024")
-      (property "Reference" "#PWR020" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR020")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 55.88 119.38) (xy 60.96 119.38))
-      (uuid "f81e6584-10a5-41ec-9fce-8ddb7409c494")
-    )
-
-    (symbol
-      (lib_id "power:GND")
-      (at 60.96 119.38 90)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "98e2150a-48ae-4662-a04a-c5aca777e870")
-      (property "Reference" "#PWR021" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR021")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 48.26 99.06) (xy 48.26 93.98))
-      (uuid "60988d50-a734-4b7c-b39a-23c794068c49")
-    )
-
-    (symbol
-      (lib_id "power:+3V3")
-      (at 48.26 93.98 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "316c9938-6cfc-4a4e-ad0f-61970efd87d6")
-      (property "Reference" "#PWR022" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR022")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (symbol
-      (lib_id "Device:C")
-      (at 73.66 109.22 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom yes)
-      (on_board yes)
-      (dnp no)
-      (uuid "068321ef-0e1b-4465-96eb-119e001e9f45")
-      (property "Reference" "C2" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "100n" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "C2")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 73.66 105.41) (xy 73.66 100.33))
-      (uuid "60405e9b-02db-4323-9c1d-609bf1a1b276")
-    )
-
-    (symbol
-      (lib_id "power:+3V3")
-      (at 73.66 100.33 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "15342b80-c5f5-40a9-8f3f-bb5d0fe7910a")
-      (property "Reference" "#PWR023" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR023")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 73.66 113.03) (xy 73.66 118.11))
-      (uuid "7fa19ca2-dd9b-41ed-b942-6d0e5ecf4c8c")
-    )
-
-    (symbol
-      (lib_id "power:GND")
-      (at 73.66 118.11 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "50022a55-08b0-42e8-a08a-45e0f8ca3d47")
-      (property "Reference" "#PWR024" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR024")
             (unit 1)
           )
         )
@@ -2736,13 +2425,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "8839634c-382f-4736-9791-3b2580c4332c")
+      (uuid "1ee99660-2d65-4065-8117-4801fed74b61")
       (property "Reference" "U3" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "LSM6DSO32" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Package_LGA:Bosch_LGA-14_3x2.5mm_P0.5mm" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "U3")
             (unit 1)
           )
@@ -2752,7 +2441,7 @@
 
     (wire
       (pts (xy 60.96 143.51) (xy 66.04 143.51))
-      (uuid "445bbea5-8d54-4984-a4ad-86bf28ced1ee")
+      (uuid "3874c88b-c414-4c4c-8aeb-8d323711805b")
     )
 
     (symbol
@@ -2763,38 +2452,38 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "8f9bc23e-3e9e-4cf7-8bdd-baf6478879d1")
-      (property "Reference" "#PWR025" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "5cfee7e8-e78e-4a66-83b9-a2001f035c2b")
+      (property "Reference" "#PWR016" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR025")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR016")
             (unit 1)
           )
         )
       )
     )
 
-    (no_connect (at 60.96 148.59) (uuid "b1c67707-868c-4c95-b1ad-3b942b916628"))
+    (no_connect (at 60.96 148.59) (uuid "128e2d8b-1d31-40dc-95d4-6c96cfaa0585"))
 
-    (no_connect (at 60.96 151.13) (uuid "aebbf8bc-b062-4dfd-994b-833e6f869317"))
+    (no_connect (at 60.96 151.13) (uuid "9a353a61-37d5-4598-a6ec-496f5694b4ac"))
 
     (wire
       (pts (xy 40.64 146.05) (xy 35.56 146.05))
-      (uuid "e0001ed1-b613-4483-90d6-415f6a965739")
+      (uuid "135dd716-a0e6-4eb7-9815-14d829b3d6bf")
     )
 
     (label "INT_LSM"
       (at 35.56 146.05 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "ec1f081c-5e9c-495c-959f-0f541e6d176f")
+      (uuid "64b22934-da69-4fe5-9d0f-aaaa3aa3face")
     )
 
     (wire
       (pts (xy 40.64 140.97) (xy 35.56 140.97))
-      (uuid "39fd47e1-9edd-40a2-80e3-98980e82b9fc")
+      (uuid "145e3e3d-4095-4d3d-96ba-504843532c9c")
     )
 
     (symbol
@@ -2805,14 +2494,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "79331226-5b39-40fe-abd0-7f07da0ef0bc")
-      (property "Reference" "#PWR026" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "f2aeebe4-b2dd-4f82-9b31-739ffc657109")
+      (property "Reference" "#PWR017" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR026")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR017")
             (unit 1)
           )
         )
@@ -2821,7 +2510,7 @@
 
     (wire
       (pts (xy 40.64 156.21) (xy 35.56 156.21))
-      (uuid "4b97e22e-c397-4678-bcd3-dbfa50dce717")
+      (uuid "0a7c9a94-cf13-413b-a1f8-4e820db52947")
     )
 
     (symbol
@@ -2832,14 +2521,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "8e442efe-5c3e-46da-8563-cf44a80ca28e")
-      (property "Reference" "#PWR027" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "439f413f-df5b-4cb9-b17e-0e360a0e5bb5")
+      (property "Reference" "#PWR018" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR027")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR018")
             (unit 1)
           )
         )
@@ -2848,7 +2537,7 @@
 
     (wire
       (pts (xy 40.64 138.43) (xy 35.56 138.43))
-      (uuid "6fd10345-d624-48cd-8fa0-d46e003f2dfb")
+      (uuid "8a74a5f9-c72d-4b8c-83a7-3256793e59c8")
     )
 
     (symbol
@@ -2859,29 +2548,29 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "6ed579f7-9b3c-4681-8428-55e40c83a0f4")
-      (property "Reference" "#PWR028" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "1fb82020-e5aa-4398-8d95-e73bbbc83065")
+      (property "Reference" "#PWR019" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR028")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR019")
             (unit 1)
           )
         )
       )
     )
 
-    (no_connect (at 40.64 148.59) (uuid "df90e572-0b68-428d-a558-147a1305a152"))
+    (no_connect (at 40.64 148.59) (uuid "e37d4412-7842-46ac-aaa1-e531feb486b6"))
 
-    (no_connect (at 60.96 153.67) (uuid "9d60e7c3-feb2-4691-ae2e-85fc084c375b"))
+    (no_connect (at 60.96 153.67) (uuid "ca7dfa34-1707-49fd-a00a-d2f599f8235c"))
 
-    (no_connect (at 60.96 156.21) (uuid "666ac526-f455-44fc-8d43-e7361b8357bd"))
+    (no_connect (at 60.96 156.21) (uuid "8a41f66d-7532-4edf-adb0-210e02ca4deb"))
 
     (wire
       (pts (xy 60.96 146.05) (xy 66.04 146.05))
-      (uuid "a93de9a2-bdd8-4e65-900d-35569d11cd6c")
+      (uuid "bb6ebd16-3249-49a8-ae21-b6500f4ec106")
     )
 
     (symbol
@@ -2892,14 +2581,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "9a224115-783e-4ba4-8656-eb3ef8b114d2")
-      (property "Reference" "#PWR029" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "a9ed7b23-5db8-4677-9d82-e6533c026e05")
+      (property "Reference" "#PWR020" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR029")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR020")
             (unit 1)
           )
         )
@@ -2908,24 +2597,24 @@
 
     (wire
       (pts (xy 60.96 140.97) (xy 66.04 140.97))
-      (uuid "dd2f8b32-3d68-4697-bda8-bc4fde4c6319")
+      (uuid "83ad7325-bb55-481d-b61e-562658bcf8f9")
     )
 
     (label "I2C_SCL"
       (at 66.04 140.97 0)
       (effects (font (size 1.27 1.27)))
-      (uuid "abd510cf-0263-4afb-be26-d0567121c636")
+      (uuid "91a67eb4-068d-4d1d-8e19-7492f0e20f3b")
     )
 
     (wire
       (pts (xy 60.96 138.43) (xy 66.04 138.43))
-      (uuid "01d7d21b-70e1-4eb5-ad3f-3d55409dd134")
+      (uuid "6d833f5c-718c-4796-88e0-3b335e91e2e1")
     )
 
     (label "I2C_SDA"
       (at 66.04 138.43 0)
       (effects (font (size 1.27 1.27)))
-      (uuid "8860f0cb-c959-4e58-988e-ab3af95050b3")
+      (uuid "589b8b37-21ee-4b3c-ba37-23cc9846c522")
     )
 
     (symbol
@@ -2936,13 +2625,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "cc757152-8388-46d1-b436-a5bc743e98a8")
+      (uuid "6302cf49-af98-48ad-8ca5-fdc461d953aa")
       (property "Reference" "C3" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "100n" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "C3")
             (unit 1)
           )
@@ -2952,7 +2641,7 @@
 
     (wire
       (pts (xy 73.66 143.51) (xy 73.66 138.43))
-      (uuid "5a8a1042-604f-4da0-9a11-fd0a24742371")
+      (uuid "569b0671-8d6b-48a2-a807-b41278e2a076")
     )
 
     (symbol
@@ -2963,14 +2652,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "c2605b9d-5b92-434f-8cbd-6c93908098e5")
-      (property "Reference" "#PWR030" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "20ed799a-2ad9-4c82-a45e-cc8ff876918f")
+      (property "Reference" "#PWR021" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR030")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR021")
             (unit 1)
           )
         )
@@ -2979,7 +2668,7 @@
 
     (wire
       (pts (xy 73.66 151.13) (xy 73.66 156.21))
-      (uuid "3aea45ee-9a74-46f7-b588-9ecff1db1711")
+      (uuid "3b5f870b-da6d-4d30-80d6-6899f3b70b06")
     )
 
     (symbol
@@ -2990,14 +2679,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "92151c8d-9db6-431c-8887-c23b32957c9a")
-      (property "Reference" "#PWR031" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "a92d43a2-f73f-45f8-88b8-01c61f21719e")
+      (property "Reference" "#PWR022" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR031")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR022")
             (unit 1)
           )
         )
@@ -3012,13 +2701,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "4fcd82d0-3a62-4e85-a726-86ba04453394")
+      (uuid "7e4e8e7d-6cae-4d84-8987-ef7605f8a112")
       (property "Reference" "U4" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "BNO085" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Package_LGA:LGA-28_5.2x3.8mm_P0.5mm" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "U4")
             (unit 1)
           )
@@ -3028,7 +2717,7 @@
 
     (wire
       (pts (xy 43.18 227.33) (xy 38.1 227.33))
-      (uuid "672da73d-ef99-4677-be0f-c98e012b28e1")
+      (uuid "447d4076-09ca-44d6-a27f-ac8e13edc662")
     )
 
     (symbol
@@ -3039,14 +2728,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "62008150-5572-4b7f-bbca-d42ed4c56c70")
-      (property "Reference" "#PWR032" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "92e0dd22-f900-40bc-be81-4ed0c8346e47")
+      (property "Reference" "#PWR023" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR032")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR023")
             (unit 1)
           )
         )
@@ -3055,7 +2744,7 @@
 
     (wire
       (pts (xy 45.72 227.33) (xy 40.64 227.33))
-      (uuid "ca6995b8-4f55-401f-bd7b-be81b340b946")
+      (uuid "dda1a893-4909-4a12-9d5e-17d81ef6bec0")
     )
 
     (symbol
@@ -3066,14 +2755,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "74dd4c05-0878-4878-9985-9fbcfa3007d7")
-      (property "Reference" "#PWR033" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "d066af26-9e15-4af9-8792-4f082354dfb9")
+      (property "Reference" "#PWR024" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR033")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR024")
             (unit 1)
           )
         )
@@ -3082,7 +2771,7 @@
 
     (wire
       (pts (xy 53.34 179.07) (xy 53.34 173.99))
-      (uuid "5fda747a-dd44-43f2-8bed-ae053e6878fc")
+      (uuid "4c2ebe1c-64f7-4ae7-a760-c34e38c52d8b")
     )
 
     (symbol
@@ -3093,14 +2782,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "9b3781c5-daae-43eb-b15f-925a4783d895")
-      (property "Reference" "#PWR034" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "39e15f56-091d-4eb8-82b4-7beae34b8375")
+      (property "Reference" "#PWR025" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR034")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR025")
             (unit 1)
           )
         )
@@ -3109,18 +2798,18 @@
 
     (wire
       (pts (xy 72.39 193.04) (xy 77.47 193.04))
-      (uuid "91ddaca1-d02e-452e-8597-1abda6f42be0")
+      (uuid "5be054a6-20a1-4b4f-b749-7a2174336037")
     )
 
     (label "BOOTN_N"
       (at 77.47 193.04 0)
       (effects (font (size 1.27 1.27)))
-      (uuid "cf7111cd-6f31-4b59-b626-c5863bfe5133")
+      (uuid "2294093e-df38-4de7-b52a-edc9f5ac8012")
     )
 
     (wire
       (pts (xy 72.39 198.12) (xy 77.47 198.12))
-      (uuid "419e5230-9874-40d8-9ec5-e9f7b33cc1df")
+      (uuid "d2a1022d-7df9-4326-9b60-818247924f78")
     )
 
     (symbol
@@ -3131,14 +2820,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "890dc14c-4e45-4849-9ece-217a78b5b15e")
-      (property "Reference" "#PWR035" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "6c4ff6a4-69f4-4ade-a295-6c7de6921fed")
+      (property "Reference" "#PWR026" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR035")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR026")
             (unit 1)
           )
         )
@@ -3147,7 +2836,7 @@
 
     (wire
       (pts (xy 72.39 195.58) (xy 77.47 195.58))
-      (uuid "7da78113-f760-41de-9f10-8feefaff8b4e")
+      (uuid "3028e30e-136b-4966-9ac3-dc021743880c")
     )
 
     (symbol
@@ -3158,14 +2847,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "66a8c6a2-828c-4a0c-be99-2bec94da77e8")
-      (property "Reference" "#PWR036" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "b5421b63-6798-4e54-819b-3d4b110cf52a")
+      (property "Reference" "#PWR027" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR036")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR027")
             (unit 1)
           )
         )
@@ -3174,7 +2863,7 @@
 
     (wire
       (pts (xy 48.26 227.33) (xy 43.18 227.33))
-      (uuid "68508f95-c74a-48c7-8072-1fa6ff94e601")
+      (uuid "c6c80c8a-b8e5-4069-98bd-97b2d79a6933")
     )
 
     (symbol
@@ -3185,14 +2874,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "f0ee9b10-6ca6-42c8-8cfa-4a0659220922")
-      (property "Reference" "#PWR037" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "ade8f864-a6a0-4898-95ad-e9ead207d993")
+      (property "Reference" "#PWR028" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR037")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR028")
             (unit 1)
           )
         )
@@ -3201,7 +2890,7 @@
 
     (wire
       (pts (xy 50.8 227.33) (xy 45.72 227.33))
-      (uuid "740c47c8-c4bf-4145-94e8-7cacd7b71c59")
+      (uuid "6ae3f24f-974a-4a41-a4bb-a479ed7b89dd")
     )
 
     (symbol
@@ -3212,14 +2901,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "9c6017d6-304b-4b7f-94b6-b506ea4a6c35")
-      (property "Reference" "#PWR038" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "e5591726-c899-446e-99f7-8b5ab090f4d9")
+      (property "Reference" "#PWR029" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR038")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR029")
             (unit 1)
           )
         )
@@ -3228,18 +2917,18 @@
 
     (wire
       (pts (xy 72.39 213.36) (xy 77.47 213.36))
-      (uuid "33d4b73b-9c38-4092-a68a-e7ce36ae4460")
+      (uuid "69157784-fcff-4974-b4b1-f2f16762f88a")
     )
 
     (label "CAP_BNO"
       (at 77.47 213.36 0)
       (effects (font (size 1.27 1.27)))
-      (uuid "7ef48f68-c796-4cbd-a40e-8531b261542a")
+      (uuid "064b6301-4d6c-4ffd-9006-2c4ea5b2b069")
     )
 
     (wire
       (pts (xy 72.39 208.28) (xy 77.47 208.28))
-      (uuid "c66f0606-cb84-436e-b438-6b6344e92402")
+      (uuid "098841ae-f548-422e-91d8-6e7b96e0a4c8")
     )
 
     (symbol
@@ -3250,14 +2939,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "d974b445-e307-40f6-9e1e-e4c6ae96b288")
-      (property "Reference" "#PWR039" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "1ec6e8ff-0c65-4814-ae74-be5042f6e0ee")
+      (property "Reference" "#PWR030" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR039")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR030")
             (unit 1)
           )
         )
@@ -3266,18 +2955,18 @@
 
     (wire
       (pts (xy 72.39 190.5) (xy 77.47 190.5))
-      (uuid "f6190e2b-523f-4b7f-af46-0373c64e118e")
+      (uuid "b7834c49-2020-4407-8dc5-40143a2b406f")
     )
 
     (label "RST_BNO"
       (at 77.47 190.5 0)
       (effects (font (size 1.27 1.27)))
-      (uuid "9669ff4b-fb0e-414c-87a6-22fd1579c102")
+      (uuid "0adfa749-fffc-4f5d-b6d7-a76983c51463")
     )
 
     (wire
       (pts (xy 53.34 227.33) (xy 53.34 232.41))
-      (uuid "d966038a-b223-4f0d-a9d7-d6b0ee5ae76f")
+      (uuid "8f426c06-7c49-4145-a80a-c39b39ef60db")
     )
 
     (symbol
@@ -3288,14 +2977,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "5607022b-c958-46b9-a82c-352eb0997f17")
-      (property "Reference" "#PWR040" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "763808d5-e44d-4791-ad36-455ea607575c")
+      (property "Reference" "#PWR031" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR040")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR031")
             (unit 1)
           )
         )
@@ -3304,7 +2993,7 @@
 
     (wire
       (pts (xy 55.88 227.33) (xy 55.88 232.41))
-      (uuid "3f88d29e-804c-4c31-8463-176a0782b619")
+      (uuid "47608502-3c8a-4830-b41f-54662fd21366")
     )
 
     (symbol
@@ -3315,14 +3004,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "c3c195f9-c929-4c3c-9236-70aa4e79d613")
-      (property "Reference" "#PWR041" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "c8d03361-10cc-432f-8924-2b16dfdf0190")
+      (property "Reference" "#PWR032" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR041")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR032")
             (unit 1)
           )
         )
@@ -3331,22 +3020,22 @@
 
     (wire
       (pts (xy 72.39 187.96) (xy 77.47 187.96))
-      (uuid "c1ea9a5d-59d3-4921-8cf4-d36d9c76fa43")
+      (uuid "b1448896-7b97-4864-b2af-57d87e6d9cb1")
     )
 
     (label "INT_BNO"
       (at 77.47 187.96 0)
       (effects (font (size 1.27 1.27)))
-      (uuid "140ec41c-783b-4011-8582-6eee21539a4a")
+      (uuid "ff485316-b665-4d01-8dc8-88dda5f530e5")
     )
 
-    (no_connect (at 39.37 205.74) (uuid "ccf7103d-7326-4934-8267-05f0891bd1b3"))
+    (no_connect (at 39.37 205.74) (uuid "4110f302-152f-4194-a9f3-ad5836bd4e22"))
 
-    (no_connect (at 39.37 208.28) (uuid "d267fda9-4c24-4dcc-87c6-1c0cfb28a16d"))
+    (no_connect (at 39.37 208.28) (uuid "192d27a1-bb04-4b56-99f3-7de6b8bd81bc"))
 
     (wire
       (pts (xy 39.37 198.12) (xy 34.29 198.12))
-      (uuid "3fb09cd2-6558-43f4-ae48-0dabfbbdbe32")
+      (uuid "c0c50d4e-8f3b-42e9-82c7-4ff8c61bbd0d")
     )
 
     (symbol
@@ -3357,14 +3046,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "e6fd4cad-7de0-4732-97e5-fe3646e84086")
-      (property "Reference" "#PWR042" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "4922eeda-00c4-4f56-81c8-fe130a7ecec4")
+      (property "Reference" "#PWR033" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR042")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR033")
             (unit 1)
           )
         )
@@ -3373,7 +3062,7 @@
 
     (wire
       (pts (xy 39.37 200.66) (xy 34.29 200.66))
-      (uuid "179351c8-e265-41c9-bf4b-890d56cf99c1")
+      (uuid "649d58bc-8cb1-4bc7-9005-ba5dff97d6b8")
     )
 
     (symbol
@@ -3384,14 +3073,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "ac0950f1-a42b-4d0d-be0d-357b48dad930")
-      (property "Reference" "#PWR043" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "01c27d0e-ea82-47fc-9f98-c98f829f74ed")
+      (property "Reference" "#PWR034" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR043")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR034")
             (unit 1)
           )
         )
@@ -3400,29 +3089,29 @@
 
     (wire
       (pts (xy 39.37 190.5) (xy 34.29 190.5))
-      (uuid "65cb1642-9b51-4d2d-bb99-7965068dbb12")
+      (uuid "35c34ed9-1157-418d-8c45-0ba0fa482fa3")
     )
 
     (label "I2C_SCL"
       (at 34.29 190.5 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "a59dd37c-568f-4f1a-91c4-77db7b3854e6")
+      (uuid "3230e56b-bf56-4a83-a394-b3267b11b926")
     )
 
     (wire
       (pts (xy 39.37 187.96) (xy 34.29 187.96))
-      (uuid "97243543-15f8-454f-90aa-513289a20e65")
+      (uuid "45450285-3565-4215-9345-00db5d088dfb")
     )
 
     (label "I2C_SDA"
       (at 34.29 187.96 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "f0fbbdfb-e4f7-49f6-b257-eaf795372a7c")
+      (uuid "4ff7ab12-2794-4400-ab62-29f7d5a7fb30")
     )
 
     (wire
       (pts (xy 58.42 227.33) (xy 58.42 232.41))
-      (uuid "245b54e2-a070-4491-a3b6-fb3a814c6d31")
+      (uuid "d4382f27-7d20-4f4f-b19d-d9485bc907e6")
     )
 
     (symbol
@@ -3433,14 +3122,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "399ba423-c614-408a-abbe-7834421c2ddb")
-      (property "Reference" "#PWR044" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "3a2fdb0e-ae12-47e4-87cf-8fc8adab75e4")
+      (property "Reference" "#PWR035" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR044")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR035")
             (unit 1)
           )
         )
@@ -3449,7 +3138,7 @@
 
     (wire
       (pts (xy 60.96 227.33) (xy 66.04 227.33))
-      (uuid "0fdbf145-51d7-4ef1-9291-c170b89e7b01")
+      (uuid "ae902b67-cc31-4984-833b-6a26b0e4ae98")
     )
 
     (symbol
@@ -3460,14 +3149,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "b2ca4744-8338-4246-8bb5-e0d10236dbb8")
-      (property "Reference" "#PWR045" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "3c6b366d-7735-4741-8b3d-350b40fe5ea5")
+      (property "Reference" "#PWR036" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR045")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR036")
             (unit 1)
           )
         )
@@ -3476,7 +3165,7 @@
 
     (wire
       (pts (xy 63.5 227.33) (xy 68.58 227.33))
-      (uuid "7d9ed330-def0-4cf9-85ed-ae0d828e863e")
+      (uuid "70a05fe7-bac8-4743-87f4-9a57c754980a")
     )
 
     (symbol
@@ -3487,14 +3176,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "c811bd8c-bb6a-42f6-9584-87e4f55bd287")
-      (property "Reference" "#PWR046" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "5997fc8a-b853-4a60-9822-64a9fcb3b5b3")
+      (property "Reference" "#PWR037" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR046")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR037")
             (unit 1)
           )
         )
@@ -3503,7 +3192,7 @@
 
     (wire
       (pts (xy 66.04 227.33) (xy 71.12 227.33))
-      (uuid "fd78d653-2c42-4c0a-b33f-d3ed41b69d21")
+      (uuid "e448cc01-102f-4e29-a6b2-389d257f03f0")
     )
 
     (symbol
@@ -3514,14 +3203,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "0ec1d9e4-f0b1-48ef-a0b5-ed3ed459eca7")
-      (property "Reference" "#PWR047" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "0ee99241-89e1-48a6-b9d6-1ce6af26b245")
+      (property "Reference" "#PWR038" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR047")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR038")
             (unit 1)
           )
         )
@@ -3530,7 +3219,7 @@
 
     (wire
       (pts (xy 68.58 227.33) (xy 73.66 227.33))
-      (uuid "5d64631b-6349-4213-be57-b1a2e221719f")
+      (uuid "24f26735-437f-483c-990d-a8b7e77eec2d")
     )
 
     (symbol
@@ -3541,14 +3230,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "4a7bdb34-9f4a-4b9e-9ca3-c90cd6e2ac02")
-      (property "Reference" "#PWR048" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "da496592-084c-4d3c-a30e-fdfa1bf463ee")
+      (property "Reference" "#PWR039" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR048")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR039")
             (unit 1)
           )
         )
@@ -3557,7 +3246,7 @@
 
     (wire
       (pts (xy 72.39 210.82) (xy 77.47 210.82))
-      (uuid "683d9d73-152a-4b07-acd1-3d410c8853ac")
+      (uuid "a7f2b0f6-0587-4404-ae47-1893bceb1a60")
     )
 
     (symbol
@@ -3568,25 +3257,25 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "73480c65-e645-4f70-a97e-51c3b06c41f9")
-      (property "Reference" "#PWR049" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "094fb51d-48e9-4ddb-9c1c-d01687a51c83")
+      (property "Reference" "#PWR040" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR049")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR040")
             (unit 1)
           )
         )
       )
     )
 
-    (no_connect (at 39.37 213.36) (uuid "fc624c97-6e72-44d5-9bbc-d456d7394570"))
+    (no_connect (at 39.37 213.36) (uuid "1471b0a2-d9fc-4cf4-a10d-d9c0d072d5d0"))
 
     (wire
       (pts (xy 58.42 179.07) (xy 58.42 173.99))
-      (uuid "df209d1c-bd4f-435d-bdf3-3bf935ba9fd4")
+      (uuid "106ed609-c5c1-44d0-8098-f94fb63b67d2")
     )
 
     (symbol
@@ -3597,14 +3286,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "85166ff9-15ca-40b1-a0ff-619f04fe3e6c")
-      (property "Reference" "#PWR050" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "1c4b168c-812c-4bd6-9ed9-780c1ade0998")
+      (property "Reference" "#PWR041" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR050")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR041")
             (unit 1)
           )
         )
@@ -3619,13 +3308,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "47198d55-4707-43b4-b225-e048ce8c3704")
+      (uuid "5cad7c70-f41b-4500-9f71-efa707a35e8f")
       (property "Reference" "C4" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "100n" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "C4")
             (unit 1)
           )
@@ -3635,7 +3324,7 @@
 
     (wire
       (pts (xy 104.14 181.61) (xy 104.14 176.53))
-      (uuid "404a6a34-a8d6-4a1b-b3aa-8e6df76ae9ab")
+      (uuid "694e5b71-bb85-41ae-bffe-8d552ba3a0a1")
     )
 
     (symbol
@@ -3646,14 +3335,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "f344b4c3-0e96-4f96-81e4-3967aa20d939")
-      (property "Reference" "#PWR051" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "9f055cc6-81b6-4c13-94d6-cfc0b149b81b")
+      (property "Reference" "#PWR042" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR051")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR042")
             (unit 1)
           )
         )
@@ -3662,7 +3351,7 @@
 
     (wire
       (pts (xy 104.14 189.23) (xy 104.14 194.31))
-      (uuid "163dfe47-24b2-4b79-a3ee-ba7095a83613")
+      (uuid "767ce0ec-7b6e-4f29-8688-7cfd27097e40")
     )
 
     (symbol
@@ -3673,14 +3362,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "8c3b03af-f505-4483-b474-4a5be7462818")
-      (property "Reference" "#PWR052" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "515fa728-fbdf-4475-a201-f8840693e864")
+      (property "Reference" "#PWR043" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR052")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR043")
             (unit 1)
           )
         )
@@ -3695,13 +3384,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "a51d0cc6-6b39-4f5b-a6ac-b7304e3a86bf")
+      (uuid "62f20590-f473-41e5-9ebc-ea7a71ca8a65")
       (property "Reference" "C7" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "100n" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "C7")
             (unit 1)
           )
@@ -3711,18 +3400,18 @@
 
     (wire
       (pts (xy 104.14 212.09) (xy 104.14 207.01))
-      (uuid "06552127-eac4-44f5-b7cf-aee48c3c1c0f")
+      (uuid "e51ae02d-4e4f-4811-b24f-793b17c18792")
     )
 
     (label "CAP_BNO"
       (at 104.14 207.01 90)
       (effects (font (size 1.27 1.27)))
-      (uuid "9ef7118c-3390-4d69-a5de-4cbcd34fc972")
+      (uuid "83c34be8-78a1-4d51-a5bd-33530e54f6d6")
     )
 
     (wire
       (pts (xy 104.14 219.71) (xy 104.14 224.79))
-      (uuid "92b85e5c-19e8-451f-b768-7821c7c5318e")
+      (uuid "e6c752d7-feb3-4838-bbeb-6ba06be60e22")
     )
 
     (symbol
@@ -3733,14 +3422,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "167fa6c5-3905-4e83-beea-02ccf2d36eae")
-      (property "Reference" "#PWR053" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "758db60c-f40c-478f-915f-d5f6809a690f")
+      (property "Reference" "#PWR044" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR053")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR044")
             (unit 1)
           )
         )
@@ -3755,13 +3444,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "1aeca975-8ac9-4455-8990-9d090eca7473")
+      (uuid "26e73e21-2e44-4684-9238-c35b51c24836")
       (property "Reference" "R3" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "10k" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Resistor_SMD:R_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "R3")
             (unit 1)
           )
@@ -3771,7 +3460,7 @@
 
     (wire
       (pts (xy 88.9 181.61) (xy 88.9 176.53))
-      (uuid "7b17291c-943e-4b1d-a85e-cf71d36e1059")
+      (uuid "d39a4c66-5988-4f25-b72d-94eb77ffe028")
     )
 
     (symbol
@@ -3782,14 +3471,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "58a7b931-276f-4fe5-9682-068cb4703df0")
-      (property "Reference" "#PWR054" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "71e3073b-049c-4f05-b375-ac14eb1eaea7")
+      (property "Reference" "#PWR045" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR054")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR045")
             (unit 1)
           )
         )
@@ -3798,13 +3487,13 @@
 
     (wire
       (pts (xy 88.9 189.23) (xy 88.9 194.31))
-      (uuid "52309432-6273-40f7-8be3-972da6b88713")
+      (uuid "9091b4df-ad37-4b20-b0ff-8504c34e8c56")
     )
 
     (label "BOOTN_N"
       (at 88.9 194.31 270)
       (effects (font (size 1.27 1.27)))
-      (uuid "81eda226-9ff0-4e66-b1eb-60323f15e356")
+      (uuid "3e2c565f-e7d8-4e22-8f97-a3a9eaf769a2")
     )
 
     (symbol
@@ -3815,13 +3504,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "e9834b27-8974-4ad2-b2eb-a73463ce7b01")
+      (uuid "a73fe459-35c2-481e-810e-d28a561ddee8")
       (property "Reference" "R4" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "10k" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Resistor_SMD:R_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "R4")
             (unit 1)
           )
@@ -3831,7 +3520,7 @@
 
     (wire
       (pts (xy 96.52 181.61) (xy 96.52 176.53))
-      (uuid "6e5d2322-7b1c-416d-8576-d8cb64e663b8")
+      (uuid "050b785e-991c-40d3-9130-544cbd44dc96")
     )
 
     (symbol
@@ -3842,14 +3531,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "19899c72-afa0-48b8-b858-78dbba549085")
-      (property "Reference" "#PWR055" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "36f277cc-3acf-4b35-8273-468141f6d3e1")
+      (property "Reference" "#PWR046" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR055")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR046")
             (unit 1)
           )
         )
@@ -3858,13 +3547,13 @@
 
     (wire
       (pts (xy 96.52 189.23) (xy 96.52 194.31))
-      (uuid "51919570-f881-4742-a8cf-a796fb3f6bcc")
+      (uuid "c256980b-7be5-4353-80af-4962c980e1ef")
     )
 
     (label "RST_BNO"
       (at 96.52 194.31 270)
       (effects (font (size 1.27 1.27)))
-      (uuid "a41e7129-8061-4ee5-9d71-8c4622cad647")
+      (uuid "fb646c47-79e1-45fe-86ae-a527f8e34609")
     )
 
     (symbol
@@ -3875,13 +3564,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "0f00c82b-468b-456b-aea4-b1bcb22f20e0")
+      (uuid "0046db95-10b4-4200-a565-b869923affac")
       (property "Reference" "U5" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "SHT40" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
+      (property "Value" "SHT45" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Sensor_Humidity:Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "U5")
             (unit 1)
           )
@@ -3891,29 +3580,29 @@
 
     (wire
       (pts (xy 43.18 261.62) (xy 38.1 261.62))
-      (uuid "715f9781-7d4b-4292-a5fa-11f351a9ae15")
+      (uuid "17f511a1-f230-4f00-964b-41dff5330f95")
     )
 
     (label "I2C_SDA"
       (at 38.1 261.62 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "e2c50d8a-1227-4b82-b878-b598fc2d83b7")
+      (uuid "ba68d8db-8dc8-4155-92ca-d97528b0a9a6")
     )
 
     (wire
       (pts (xy 43.18 256.54) (xy 38.1 256.54))
-      (uuid "a645f22f-7d54-40c9-bba7-55994f237abd")
+      (uuid "cb17c908-9d45-4f51-abcf-b2b8946c1eb1")
     )
 
     (label "I2C_SCL"
       (at 38.1 256.54 180)
       (effects (font (size 1.27 1.27)))
-      (uuid "3d0d84a4-9888-4461-8bea-202aa7041221")
+      (uuid "38df6383-1939-475f-b3f9-3eb818deaf92")
     )
 
     (wire
       (pts (xy 53.34 251.46) (xy 53.34 246.38))
-      (uuid "96649716-7cf1-4483-9325-5bc23e8aff47")
+      (uuid "4e81fd41-29ce-4c97-9f0e-c8c3df172d24")
     )
 
     (symbol
@@ -3924,14 +3613,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "d0c06145-b46c-432c-8c1e-6622d40d950c")
-      (property "Reference" "#PWR056" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "810df46b-56f8-41cd-a707-b968b74691da")
+      (property "Reference" "#PWR047" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR056")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR047")
             (unit 1)
           )
         )
@@ -3940,7 +3629,7 @@
 
     (wire
       (pts (xy 53.34 266.7) (xy 53.34 271.78))
-      (uuid "3a71c54c-f30d-4f57-9ee1-df5879137f8b")
+      (uuid "0bdd263f-9b1f-41f2-b322-45ee92e53576")
     )
 
     (symbol
@@ -3951,14 +3640,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "7f02d99b-22f0-49c7-a4bb-9d0bc5961a68")
-      (property "Reference" "#PWR057" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "aaf7ffe7-f05e-4d6a-9ffb-8e6c7f87f864")
+      (property "Reference" "#PWR048" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR057")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR048")
             (unit 1)
           )
         )
@@ -3973,13 +3662,13 @@
       (in_bom yes)
       (on_board yes)
       (dnp no)
-      (uuid "c29c4eb4-ac11-4296-86a2-efcc6b7e5164")
+      (uuid "e95ab8ba-ddc4-4954-adcf-20dbb266136a")
       (property "Reference" "C5" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "100n" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
             (reference "C5")
             (unit 1)
           )
@@ -3989,7 +3678,7 @@
 
     (wire
       (pts (xy 73.66 255.27) (xy 73.66 250.19))
-      (uuid "a2081195-7933-4a63-857e-d053293ded89")
+      (uuid "076a1850-27ce-4865-9482-f1d7277759cd")
     )
 
     (symbol
@@ -4000,14 +3689,14 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "c75dc156-4a2c-4f35-8d38-9c836b61201a")
-      (property "Reference" "#PWR058" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "35471168-105f-4620-a50a-e716f636cf65")
+      (property "Reference" "#PWR049" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR058")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR049")
             (unit 1)
           )
         )
@@ -4016,7 +3705,7 @@
 
     (wire
       (pts (xy 73.66 262.89) (xy 73.66 267.97))
-      (uuid "19331c8a-c43b-44a2-8a60-efe48e4f799c")
+      (uuid "331eb4ed-523e-4e57-aa1c-22c586c13bf1")
     )
 
     (symbol
@@ -4027,130 +3716,19 @@
       (in_bom no)
       (on_board yes)
       (dnp no)
-      (uuid "87a216aa-623a-4d9f-87b4-1d11bed6b024")
-      (property "Reference" "#PWR059" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
+      (uuid "e7465294-1323-4060-83b2-2ba3b754bc0c")
+      (property "Reference" "#PWR050" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
       (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (instances
         (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR059")
+          (path "/f9d52ee8-33a9-4124-b22a-46b8852261aa"
+            (reference "#PWR050")
             (unit 1)
           )
         )
       )
     )
-
-    (symbol
-      (lib_id "Connector_Generic:Conn_02x03_Odd_Even")
-      (at 25.4 269.24 0)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom yes)
-      (on_board yes)
-      (dnp no)
-      (uuid "63420555-0811-4fee-aa8a-5175aa2816ab")
-      (property "Reference" "J2" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "INT_HDR" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "Connector_PinHeader_1.27mm:PinHeader_2x03_P1.27mm_Vertical" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "J2")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 20.32 266.7) (xy 15.24 266.7))
-      (uuid "523e997a-1c9a-411c-8490-57fa52eaa568")
-    )
-
-    (label "INT_BNO"
-      (at 15.24 266.7 180)
-      (effects (font (size 1.27 1.27)))
-      (uuid "3c09a14b-bcaf-49ba-8353-d4c4896533f2")
-    )
-
-    (wire
-      (pts (xy 33.02 266.7) (xy 38.1 266.7))
-      (uuid "94e766ca-eeba-414e-aebb-44bc79dc1eb8")
-    )
-
-    (label "INT_LSM"
-      (at 38.1 266.7 0)
-      (effects (font (size 1.27 1.27)))
-      (uuid "92793e0c-0319-4d82-be4c-4abecae3573c")
-    )
-
-    (wire
-      (pts (xy 20.32 269.24) (xy 15.24 269.24))
-      (uuid "1122d2ba-64ec-45dd-a9ad-53ae3a5f13c7")
-    )
-
-    (label "RST_BNO"
-      (at 15.24 269.24 180)
-      (effects (font (size 1.27 1.27)))
-      (uuid "c0fd9c45-76e8-4cce-a246-6f08bada5e0b")
-    )
-
-    (wire
-      (pts (xy 33.02 269.24) (xy 38.1 269.24))
-      (uuid "c4118cf7-9450-4bad-9546-0181cd344b5a")
-    )
-
-    (symbol
-      (lib_id "power:GND")
-      (at 38.1 269.24 90)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "82a169a5-b1b8-4eba-9902-ade606ab9c1b")
-      (property "Reference" "#PWR060" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "GND" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR060")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (wire
-      (pts (xy 20.32 271.78) (xy 15.24 271.78))
-      (uuid "7f9f1981-b5ac-4591-acf1-4f93ff53a7b7")
-    )
-
-    (symbol
-      (lib_id "power:+3V3")
-      (at 15.24 271.78 90)
-      (unit 1)
-      (exclude_from_sim no)
-      (in_bom no)
-      (on_board yes)
-      (dnp no)
-      (uuid "ac467fb7-414f-4078-b265-b6ab2b025afc")
-      (property "Reference" "#PWR061" (at 0 -1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "+3V3" (at 0 1.27 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (instances
-        (project "sensor_board"
-          (path "/43a4d944-0562-448e-8648-0c446ad34f94"
-            (reference "#PWR061")
-            (unit 1)
-          )
-        )
-      )
-    )
-
-    (no_connect (at 33.02 271.78) (uuid "a0c81110-b00e-4f32-b20e-31d5fa9ee56a"))
 
 
   (sheet_instances
